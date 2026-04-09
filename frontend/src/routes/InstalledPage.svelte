@@ -25,7 +25,7 @@
   import { getRemoteStore } from '$lib/stores';
   import { batchInstall } from '$lib/stores/downloads.svelte';
   import { _setUpdateCount } from '$lib/stores/remote.svelte';
-  import { uninstallRemoteAddon } from '$lib/stores/remote-mutations.svelte';
+  import { uninstallRemoteAddon, uninstallRemoteAddons } from '$lib/stores/remote-mutations.svelte';
   import {
     type MatchedAddon,
     type Category,
@@ -68,6 +68,9 @@
   let dismissedRequiredDeps = $state(false);
   let dismissedOptionalDeps = $state(false);
   let batchInstalling = $state(false);
+  let uninstallingFolders = $state(new SvelteSet<string>());
+  let bulkUninstalling = $state(false);
+  const selectedFolders = new SvelteSet<string>();
 
   const expandedCategories = new SvelteSet<string>();
   const expandedCategoriesStorageKey = 'scribe:installed:expanded-categories';
@@ -95,6 +98,8 @@
 
   const installableRequiredDeps = $derived(missingDeps.filter((d) => d.canInstall && !d.optional));
   const installableOptionalDeps = $derived(missingDeps.filter((d) => d.canInstall && d.optional));
+  const selectedAddons = $derived(addons.filter((addon) => selectedFolders.has(addon.folderName)));
+  const selectedCount = $derived(selectedAddons.length);
 
   onMount(() => {
     void checkMissingDeps();
@@ -166,6 +171,55 @@
     detailOpen = true;
   }
 
+  function toggleSelected(folderName: string) {
+    if (selectedFolders.has(folderName)) {
+      selectedFolders.delete(folderName);
+      return;
+    }
+    selectedFolders.add(folderName);
+  }
+
+  function clearSelection() {
+    selectedFolders.clear();
+  }
+
+  function selectVisible() {
+    for (const addon of filteredAddons) {
+      selectedFolders.add(addon.folderName);
+    }
+  }
+
+  async function uninstallOne(addon: Addon) {
+    uninstallingFolders.add(addon.folderName);
+    try {
+      await uninstallRemoteAddon(addon.folderName, addon.title);
+      selectedFolders.delete(addon.folderName);
+      void checkMissingDeps();
+    } finally {
+      uninstallingFolders.delete(addon.folderName);
+    }
+  }
+
+  async function uninstallSelected() {
+    if (selectedAddons.length === 0) return;
+
+    bulkUninstalling = true;
+    for (const addon of selectedAddons) {
+      uninstallingFolders.add(addon.folderName);
+    }
+
+    try {
+      await uninstallRemoteAddons(
+        selectedAddons.map((addon) => ({ folderName: addon.folderName, displayName: addon.title }))
+      );
+      clearSelection();
+      void checkMissingDeps();
+    } finally {
+      uninstallingFolders.clear();
+      bulkUninstalling = false;
+    }
+  }
+
   function openInstalledContextMenu(e: MouseEvent, addon: Addon) {
     const matched = matchedMap.get(addon.folderName.toLowerCase()) ?? null;
     const items: ContextMenuEntry[] = [
@@ -204,6 +258,15 @@
   const matchedMap = $derived(
     new Map(matchedAddons.map((m: MatchedAddon) => [m.folderName.toLowerCase(), m]))
   );
+
+  $effect(() => {
+    const valid = new Set(addons.map((addon) => addon.folderName));
+    for (const folderName of Array.from(selectedFolders)) {
+      if (!valid.has(folderName)) {
+        selectedFolders.delete(folderName);
+      }
+    }
+  });
 
   const categoryMap = $derived(
     new Map<string, Category>(categories.map((c: Category) => [c.id, c]))
@@ -456,6 +519,23 @@
           {remote.updateCount} update{remote.updateCount === 1 ? '' : 's'}
         </Badge>
       {/if}
+      {#if selectedCount > 0}
+        <Badge
+          variant="secondary"
+          class="border border-[var(--color-toolbar-border)] bg-[var(--color-toolbar-input)] text-[var(--color-toolbar-foreground)]"
+        >
+          {selectedCount} selected
+        </Badge>
+        <button
+          onclick={() => void uninstallSelected()}
+          disabled={bulkUninstalling}
+          class="flex h-7 cursor-pointer items-center gap-1 rounded-md border border-[var(--color-toolbar-border)] bg-[var(--color-toolbar-input)] px-2 text-[11px] font-medium text-[var(--color-toolbar-muted)] transition-colors hover:bg-[var(--color-toolbar-accent)] hover:text-[var(--color-toolbar-foreground)] disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label="Uninstall selected addons"
+        >
+          <Trash2 size={12} />
+          {bulkUninstalling ? 'Uninstalling…' : 'Uninstall Selected'}
+        </button>
+      {/if}
       <button
         onclick={() => {
           void refreshInstalledState();
@@ -489,6 +569,20 @@
         aria-label="Expand all categories"
       >
         Expand All
+      </button>
+      <button
+        onclick={selectVisible}
+        class="flex h-7 cursor-pointer items-center gap-1 rounded-md border border-[var(--color-toolbar-border)] bg-[var(--color-toolbar-input)] px-2 text-[11px] font-medium text-[var(--color-toolbar-muted)] transition-colors hover:bg-[var(--color-toolbar-accent)] hover:text-[var(--color-toolbar-foreground)]"
+        aria-label="Select visible addons"
+      >
+        Select Visible
+      </button>
+      <button
+        onclick={clearSelection}
+        class="flex h-7 cursor-pointer items-center gap-1 rounded-md border border-[var(--color-toolbar-border)] bg-[var(--color-toolbar-input)] px-2 text-[11px] font-medium text-[var(--color-toolbar-muted)] transition-colors hover:bg-[var(--color-toolbar-accent)] hover:text-[var(--color-toolbar-foreground)]"
+        aria-label="Clear selection"
+      >
+        Clear Selection
       </button>
       <button
         onclick={collapseAll}
@@ -596,9 +690,15 @@
                     <div class="py-0.5 pl-2 pr-0" oncontextmenu={(e) => openInstalledContextMenu(e, row.addon)}>
                       <AddonCard
                         addon={row.addon}
+                        selected={selectedFolders.has(row.addon.folderName)}
                         updateAvailable={hasUpdate(row.addon)}
                         categoryIconUrl={getCategoryIconUrl(row.addon)}
                         isThumbnail={getIsThumbnail(row.addon)}
+                        selectable={true}
+                        checked={selectedFolders.has(row.addon.folderName)}
+                        ontoggle={() => toggleSelected(row.addon.folderName)}
+                        onuninstall={() => void uninstallOne(row.addon)}
+                        uninstalling={uninstallingFolders.has(row.addon.folderName)}
                         onclick={() => openDetail(row.addon)}
                       />
                     </div>

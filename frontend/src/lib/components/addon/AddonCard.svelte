@@ -4,6 +4,7 @@
   import { Badge } from '$lib/components/ui';
   import { cn } from '$lib/utils';
   import Package from 'lucide-svelte/icons/package';
+  import Trash2 from 'lucide-svelte/icons/trash-2';
   import type { Addon } from '$lib/services/addon-service';
 
   interface Props {
@@ -12,7 +13,12 @@
     updateAvailable?: boolean;
     categoryIconUrl?: string;
     isThumbnail?: boolean;
+    selectable?: boolean;
+    checked?: boolean;
     onclick?: () => void;
+    ontoggle?: () => void;
+    onuninstall?: () => void;
+    uninstalling?: boolean;
   }
 
   const {
@@ -21,20 +27,44 @@
     updateAvailable = false,
     categoryIconUrl,
     isThumbnail = false,
-    onclick
+    selectable = false,
+    checked = false,
+    onclick,
+    ontoggle,
+    onuninstall,
+    uninstalling = false
   }: Props = $props();
 </script>
 
-<button
-  {onclick}
+<div
+  role="button"
   tabindex="-1"
+  onclick={onclick}
   class={cn(
-    'flex w-full cursor-pointer items-center gap-4 rounded-lg border px-4 py-3 text-left transition-colors focus:outline-none',
+    'flex w-full cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors focus:outline-none',
     selected
       ? 'border-primary bg-accent ring-primary ring-2 ring-offset-1'
       : 'border-border bg-card hover:border-primary/50 hover:bg-accent/50'
   )}
 >
+  {#if selectable}
+    <button
+      type="button"
+      class="flex h-5 w-5 shrink-0 items-center justify-center"
+      aria-label={checked ? `Deselect ${addon.title}` : `Select ${addon.title}`}
+      onclick={(e) => {
+        e.stopPropagation();
+        ontoggle?.();
+      }}
+    >
+      <span class={cn('flex h-4 w-4 rounded border', checked ? 'border-primary bg-primary' : 'border-border bg-background')}>
+        {#if checked}
+          <span class="text-primary-foreground m-auto text-[10px] font-bold">✓</span>
+        {/if}
+      </span>
+    </button>
+  {/if}
+
   <div
     class={cn(
       'flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md',
@@ -80,4 +110,19 @@
       {/if}
     </div>
   </div>
-</button>
+
+  {#if onuninstall}
+    <button
+      type="button"
+      class="text-muted-foreground hover:text-destructive hover:bg-destructive/10 flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors"
+      aria-label={`Uninstall ${addon.title}`}
+      disabled={uninstalling}
+      onclick={(e) => {
+        e.stopPropagation();
+        onuninstall();
+      }}
+    >
+      <Trash2 size={15} />
+    </button>
+  {/if}
+</div>
