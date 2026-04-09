@@ -1,0 +1,9 @@
+{
+  "svelte.enable-ts-plugin": true,
+  "typescript.preferences.importModuleSpecifier": "non-relative",
+  "svelte.plugin.typescript.projectFileNames": ["tsconfig.json", "tsconfig.node.json"],
+  "typescript.suggest.autoImports": true,
+  "typescript.inlayHints.parameterTypes.enabled": true,
+  "typescript.reportDiagnostics.partialInlayTypeParameters": true,
+  "svelte.trace.server": "off"
+}
