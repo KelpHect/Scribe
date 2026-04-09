@@ -2,7 +2,7 @@ name: Tag Release
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   workflow_dispatch:
 
 permissions:
@@ -64,7 +64,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh workflow run release.yml --ref main -f release_tag="${{ steps.version.outputs.tag }}"
+          gh workflow run release.yml --ref master -f release_tag="${{ steps.version.outputs.tag }}"
 
       - name: Report tag status
         shell: bash

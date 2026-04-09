@@ -21,8 +21,3 @@ go.work
 
 .vscode/settings.json
 .vscode/launch.json
-
-Minion3.0.12-java/
-scribeeso.exe
-upx.exe
-opencode.json

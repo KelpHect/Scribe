@@ -155,99 +155,6 @@ function parseDependencyItem(rawItem: string): ParsedDependencyLink | null {
   };
 }
 
-function normalizeDependencyName(raw: string): string {
-  return stripBbcodeTags(raw)
-    .replace(/^[-:*\s]+/, '')
-    .replace(/^[0-9]+[.)-]\s*/, '')
-    .replace(/[.,;:]+$/, '')
-    .trim();
-}
-
-function isLikelyDependencyName(value: string): boolean {
-  const name = normalizeDependencyName(value);
-  if (!name) return false;
-  if (name.length > 80) return false;
-  if (/\s{3,}/.test(name)) return false;
-  if (/^(required libraries?|dependencies|optional libraries?|optional dependencies?)$/i.test(name)) return false;
-  if (/^(please install|otherwise|if you need|the following)/i.test(name)) return false;
-
-  const tokens = name.split(/\s+/).filter(Boolean);
-  if (tokens.length > 6) return false;
-
-  return tokens.every((token) => /^(?:Lib[A-Za-z0-9_.-]+|[A-Z][A-Za-z0-9_.-]+(?:UI|Companion|Pins|Menu|Logger|Filters|Vars|Pad)?|[A-Za-z]+(?:-[0-9.]+)?|[0-9.]+)$/.test(token));
-}
-
-function splitDependencySentence(input: string): string[] {
-  return input
-    .split(/,|\band\b|\bor\b/gi)
-    .map((part) => normalizeDependencyName(part))
-    .filter((part) => isLikelyDependencyName(part));
-}
-
-function extractSentenceDependencies(source: string, target: ParsedDependencyLink[], pattern: RegExp): string {
-  return source.replace(pattern, (match, libs) => {
-    const parsed = splitDependencySentence(libs).map((name) => ({ name, url: null }));
-    if (parsed.length === 0) return match;
-    target.push(...parsed);
-    return '\n';
-  });
-}
-
-function extractPlainDependencySections(source: string, requiredLibraries: ParsedDependencyLink[], optionalLibraries: ParsedDependencyLink[]): string {
-  const lines = source.split('\n');
-  const kept: string[] = [];
-
-  let currentTarget: ParsedDependencyLink[] | null = null;
-  let currentHeadingPattern: RegExp | null = null;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const plain = normalizeDependencyName(line);
-    const lower = plain.toLowerCase();
-
-    if (/^(required libraries?|dependencies|required dependencies)$/i.test(plain)) {
-      currentTarget = requiredLibraries;
-      currentHeadingPattern = /^(required libraries?|dependencies|required dependencies)$/i;
-      continue;
-    }
-
-    if (/^(optional libraries?|optional dependencies?|3rd party optional plugins.*)$/i.test(plain)) {
-      currentTarget = optionalLibraries;
-      currentHeadingPattern = /^(optional libraries?|optional dependencies?|3rd party optional plugins.*)$/i;
-      continue;
-    }
-
-    if (currentTarget) {
-      if (!plain) {
-        kept.push(line);
-        currentTarget = null;
-        currentHeadingPattern = null;
-        continue;
-      }
-
-      if (/^(please install|please install and activate|if you need|the following)/i.test(lower)) {
-        continue;
-      }
-
-      if (currentHeadingPattern?.test(plain)) {
-        continue;
-      }
-
-      if (isLikelyDependencyName(plain)) {
-        currentTarget.push({ name: plain, url: null });
-        continue;
-      }
-
-      currentTarget = null;
-      currentHeadingPattern = null;
-    }
-
-    kept.push(line);
-  }
-
-  return kept.join('\n');
-}
-
 function dedupeDependencyLinks(items: ParsedDependencyLink[]): ParsedDependencyLink[] {
   const seen = new Set<string>();
   return items.filter((item) => {
@@ -263,17 +170,6 @@ export function parseAddonDescription(input: string): ParsedAddonDescription {
   let cleaned = source;
   const requiredLibraries: ParsedDependencyLink[] = [];
   const optionalLibraries: ParsedDependencyLink[] = [];
-
-  cleaned = extractSentenceDependencies(
-    cleaned,
-    requiredLibraries,
-    /you must install both\s+([^.!?\n]+?)(?:\.\s|!\s|\?\s|otherwise|$)/gi
-  );
-  cleaned = extractSentenceDependencies(
-    cleaned,
-    requiredLibraries,
-    /this addon requires(?: the use of)?(?: the following libraries?)?[:\s]+([^.!?\n]+?)(?:\.\s|!\s|\?\s|$)/gi
-  );
 
   cleaned = cleaned.replace(/(?:^|\n)([^\n]*(?:required libraries?|dependencies|requires[^\n]*libraries|libraries separately)[^\n]*\n+)?\[list(?:=[^\]]+)?\]([\s\S]*?)\[\/list\]/gi, (match, heading = '', items) => {
     const context = stripBbcodeTags(`${heading} ${items}`).toLowerCase();
@@ -300,8 +196,6 @@ export function parseAddonDescription(input: string): ParsedAddonDescription {
 
     return match;
   });
-
-  cleaned = extractPlainDependencySections(cleaned, requiredLibraries, optionalLibraries);
 
   if (requiredLibraries.length > 0) {
     cleaned = cleaned.replace(/(?:^|\n)[^\n]*(?:required libraries?|dependencies|requires[^\n]*libraries|libraries separately)[^\n]*(?=\n|$)/gi, '\n');
