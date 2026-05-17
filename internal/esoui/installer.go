@@ -81,11 +81,9 @@ func ExtractWithProgress(ctx context.Context, zipPath, destDir string, fn Extrac
 		default:
 		}
 
-		name := filepath.FromSlash(f.Name)
-		destPath := filepath.Clean(filepath.Join(cleanDest, name))
-
-		if !strings.HasPrefix(destPath, cleanDest+string(filepath.Separator)) && destPath != cleanDest {
-			return fmt.Errorf("zip entry escapes destination: %s", f.Name)
+		destPath, err := safeZipEntryDestination(cleanDest, f.Name)
+		if err != nil {
+			return err
 		}
 
 		if f.FileInfo().IsDir() {
@@ -111,6 +109,24 @@ func ExtractWithProgress(ctx context.Context, zipPath, destDir string, fn Extrac
 
 func extractZip(zipPath, destDir string) error {
 	return ExtractWithProgress(context.Background(), zipPath, destDir, nil)
+}
+
+func safeZipEntryDestination(cleanDest, entryName string) (string, error) {
+	if strings.Contains(entryName, `\`) || strings.HasPrefix(entryName, `/`) || hasWindowsVolumePrefix(entryName) {
+		return "", fmt.Errorf("zip entry escapes destination: %s", entryName)
+	}
+
+	name := filepath.FromSlash(entryName)
+	destPath := filepath.Clean(filepath.Join(cleanDest, name))
+
+	if !strings.HasPrefix(destPath, cleanDest+string(filepath.Separator)) && destPath != cleanDest {
+		return "", fmt.Errorf("zip entry escapes destination: %s", entryName)
+	}
+	return destPath, nil
+}
+
+func hasWindowsVolumePrefix(name string) bool {
+	return len(name) >= 2 && name[1] == ':' && ((name[0] >= 'A' && name[0] <= 'Z') || (name[0] >= 'a' && name[0] <= 'z'))
 }
 
 func extractZipEntry(f *zip.File, destPath string) error {

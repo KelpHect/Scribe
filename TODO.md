@@ -20,9 +20,9 @@ Purpose: prevent corruption, deletion outside the configured AddOns directory, p
 - [x] Fix queued-download cancellation so it cannot underflow `sync.WaitGroup` or panic during shutdown.
   - Completed: `Cancel` and `CancelAll` no longer decrement the goroutine `WaitGroup` for queued tasks; the queued `processNext` goroutines remain the only owners of their deferred `Done()` calls.
   - Verification: `internal/esoui/download_manager_test.go` covers cancelling queued tasks after enqueuing more tasks than concurrency, cancelling all queued tasks, and `Shutdown()` with queued tasks; package race tests pass.
-- [ ] Add regression tests for archive extraction boundaries.
-  - Evidence: `internal/esoui/installer.go` implements zip-slip prevention in `ExtractWithProgress`, but no tests exercise `../` entries, absolute-path-looking entries, backslash/path-separator variants, valid nested extraction, or destination prefix edge cases.
-  - Acceptance criteria: table tests using temp dirs and generated zip files prove escaping entries are rejected and valid nested addon files extract only under the configured destination.
+- [x] Add regression tests for archive extraction boundaries.
+  - Completed: `ExtractWithProgress` now rejects parent traversal, absolute slash paths, Windows drive-style paths, backslash separator variants, and destination-prefix sibling escapes before extraction.
+  - Verification: `internal/esoui/installer_test.go` uses temp dirs and generated zip files to prove escaping entries fail and valid nested addon files extract only under the configured destination.
 - [ ] Add regression tests for uninstall folder-name validation.
   - Evidence: `RemoveAddonFolder` rejects empty, dot, slashes, backslashes, and traversal-like names, but no tests prove invalid names cannot delete outside the AddOns directory or that a valid addon folder still uninstalls.
   - Acceptance criteria: tests cover empty, `.`, `..`, slash/backslash, traversal, absolute-looking names, missing folders, and a valid folder removal without touching sibling/outside directories.
