@@ -17,9 +17,9 @@ Purpose: prevent corruption, deletion outside the configured AddOns directory, p
 
 ### Safety/data-loss
 
-- [ ] Fix queued-download cancellation so it cannot underflow `sync.WaitGroup` or panic during shutdown.
-  - Evidence: `internal/esoui/download_manager.go` starts one `processNext` goroutine per enqueue, but `Cancel` and `CancelAll` call `dm.wg.Done()` for queued tasks while those goroutines can still later execute their deferred `dm.wg.Done()`.
-  - Acceptance criteria: cancelling queued tasks after enqueuing more tasks than concurrency, cancelling all, and calling `Shutdown()` are covered by tests and do not panic, race, or hang.
+- [x] Fix queued-download cancellation so it cannot underflow `sync.WaitGroup` or panic during shutdown.
+  - Completed: `Cancel` and `CancelAll` no longer decrement the goroutine `WaitGroup` for queued tasks; the queued `processNext` goroutines remain the only owners of their deferred `Done()` calls.
+  - Verification: `internal/esoui/download_manager_test.go` covers cancelling queued tasks after enqueuing more tasks than concurrency, cancelling all queued tasks, and `Shutdown()` with queued tasks; package race tests pass.
 - [ ] Add regression tests for archive extraction boundaries.
   - Evidence: `internal/esoui/installer.go` implements zip-slip prevention in `ExtractWithProgress`, but no tests exercise `../` entries, absolute-path-looking entries, backslash/path-separator variants, valid nested extraction, or destination prefix edge cases.
   - Acceptance criteria: table tests using temp dirs and generated zip files prove escaping entries are rejected and valid nested addon files extract only under the configured destination.

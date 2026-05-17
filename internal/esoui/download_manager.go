@@ -138,7 +138,6 @@ func (dm *DownloadManager) Cancel(uid string) {
 				State: StateCancelled,
 			})
 			dm.updateQueuePositions()
-			dm.wg.Done()
 			return
 		}
 	}
@@ -158,7 +157,6 @@ func (dm *DownloadManager) CancelAll() {
 			Name:  t.name,
 			State: StateCancelled,
 		})
-		dm.wg.Done()
 	}
 	dm.queue = nil
 
