@@ -68,6 +68,8 @@ P3 covers small improvements that can wait until P0/P1 are stable.
 
 ## Completed / current-state evidence
 
+- [x] Project agent operating contract was refreshed from code/docs/workflows/config/tests on 2026-05-17.
+  - Evidence: `AGENTS.md` now captures scope limits, generated-file rules, Wails/Svelte/SQLite boundaries, completion gates, release constraints, safety invariants, tests/fixtures expectations, and known baseline caveats.
 - [x] Wails desktop app boundary exists and delegates domain work to internal packages.
   - Evidence: `app.go` binds methods on `App`; scanner, ESOUI/cache/install/download, and settings logic live under `internal/` packages.
 - [x] ESOUI/MMOUI is the only implemented remote addon source.
