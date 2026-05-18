@@ -106,6 +106,8 @@ Release tagging is manual. The tag-release workflow reads `frontend/package.json
 
 Release builds require the Windows portable exe, Linux binary, and macOS universal zip. The Windows NSIS installer is optional and is uploaded only if Wails produces it.
 
+Strong Windows signing and macOS notarization are not part of the current release flow. Do not add signing/notarization automation unless maintainer certificates, Apple credentials, secret handling, and release approval are already defined.
+
 ## Style
 
 - write code like a maintainer has to live with it for a year

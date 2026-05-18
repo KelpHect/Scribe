@@ -221,9 +221,10 @@ Purpose: record explicitly deferred ideas so they are not confused with current 
   - Closed as not implementable under current product constraints: plugin APIs and broad rewrites conflict with the small focused Wails app boundary unless a separate design plan justifies the surface, lifecycle, compatibility, and security model.
   - Evidence: AGENTS and docs scope Scribe as a small Wails/Svelte desktop app without plugin APIs; CONTRIBUTING now rejects plugin API or architecture rewrite work without an accepted design plan.
   - Decision: keep the current Wails/app.go/internal package boundary and require a separate accepted design before reconsidering plugin APIs or large architecture changes.
-- [ ] Strong distribution signing/notarization.
-  - Evidence: README documents unsigned Windows builds and ad-hoc/non-notarized macOS builds; release workflow performs ad-hoc macOS signing only.
-  - Acceptance criteria: requires maintainer credentials/certificates and explicit release-scope approval.
+- [x] Strong distribution signing/notarization.
+  - Closed as not implementable in this repo session: strong Windows signing and macOS notarization require maintainer-owned certificates, Apple credentials, secret handling, and release approval that are intentionally unavailable to normal implementation work.
+  - Evidence: README documents unsigned Windows builds and ad-hoc/non-notarized macOS builds; release workflow performs ad-hoc macOS signing only; CONTRIBUTING now blocks signing/notarization automation without defined credentials and release approval.
+  - Decision: keep current unsigned/ad-hoc distribution disclosure until maintainers provide credentials, secret-management rules, and an explicit release-scope implementation request.
 
 ## Completed / current-state evidence
 
