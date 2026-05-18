@@ -87,6 +87,8 @@ For local profiling, start the app with `SCRIBE_PPROF=1` to expose pprof on `loc
 
 If you touch release workflows or packaging, say that clearly in the PR body.
 
+Release tagging is manual. The tag-release workflow reads `frontend/package.json`, creates `vX.Y.Z`, and dispatches the release only when a maintainer runs it.
+
 ## Style
 
 - write code like a maintainer has to live with it for a year

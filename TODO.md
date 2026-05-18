@@ -163,9 +163,9 @@ Purpose: harden the path from version to user-installable artifacts after the ap
 - [x] Add release workflow validation for version/tag consistency.
   - Completed: `release.yml` now has a pre-build validation job that checks `frontend/package.json` is strict `X.Y.Z` and fails before matrix builds unless `RELEASE_TAG` equals `v<package version>`.
   - Verification: `git diff --check` passes.
-- [ ] Decide whether automatic tag creation on every push to `main` is intended.
-  - Evidence: `.github/workflows/tag-release.yml` runs on every `main` push and creates/dispatches a release when the package version tag does not exist.
-  - Acceptance criteria: workflow trigger is either documented as intentional release policy or changed to a manual/controlled trigger; no release is published accidentally from routine merges.
+- [x] Decide whether automatic tag creation on every push to `main` is intended.
+  - Completed: `tag-release.yml` is now manual-only via `workflow_dispatch`; README and CONTRIBUTING document that release tagging is a maintainer-controlled action, not an automatic side effect of routine `main` pushes.
+  - Verification: `git diff --check` passes.
 - [ ] Verify packaged artifact names and installer expectations across platforms.
   - Evidence: release docs list Windows portable/installer, Linux binary, and macOS zip; `release.yml` publishes portable Windows even if NSIS installer is absent and logs instead of failing.
   - Acceptance criteria: release docs and workflow agree on which artifacts are mandatory vs optional, and missing mandatory artifacts fail release builds.
