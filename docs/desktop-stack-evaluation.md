@@ -54,6 +54,14 @@ Reason: the current Svelte hot paths now have baselines, and the optimized Find 
 
 Trigger to revisit: a reproducible profile shows Svelte route/store rendering, not backend work, bridge events, images, or filtering helpers, as the dominant cause of search, scroll, or task-center jank.
 
+## Alternate Shell Spike Decision
+
+Status: not run, not kept.
+
+Reason: no current baseline proves Wails itself is the bottleneck. The measured and recently fixed problems are in Scribe-owned paths: startup scan timing, catalog indexing, bridge progress-event volume, image/list behavior, install preflight clarity, stale artifact cleanup, dependency resolution, and recovery messaging. A Tauri, Electron, or custom-shell spike would replace bindings, native runtime calls, release scripts, and Linux/Windows packaging without first showing that the shell is what blocks responsiveness or stability.
+
+Trigger to revisit: a reproducible profile or support case isolates Wails/WebKitGTK bridge or shell behavior as the dominant problem after Scribe-owned startup, cache, filtering, progress, image, and install paths are within budget.
+
 ## Sources
 
 - Wails installation and Linux dependency notes: https://wails.io/docs/gettingstarted/installation/

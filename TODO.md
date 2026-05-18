@@ -436,9 +436,11 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
   - Acceptance criteria: isolated spike ports the shell plus Find More catalog list against the existing Go/Wails service shape or mocked services; compare bundle size, search latency, scroll smoothness, memory, and migration cost before deciding.
   - Completed: spike was intentionally not run or kept because Svelte hot paths now have baselines and the optimized Find More indexed filter/sort path is under frame budget for the 7k-addon fixture; `docs/desktop-stack-evaluation.md` records the SolidJS decision and revisit trigger.
   - Verification: frontend catalog benchmark results from the prior indexed-filter task provide the gating evidence for not starting a speculative SolidJS port.
-- [ ] Run an alternate desktop-shell spike only if Wails itself is proven to be the bottleneck.
+- [x] Run an alternate desktop-shell spike only if Wails itself is proven to be the bottleneck.
   - Evidence: WebKitGTK packaging friction and runtime behavior matter on Linux, but replacing Wails means replacing bindings, build/release flow, and native integrations.
   - Acceptance criteria: spike proves a concrete Wails limitation with measurements, then compares Tauri/Electron/custom shell using the same fixture workflows; no app rewrite begins without an accepted migration plan.
+  - Completed: spike was intentionally not run or kept because no current profile proves Wails/WebKitGTK is the bottleneck; recent fixes targeted Scribe-owned startup, cache, filtering, progress, image, and install paths instead. `docs/desktop-stack-evaluation.md` records the alternate-shell decision and the exact trigger for revisiting.
+  - Verification: the desktop stack evaluation keeps Tauri/Electron/custom shell work gated behind measured Wails-specific bottleneck evidence and an accepted migration plan.
 
 ### Maintainability and anti-overengineering
 
