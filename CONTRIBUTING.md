@@ -114,6 +114,14 @@ For backend hot-path profiling, run:
 
 It captures CPU and memory profiles for scanner scans, cached catalog load, matching/search, and dependency resolution under `build/reports/profiles/`. The output is ignored by git; summarize the top costs in the PR or issue before optimizing.
 
+For frontend workflow smoke/profile reports, run:
+
+```bash
+./scripts/profile-ui-workflows.sh
+```
+
+It runs fixture-backed frontend workflow tests, catalog benchmarks, and a production frontend build, then writes an ignored report under `build/reports/ui-profile/`. Use it for changes that affect Installed, Find More, Updates, Settings, addon detail data, dependency banners, task center, or failure/retry flows. Still perform a real Wails desktop smoke pass before release.
+
 For local profiling, start the app with `SCRIBE_PPROF=1` to expose pprof on `localhost:6060`. The old `SCRIBEEGO_PPROF=1` spelling still works for compatibility.
 
 If you touch release workflows or packaging, say that clearly in the PR body.

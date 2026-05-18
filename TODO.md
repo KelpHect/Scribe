@@ -331,9 +331,11 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
   - Acceptance criteria: local diagnostics can capture search/filter duration, visible list size, result count, progress event rate, and dropped/error states without telemetry or network upload.
   - Completed: frontend diagnostics now record Find More filter/sort timing metadata, visible virtual-list size, result count, and download progress event totals/rates/error counts; Settings diagnostics and the local diagnostics export include the captured values.
   - Verification: `frontend/src/lib/diagnostics/frontend-perf.test.ts` covers timing, gauge, and progress-event snapshots.
-- [ ] Add a repeatable UI smoke/profile script for desktop workflows.
+- [x] Add a repeatable UI smoke/profile script for desktop workflows.
   - Evidence: current tests cover stores/services, but not real navigation, modal opening, search typing, scroll behavior, or task-center interaction inside the rendered app.
   - Acceptance criteria: scripted local workflow covers Installed, Find More, Updates, Settings, addon details, dependency banners, task center, and failure/retry states using mocks or fixture data where possible.
+  - Completed: `scripts/profile-ui-workflows.sh` now runs fixture-backed frontend workflow tests, catalog benchmarks, and a production frontend build, then writes an ignored Markdown report mapping coverage across Installed, Find More, Updates, Settings, addon detail data, dependency banners, task center, and failure/retry states.
+  - Verification: README and CONTRIBUTING document the script and its real-desktop smoke-test limitation.
 
 ### Startup and cache responsiveness
 

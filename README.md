@@ -104,6 +104,14 @@ The script covers large AddOns scans, cached catalog load, backend remote search
 
 Backend hot-path profiles can be captured with `./scripts/profile-backend.sh`. It writes CPU and memory profiles for scanner scans, cached catalog load, matching/search, and dependency resolution under `build/reports/profiles/`, which is ignored by git.
 
+Frontend workflow smoke/profile reports can be captured with:
+
+```bash
+./scripts/profile-ui-workflows.sh
+```
+
+The script runs fixture-backed frontend workflow tests, catalog benchmarks, and a production frontend build, then writes an ignored report under `build/reports/ui-profile/`. It is not a replacement for manually launching the Wails app before release, but it gives a repeatable local signal for Installed, Find More, Updates, Settings, addon detail data, dependency banners, task center, and failure/retry states.
+
 ## When not to use this
 
 - you want a signed and notarized app on every platform right now
