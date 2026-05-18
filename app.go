@@ -46,6 +46,7 @@ type App struct {
 	lastRefreshAt   time.Time
 	lastRefreshMS   int64
 	lastRefreshErr  string
+	refreshInFlight bool
 
 	frontendReadyOff func()
 	perfCaptureOff   func()
@@ -607,9 +608,13 @@ func (a *App) GetRemoteAddons() ([]esoui.RemoteAddon, error) {
 		}
 		list = a.getRemoteList()
 	} else if a.esoCache != nil && a.esoCache.IsStale() {
+		if !a.beginRemoteRefresh() {
+			return list, nil
+		}
 		a.refreshWg.Add(1)
 		go func() {
 			defer a.refreshWg.Done()
+			defer a.endRemoteRefresh()
 			if a.shutdownCtx.Err() != nil {
 				return
 			}
@@ -622,6 +627,22 @@ func (a *App) GetRemoteAddons() ([]esoui.RemoteAddon, error) {
 		}()
 	}
 	return list, nil
+}
+
+func (a *App) beginRemoteRefresh() bool {
+	a.remoteMu.Lock()
+	defer a.remoteMu.Unlock()
+	if a.refreshInFlight {
+		return false
+	}
+	a.refreshInFlight = true
+	return true
+}
+
+func (a *App) endRemoteRefresh() {
+	a.remoteMu.Lock()
+	a.refreshInFlight = false
+	a.remoteMu.Unlock()
 }
 
 func (a *App) GetRemoteCatalogStatus() RemoteCatalogStatus {

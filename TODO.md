@@ -188,9 +188,9 @@ Purpose: keep startup/memory responsive and make performance/debug data actionab
 - [x] Add regression guidance or checks for startup and memory budgets.
   - Completed: README and CONTRIBUTING now document the Settings diagnostics panel as the baseline capture path, the frontend-ready `<1000 ms` and Go `Sys <=150 MB` targets, required PR snapshot fields, warm/cold catalog context, and maintainer approval for threshold changes.
   - Verification: `git diff --check` passes.
-- [ ] Review remote refresh concurrency and duplicate background refreshes.
-  - Evidence: `GetRemoteAddons` can start a background refresh whenever cache is stale and list is non-empty; there is no in-flight guard beyond `refreshWg` wait on shutdown.
-  - Acceptance criteria: repeated frontend queries while stale do not spawn redundant remote refreshes; behavior is covered by a focused test or guarded implementation.
+- [x] Review remote refresh concurrency and duplicate background refreshes.
+  - Completed: stale cached `GetRemoteAddons` calls now use a remote-refresh in-flight guard before starting the background refresh goroutine, and the guard is released when refresh work exits.
+  - Verification: `remote_refresh_test.go` covers the guard preventing duplicate starts while in flight and allowing another refresh after completion; `go test .` and `./scripts/verify.sh` pass.
 - [ ] Add diagnostics/logging for failed cache DB initialization without exposing private paths unnecessarily.
   - Evidence: startup silently falls back in some paths when DB/cache/settings initialization fails, while docs do not describe troubleshooting persistent DB failures.
   - Acceptance criteria: failures are logged with actionable, privacy-conscious messages and the UI can still explain degraded persistence/cache behavior.
