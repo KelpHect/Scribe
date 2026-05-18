@@ -181,8 +181,13 @@
           <img
             src={matched.remote.uiIMGs?.[0] ?? matched.remote.uiIMGThumbs[0]}
             alt={addon.title}
+            width="512"
+            height="144"
             class="h-36 w-full object-cover"
             loading="lazy"
+            decoding="async"
+            draggable="false"
+            referrerpolicy="no-referrer"
           />
         </div>
       {/if}
@@ -198,8 +203,13 @@
               src={iconUrl}
               alt=""
               aria-hidden="true"
+              width="48"
+              height="48"
               class="h-full w-full object-cover"
               loading="lazy"
+              decoding="async"
+              draggable="false"
+              referrerpolicy="no-referrer"
             />
           {:else}
             <Package size={22} class="text-muted-foreground" />

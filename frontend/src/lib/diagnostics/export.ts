@@ -8,6 +8,9 @@ export type FrontendDiagnosticsExport = {
   addonDetailQueriesWithData: number;
   addonDetailFresh: number;
   addonDetailStale: number;
+  addonDetailScreenshotUrls: number;
+  addonDetailMaxQueries: number;
+  addonDetailMaxScreenshots: number;
   cachedUIDs: string[];
   performance: FrontendPerformanceSnapshot;
 };

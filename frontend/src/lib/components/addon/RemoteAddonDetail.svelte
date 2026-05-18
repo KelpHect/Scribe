@@ -20,6 +20,14 @@
   import { getRemoteStore, getDownloadStore } from '$lib/stores';
   import { formatCompact, parseAddonChangelog, parseAddonDescription } from '$lib/utils';
   import type { RemoteAddon, RemoteAddonDetails, Category } from '$lib/services/esoui-service';
+  import { queryClient } from '$lib/db/client';
+  import {
+    ADDON_DETAIL_GC_MS,
+    ADDON_DETAIL_MAX_SCREENSHOTS,
+    ADDON_DETAIL_STALE_MS,
+    addonDetailsQueryKey,
+    trimAddonDetailQueries
+  } from '$lib/db/addon-detail-cache';
 
   interface Props {
     addon: RemoteAddon | null;
@@ -54,13 +62,14 @@
   let lightboxIndex = $state<number | null>(null);
 
   const detailsQuery = createQuery(() => ({
-    queryKey: ['addon-details', addon?.uid ?? ''],
+    queryKey: addonDetailsQueryKey(addon?.uid ?? ''),
     queryFn: async (): Promise<RemoteAddonDetails | null> => {
       if (!addon) return null;
       return remote.getDetails(addon.uid);
     },
     enabled: open && !!addon?.uid,
-    staleTime: 5 * 60 * 1000
+    staleTime: ADDON_DETAIL_STALE_MS,
+    gcTime: ADDON_DETAIL_GC_MS
   }));
 
   const details = $derived(
@@ -79,6 +88,11 @@
     }
     localInstallError = null;
     lightboxIndex = null;
+  });
+
+  $effect(() => {
+    if (!open || !addon || !detailsQuery.dataUpdatedAt) return;
+    trimAddonDetailQueries(queryClient, addon.uid);
   });
 
   const isInstalling = $derived(addon ? remote.isInstallingUID(addon.uid) : false);
@@ -123,9 +137,10 @@
     if (!addon) return [];
     const thumbs = addon.uiIMGThumbs ?? [];
     const full = addon.uiIMGs ?? [];
-    return thumbs.length > 0
+    const available = thumbs.length > 0
       ? thumbs.map((thumb, i) => ({ thumb, full: full[i] ?? thumb }))
       : full.map((img) => ({ thumb: img, full: img }));
+    return available.slice(0, ADDON_DETAIL_MAX_SCREENSHOTS);
   });
 
   const latestCompat = $derived(
@@ -210,8 +225,13 @@
                     src={category.iconUrl}
                     alt=""
                     aria-hidden="true"
+                    width="14"
+                    height="14"
                     class="h-3.5 w-3.5 object-contain"
                     loading="lazy"
+                    decoding="async"
+                    draggable="false"
+                    referrerpolicy="no-referrer"
                   />
                 {/if}
                 {category.name}
@@ -237,8 +257,13 @@
                   src={category.iconUrl}
                   alt=""
                   aria-hidden="true"
+                  width="28"
+                  height="28"
                   class="h-7 w-7 object-contain"
                   loading="lazy"
+                  decoding="async"
+                  draggable="false"
+                  referrerpolicy="no-referrer"
                 />
               {:else}
                 <Package size={20} class="text-muted-foreground" />
@@ -341,8 +366,13 @@
               <img
                 src={shot.thumb}
                 alt="Screenshot {i + 1}"
+                width="256"
+                height="144"
                 class="h-36 w-auto max-w-none rounded-lg object-cover transition-opacity hover:opacity-90"
                 loading="lazy"
+                decoding="async"
+                draggable="false"
+                referrerpolicy="no-referrer"
               />
             </button>
           {/each}
@@ -354,8 +384,13 @@
               src={category.iconUrl}
               alt=""
               aria-hidden="true"
+              width="40"
+              height="40"
               class="h-10 w-10 object-contain opacity-30"
               loading="lazy"
+              decoding="async"
+              draggable="false"
+              referrerpolicy="no-referrer"
             />
           {:else}
             <Package size={32} class="text-muted-foreground opacity-30" />

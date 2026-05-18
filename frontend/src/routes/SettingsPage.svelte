@@ -41,6 +41,7 @@
     refreshInstalledState
   } from '$lib/db/query-state';
   import { queryClient } from '$lib/db/client';
+  import { getAddonDetailCacheStats } from '$lib/db/addon-detail-cache';
   import { getDownloadStore } from '$lib/stores';
   import { toast } from 'svelte-sonner';
   import { createForm } from '@tanstack/svelte-form';
@@ -51,6 +52,9 @@
     addonDetailQueriesWithData: number;
     addonDetailFresh: number;
     addonDetailStale: number;
+    addonDetailScreenshotUrls: number;
+    addonDetailMaxQueries: number;
+    addonDetailMaxScreenshots: number;
     cachedUIDs: string[];
     performance: FrontendPerformanceSnapshot;
   };
@@ -70,6 +74,9 @@
     addonDetailQueriesWithData: 0,
     addonDetailFresh: 0,
     addonDetailStale: 0,
+    addonDetailScreenshotUrls: 0,
+    addonDetailMaxQueries: 0,
+    addonDetailMaxScreenshots: 0,
     cachedUIDs: [],
     performance: getFrontendPerformanceSnapshot()
   });
@@ -199,37 +206,17 @@
   });
 
   function collectFrontendDiagnostics(): FrontendDiagnostics {
-    const queries = queryClient.getQueryCache().findAll({ queryKey: ['addon-details'] });
-    const now = Date.now();
-    const staleThresholdMs = 5 * 60 * 1000;
-
-    let withData = 0;
-    let fresh = 0;
-    let stale = 0;
-    const cachedUIDs: string[] = [];
-
-    for (const query of queries) {
-      const hasData = query.state.data !== undefined && query.state.data !== null;
-      if (!hasData) continue;
-
-      withData++;
-      const age = now - query.state.dataUpdatedAt;
-      if (age <= staleThresholdMs) {
-        fresh++;
-      } else {
-        stale++;
-      }
-
-      const uid = typeof query.queryKey[1] === 'string' ? query.queryKey[1] : null;
-      if (uid) cachedUIDs.push(uid);
-    }
+    const detailCache = getAddonDetailCacheStats(queryClient);
 
     return {
-      addonDetailQueries: queries.length,
-      addonDetailQueriesWithData: withData,
-      addonDetailFresh: fresh,
-      addonDetailStale: stale,
-      cachedUIDs: cachedUIDs.slice(0, 8),
+      addonDetailQueries: detailCache.totalQueries,
+      addonDetailQueriesWithData: detailCache.queriesWithData,
+      addonDetailFresh: detailCache.fresh,
+      addonDetailStale: detailCache.stale,
+      addonDetailScreenshotUrls: detailCache.screenshotUrls,
+      addonDetailMaxQueries: detailCache.maxQueries,
+      addonDetailMaxScreenshots: detailCache.maxScreenshotsPerDetail,
+      cachedUIDs: detailCache.cachedUIDs,
       performance: getFrontendPerformanceSnapshot()
     };
   }
@@ -642,8 +629,11 @@
 	                  <div class="text-muted-foreground grid gap-1 text-xs md:grid-cols-2">
                     <p>Total queries: <span class="text-foreground font-mono">{frontendDiagnostics.addonDetailQueries}</span></p>
                     <p>With data: <span class="text-foreground font-mono">{frontendDiagnostics.addonDetailQueriesWithData}</span></p>
+                    <p>Max queries: <span class="text-foreground font-mono">{frontendDiagnostics.addonDetailMaxQueries}</span></p>
                     <p>Fresh (5m): <span class="text-foreground font-mono">{frontendDiagnostics.addonDetailFresh}</span></p>
                     <p>Stale: <span class="text-foreground font-mono">{frontendDiagnostics.addonDetailStale}</span></p>
+                    <p>Screenshot URLs: <span class="text-foreground font-mono">{frontendDiagnostics.addonDetailScreenshotUrls}</span></p>
+                    <p>Max screenshots/detail: <span class="text-foreground font-mono">{frontendDiagnostics.addonDetailMaxScreenshots}</span></p>
                     <p>Remote refreshes: <span class="text-foreground font-mono">{diagnostics.remoteRefreshCount}</span></p>
                     <p>Last refresh: <span class="text-foreground font-mono">{diagnostics.lastRemoteRefreshAt || 'n/a'}</span></p>
                     <p class="md:col-span-2">Last refresh duration: <span class="text-foreground font-mono">{diagnostics.lastRemoteRefreshMs} ms</span></p>

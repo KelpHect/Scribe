@@ -372,9 +372,11 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
   - Acceptance criteria: list rows keep stable dimensions, lazy images have fixed boxes and fallbacks, overscan is bounded, image/detail prefetch is limited, and scroll remains smooth on large installed and remote lists.
   - Completed: Installed and Find More virtual lists now use named bounded overscan constants, Find More and installed addon rows share fixed-size artwork boxes with lazy loading, async decoding, referrer-safe fetches, and fallback icons, and update/category row images now declare stable intrinsic dimensions and async decoding.
   - Verification: frontend checks and tests cover the Svelte route/component changes; no detail prefetch was added, so detail loading remains click/open driven.
-- [ ] Bound addon detail and screenshot cache memory.
+- [x] Bound addon detail and screenshot cache memory.
   - Evidence: details and screenshots are useful but can accumulate memory across browsing sessions.
   - Acceptance criteria: detail queries/images use an explicit bounded cache or eviction policy, memory cleanup has deterministic behavior, and diagnostics expose detail cache size/count.
+  - Completed: addon details now use shared cache helpers with a 24-query bound, 10-minute detail GC, old-query trimming after detail loads, and a 12-screenshot render cap per detail; screenshots/images now use async decoding and fixed intrinsic dimensions, and diagnostics/export report detail query, screenshot URL, and cache bound counts.
+  - Verification: `addon-detail-cache.test.ts` covers oldest-query trimming and diagnostic stats, and diagnostics export tests cover the new frontend cache fields.
 
 ### Install, update, and task-center smoothness
 

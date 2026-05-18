@@ -27,6 +27,7 @@
   import { getSettings } from '$lib/services/settings-service';
   import { navigation, getDownloadStore } from '$lib/stores';
   import { queryClient } from '$lib/db/client';
+  import { addonDetailsQueryRoot } from '$lib/db/addon-detail-cache';
   import { refreshInstalledState } from '$lib/db/query-state';
   import {
     createLazyRouteState,
@@ -118,7 +119,7 @@
 
     memoryCleanupRunning = true;
     try {
-      queryClient.removeQueries({ queryKey: ['addon-details'] });
+      queryClient.removeQueries({ queryKey: addonDetailsQueryRoot });
       await performMemoryCleanup();
       void emitRuntimeEvent('perf:capture', 'memory-cleanup').catch(() => undefined);
     } finally {

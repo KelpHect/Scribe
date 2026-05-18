@@ -38,6 +38,9 @@ describe('diagnostics export redaction', () => {
 	        addonDetailQueriesWithData: 1,
 	        addonDetailFresh: 1,
 	        addonDetailStale: 0,
+	        addonDetailScreenshotUrls: 4,
+	        addonDetailMaxQueries: 24,
+	        addonDetailMaxScreenshots: 12,
 	        cachedUIDs: ['101'],
 	        performance: {
 	          timings: [
@@ -131,6 +134,8 @@ describe('diagnostics export redaction', () => {
 	    expect(payload.persistence.status).toBe('ok');
 	    expect(payload.catalog.remoteAddons).toBe(5000);
 	    expect(payload.catalog.scanReadyMs).toBe(60);
+	    expect(payload.frontendCache.addonDetailMaxQueries).toBe(24);
+	    expect(payload.frontendCache.addonDetailScreenshotUrls).toBe(4);
 	    expect(payload.frontendCache.performance.timings[0].name).toBe('findMore.filterSort');
 	    expect(payload.frontendCache.performance.progressEvents.totalEvents).toBe(4);
 	    expect(payload.recentTaskFailures[0].error).toBe('failed to write [redacted-path]');
