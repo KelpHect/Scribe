@@ -13,6 +13,7 @@
     getInstallPlanCounts,
     getInstallPlanSafetyNote
   } from '$lib/install/preflight';
+  import { getInstallRecoveryGuidance } from '$lib/install/recovery';
 
   type Props = {
     task: TaskProgress;
@@ -74,6 +75,7 @@
   const planSummary = $derived(formatInstallPlanSummary(installPlan));
   const safetyNote = $derived(getInstallPlanSafetyNote(installPlan));
   const expectedSizeLabel = $derived(task.totalBytes > 0 ? formatBytes(task.totalBytes) : '');
+  const recovery = $derived(getInstallRecoveryGuidance(task));
 </script>
 
 <div class="border-border bg-card flex flex-col gap-1.5 rounded-md border px-3 py-2.5">
@@ -176,5 +178,16 @@
 
   {#if task.error}
     <p class="text-destructive text-xs">{task.error}</p>
+  {/if}
+
+  {#if recovery}
+    <div class="border-border/70 bg-muted/30 rounded-md border px-2 py-1.5">
+      <p class="text-foreground text-[11px] font-semibold">{recovery.title}</p>
+      <p class="text-muted-foreground mt-0.5 text-[11px]">{recovery.action}</p>
+      <details class="mt-1">
+        <summary class="text-muted-foreground cursor-pointer text-[11px]">Diagnostics</summary>
+        <pre class="mt-1 max-h-24 overflow-auto rounded bg-background p-2 text-[10px] whitespace-pre-wrap">{recovery.diagnostics}</pre>
+      </details>
+    </div>
   {/if}
 </div>

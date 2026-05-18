@@ -418,9 +418,11 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
   - Acceptance criteria: Installed, Updates, addon detail, and task planning surfaces share one tested formatter for update reason text and safe action eligibility.
   - Completed: `describeUpdateAction` now provides shared update labels, reason text, and action eligibility; Updates rows, Installed badges/context-menu labels, local addon details, and remote addon detail update buttons use the shared formatter so remote-newer, MD5-only changed, local-newer, unknown-version, unmatched, and up-to-date states explain the same way.
   - Verification: `decision.test.ts` covers remote-newer, MD5-only changed, local-newer, and unknown-version action text/eligibility.
-- [ ] Add recovery guidance for failed installs and partial failures.
+- [x] Add recovery guidance for failed installs and partial failures.
   - Evidence: retry exists, but users need useful next steps when download, MD5, archive preflight, extraction, or commit fails.
   - Acceptance criteria: failed task details classify the stage, show a short safe action, include copyable diagnostics, and never suggest manually deleting broad AddOns directories.
+  - Completed: task center failures now classify download, integrity/MD5, preflight, extraction, commit, cancelled, and unknown stages, show a short safe recovery action, and include a copyable diagnostics block with UID/name/stage/error; guidance avoids broad manual AddOns deletion.
+  - Verification: `recovery.test.ts` covers stage classification, diagnostics content, and guards against unsafe delete advice.
 
 ### Desktop shell and frontend framework evaluation
 
