@@ -16,6 +16,7 @@
     selectable?: boolean;
     checked?: boolean;
     onclick?: () => void;
+    onmenu?: (_event: MouseEvent | KeyboardEvent) => void;
     ontoggle?: () => void;
     onuninstall?: () => void;
     uninstalling?: boolean;
@@ -30,22 +31,32 @@
     selectable = false,
     checked = false,
     onclick,
+    onmenu,
     ontoggle,
     onuninstall,
     uninstalling = false
   }: Props = $props();
 
   function handleKeydown(event: KeyboardEvent) {
-    if (!onclick || (event.key !== 'Enter' && event.key !== ' ')) return;
-    event.preventDefault();
-    onclick();
+    if ((event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) && onmenu) {
+      event.preventDefault();
+      onmenu(event);
+      return;
+    }
+
+    if (onclick && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      onclick();
+    }
   }
 </script>
 
 <div
   role="button"
-  tabindex="-1"
+  tabindex="0"
+  aria-label={`View details for ${addon.title}`}
   onclick={onclick}
+  oncontextmenu={onmenu}
   onkeydown={handleKeydown}
   class={cn(
     'flex w-full cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors focus:outline-none',

@@ -33,6 +33,7 @@
 
 {#if open}
   <div class="fixed inset-0 z-50 flex items-center justify-center" onkeydown={onKeydown} {...rest}>
+    <!-- Backdrop click closes the dialog; keyboard users use Escape from focused dialog content. -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div class="fixed inset-0 bg-black/60" onclick={onclose} role="button" tabindex="-1"></div>
     <div
@@ -40,6 +41,9 @@
         'bg-card border-border animate-fade-in relative z-10 flex max-h-[85vh] w-full flex-col rounded-xl border shadow-2xl',
         panelClass ?? 'max-w-lg'
       )}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
     >
       <div class="flex items-center justify-between px-6 py-4">
         <h2 class="text-lg font-semibold">{title}</h2>

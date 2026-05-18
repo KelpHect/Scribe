@@ -14,8 +14,14 @@
   }
 
   const { screenshots, index, onclose, onprev, onnext }: Props = $props();
+  let dialogEl = $state<HTMLDivElement | null>(null);
 
   const src = $derived(screenshots[index]?.full ?? null);
+
+  $effect(() => {
+    if (src === null) return;
+    queueMicrotask(() => dialogEl?.focus());
+  });
 
   function handleKey(e: KeyboardEvent) {
     if (e.key === 'Escape') onclose();
@@ -25,8 +31,10 @@
 </script>
 
 {#if src !== null}
+  <!-- Dialog container handles Escape/arrow keys and backdrop clicks; buttons provide explicit keyboard controls. -->
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div
+    bind:this={dialogEl}
     role="dialog"
     aria-modal="true"
     aria-label="Screenshot lightbox"
@@ -63,6 +71,7 @@
       </button>
     {/if}
 
+    <!-- Image consumes pointer clicks so the backdrop does not close; it is not an interactive control. -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <img

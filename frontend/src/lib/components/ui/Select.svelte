@@ -87,6 +87,7 @@
   </button>
 
   {#if isOpen}
+    <!-- Backdrop click closes the menu; keyboard users use Escape from the trigger/menu. -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div class="fixed inset-0 z-40" onclick={handleBackdropClick} role="button" tabindex="-1"></div>
     <div

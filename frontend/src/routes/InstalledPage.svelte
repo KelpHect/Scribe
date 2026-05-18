@@ -19,7 +19,11 @@
   import AddonCard from '$lib/components/addon/AddonCard.svelte';
   import AddonDetail from '$lib/components/addon/AddonDetail.svelte';
   import { CategoryHeader, MissingDepsBanner } from '$lib/components/addon';
-  import { openContextMenu, type ContextMenuEntry } from '$lib/services/context-menu-service';
+  import {
+    openContextMenu,
+    openContextMenuAt,
+    type ContextMenuEntry
+  } from '$lib/services/context-menu-service';
   import { fetchAddonPath, fetchInstalledAddons, openPath, type Addon } from '$lib/services/addon-service';
   import { openExternalURL } from '$lib/services/runtime-service';
   import { getRemoteStore } from '$lib/stores';
@@ -228,7 +232,7 @@
     }
   }
 
-  function openInstalledContextMenu(e: MouseEvent, addon: Addon) {
+  function openInstalledContextMenu(e: MouseEvent | KeyboardEvent, addon: Addon) {
     const matched = matchedMap.get(addon.folderName.toLowerCase()) ?? null;
     const items: ContextMenuEntry[] = [
       { label: 'View Details', icon: Search, action: () => openDetail(addon) },
@@ -248,7 +252,14 @@
         action: () => requestUninstall(addon)
       }
     ];
-    openContextMenu(e, items);
+    if (e instanceof MouseEvent) {
+      openContextMenu(e, items);
+      return;
+    }
+
+    const target = e.currentTarget as HTMLElement | null;
+    const rect = target?.getBoundingClientRect();
+    openContextMenuAt(rect ? rect.left + 12 : 0, rect ? rect.top + 12 : 0, items);
   }
 
   const updateSet = $derived(
@@ -690,8 +701,7 @@
                       ontoggle={() => toggleCategory(row.group.id)}
                     />
                   {:else}
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
-                    <div class="py-0.5 pl-2 pr-0" oncontextmenu={(e) => openInstalledContextMenu(e, row.addon)}>
+                    <div class="py-0.5 pl-2 pr-0">
                       <AddonCard
                         addon={row.addon}
                         selected={selectedFolders.has(row.addon.folderName)}
@@ -703,6 +713,7 @@
                         ontoggle={() => toggleSelected(row.addon.folderName)}
                         onuninstall={() => requestUninstall(row.addon)}
                         uninstalling={uninstallingFolders.has(row.addon.folderName)}
+                        onmenu={(e) => openInstalledContextMenu(e, row.addon)}
                         onclick={() => openDetail(row.addon)}
                       />
                     </div>

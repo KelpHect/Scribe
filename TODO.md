@@ -116,9 +116,9 @@ Purpose: improve user trust, accessibility, and clarity once critical correctnes
 - [x] Review `OpenPath` for least-surprise behavior.
   - Completed: `App.OpenPath` now validates that the requested directory is the configured AddOns directory or a child directory after symlink resolution before invoking OS shell helpers.
   - Verification: `open_path_test.go` covers addon root/child directories, empty/relative paths, outside and sibling-prefix directories, missing targets, file targets, and symlink escapes; Linux Wails build, `npm --prefix frontend run check`, `go test ./...`, and `git diff --check` pass.
-- [ ] Improve keyboard/a11y coverage for clickable rows and custom controls.
-  - Evidence: `svelte-check` warns on `AddonCard.svelte` visible clickable divs; multiple components intentionally suppress Svelte a11y warnings for custom row/list/menu behavior.
-  - Acceptance criteria: primary addon rows, remote rows, dialogs, selects, context menus, and lightbox controls are reachable/usable by keyboard and remaining suppressions are justified narrowly.
+- [x] Improve keyboard/a11y coverage for clickable rows and custom controls.
+  - Completed: installed and remote addon rows now support focus, Enter/Space activation, and keyboard context menus; context menus focus the first enabled item and support Escape/arrow/Home/End navigation; category clear controls are keyboard reachable; dialogs and the lightbox expose dialog semantics/focus while remaining suppressions are documented for backdrop/rich-text delegation.
+  - Verification: `npm --prefix frontend run check`, `npm --prefix frontend run build`, Linux Wails build, `go test ./...`, and `git diff --check` pass.
 - [ ] Prevent accidental duplicate install/update queues from rapid UI actions.
   - Evidence: backend deduplicates queued/active UIDs, but frontend sets optimistic queued state before `InstallAddon`/`BatchInstall` and global `remote.installing` can block unrelated installs while still allowing mixed component entry points.
   - Acceptance criteria: rapid clicks and overlapping row/detail/batch installs produce one queued task per UID and UI state remains accurate after backend dedupe.

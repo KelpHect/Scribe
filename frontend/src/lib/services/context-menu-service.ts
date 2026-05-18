@@ -17,15 +17,19 @@ export function isSeparator(entry: ContextMenuEntry): entry is ContextMenuSepara
   return 'type' in entry && entry.type === 'separator';
 }
 
-export function openContextMenu(event: MouseEvent, items: ContextMenuEntry[]) {
-  event.preventDefault();
+export function openContextMenuAt(x: number, y: number, items: ContextMenuEntry[]) {
   window.dispatchEvent(
     new CustomEvent('scribe:open-context-menu', {
       detail: {
-        x: event.clientX,
-        y: event.clientY,
+        x,
+        y,
         items
       }
     })
   );
+}
+
+export function openContextMenu(event: MouseEvent, items: ContextMenuEntry[]) {
+  event.preventDefault();
+  openContextMenuAt(event.clientX, event.clientY, items);
 }

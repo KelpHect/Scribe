@@ -17,7 +17,11 @@
   import { Badge, Button, CategorySelect, Select, Skeleton } from '$lib/components/ui';
   import { PageToolbar } from '$lib/components/layout';
   import RemoteAddonDetail from '$lib/components/addon/RemoteAddonDetail.svelte';
-  import { openContextMenu, type ContextMenuEntry } from '$lib/services/context-menu-service';
+  import {
+    openContextMenu,
+    openContextMenuAt,
+    type ContextMenuEntry
+  } from '$lib/services/context-menu-service';
   import { openExternalURL } from '$lib/services/runtime-service';
   import { getRemoteStore, navigation } from '$lib/stores';
   import { getDownloadStore } from '$lib/stores/downloads.svelte';
@@ -368,6 +372,42 @@
     openContextMenu(e, items);
   }
 
+  function openFindMoreKeyboardMenu(
+    e: KeyboardEvent,
+    addon: RemoteAddon,
+    alreadyInstalled: boolean
+  ) {
+    const target = e.currentTarget as HTMLElement | null;
+    const rect = target?.getBoundingClientRect();
+    const items: ContextMenuEntry[] = [
+      { label: 'View Details', icon: Search, action: () => openDetail(addon) },
+      ...(addon.uiFileInfoUrl
+        ? [{ label: 'Open ESOUI', icon: ExternalLink, action: () => openExternalURL(addon.uiFileInfoUrl) }]
+        : []),
+      { type: 'separator' },
+      {
+        label: alreadyInstalled ? 'Already Installed' : 'Install',
+        icon: Download,
+        disabled: alreadyInstalled || remote.installingUID === addon.uid,
+        action: () => remote.install(addon.uid)
+      }
+    ];
+    openContextMenuAt(rect ? rect.left + 12 : 0, rect ? rect.top + 12 : 0, items);
+  }
+
+  function handleRemoteRowKeydown(e: KeyboardEvent, addon: RemoteAddon, alreadyInstalled: boolean) {
+    if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
+      e.preventDefault();
+      openFindMoreKeyboardMenu(e, addon, alreadyInstalled);
+      return;
+    }
+
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openDetail(addon);
+    }
+  }
+
   const selectedInstalledFolderName = $derived(
     selectedAddon ? (matchedByUID.get(selectedAddon.uid)?.folderName ?? null) : null
   );
@@ -599,14 +639,15 @@
                     installTask?.state === 'queued' ||
                     installTask?.state === 'downloading' ||
                     installTask?.state === 'extracting'}
-                  <!-- svelte-ignore a11y_click_events_have_key_events -->
-                  <!-- svelte-ignore a11y_interactive_supports_focus -->
                   <div data-index={virtualItem.index} style="padding-bottom: 6px;">
                     <div
                       class="card-interactive border-border bg-card flex items-center gap-3 rounded-lg border px-3 py-2.5"
                       onclick={() => openDetail(addon)}
                       oncontextmenu={(e) => openFindMoreContextMenu(e, addon, alreadyInstalled)}
+                      onkeydown={(e) => handleRemoteRowKeydown(e, addon, alreadyInstalled)}
                       role="button"
+                      tabindex="0"
+                      aria-label={`View details for ${addon.uiName}`}
                     >
                       <div
                         class="bg-secondary flex h-10 w-10 shrink-0 items-center justify-center rounded-md"

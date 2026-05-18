@@ -60,6 +60,11 @@
     isOpen = false;
   }
 
+  function clearKeydown(e: KeyboardEvent) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    clear(e);
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       isOpen = false;
@@ -103,11 +108,11 @@
           dark ? 'text-[var(--color-toolbar-muted)]' : 'text-muted-foreground'
         )}>({selectedOption.count.toLocaleString()})</span
       >
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <!-- svelte-ignore a11y_interactive_supports_focus -->
       <span
         onclick={clear}
+        onkeydown={clearKeydown}
         role="button"
+        tabindex="0"
         class={cn(
           '-mr-1 ml-auto shrink-0 cursor-pointer rounded p-0.5 transition-colors',
           dark
@@ -126,11 +131,11 @@
           dark ? 'text-[var(--color-toolbar-muted)]' : 'text-muted-foreground'
         )}>({selectedOptions.reduce((sum, option) => sum + option.count, 0).toLocaleString()})</span
       >
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <!-- svelte-ignore a11y_interactive_supports_focus -->
       <span
         onclick={clear}
+        onkeydown={clearKeydown}
         role="button"
+        tabindex="0"
         class={cn(
           '-mr-1 ml-auto shrink-0 cursor-pointer rounded p-0.5 transition-colors',
           dark
@@ -160,6 +165,7 @@
   </button>
 
   {#if isOpen}
+    <!-- Backdrop click closes the menu; keyboard users use Escape from the trigger/menu. -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div class="fixed inset-0 z-40" onclick={handleBackdropClick} role="button" tabindex="-1"></div>
     <div

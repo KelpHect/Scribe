@@ -320,6 +320,7 @@
         {#if descriptionHtml}
           <div>
             <p class="text-foreground mb-2 border-b pb-1 text-sm font-semibold">Description</p>
+            <!-- Delegated click handling opens sanitized links inside rendered ESOUI rich text; generated anchors remain keyboard-focusable. -->
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
@@ -404,6 +405,7 @@
                     </div>
                   </summary>
                   <div class="mt-3 border-t pt-3">
+                    <!-- Delegated click handling opens sanitized links inside rendered ESOUI rich text; generated anchors remain keyboard-focusable. -->
                     <!-- svelte-ignore a11y_click_events_have_key_events -->
                     <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <div
