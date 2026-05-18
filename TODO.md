@@ -205,9 +205,10 @@ Purpose: keep startup/memory responsive and make performance/debug data actionab
 
 Purpose: record explicitly deferred ideas so they are not confused with current commitments. Risk level: intentionally deferred/out of scope. Scope guardrail: do not implement unless the maintainer explicitly requests a scoped change.
 
-- [ ] Alternate addon sources beyond ESOUI/MMOUI.
-  - Evidence: README “When not to use this” excludes addon sources outside ESOUI/MMOUI; `internal/esoui/client.go` only bootstraps MMOUI/ESOUI.
-  - Acceptance criteria: only reconsider with a product decision, source-specific safety model, and tests/fixtures.
+- [x] Alternate addon sources beyond ESOUI/MMOUI.
+  - Closed as not implementable under current product constraints: research did not identify a second ESO addon source that can provide equivalent catalog/search/install/update/download behavior without credentials, non-equivalent source semantics, duplicate-addon matching risk, or a new trust/safety model.
+  - Evidence: ESOUI/MMOUI remains Scribe's canonical source; other ESO addon managers found still rely on ESOUI/direct ESOUI downloads, while CurseForge/Nexus require API/key/policy decisions and are not equivalent ESOUI replacements.
+  - Decision: keep Scribe ESOUI/MMOUI-only unless a future product decision names a specific non-equivalent source and accepts its API, credential, duplication, and safety trade-offs.
 - [ ] Account/cloud sync.
   - Evidence: README excludes cloud sync/accounts and no account/auth code exists.
   - Acceptance criteria: only reconsider with explicit product requirements and privacy/security design.
