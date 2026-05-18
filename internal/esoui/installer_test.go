@@ -3,8 +3,10 @@ package esoui
 import (
 	"archive/zip"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -120,6 +122,37 @@ func TestExtractWithProgressExtractsValidNestedFilesUnderDestination(t *testing.
 	}
 }
 
+func TestExtractWithProgressStopsAfterContextCancellation(t *testing.T) {
+	base := t.TempDir()
+	dest := filepath.Join(base, "AddOns")
+	if err := os.MkdirAll(dest, 0o755); err != nil {
+		t.Fatalf("create destination: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	zipPath := createTestZip(t, map[string]string{
+		"Addon/01-first.txt":  "first",
+		"Addon/02-second.txt": "second",
+	})
+
+	err := ExtractWithProgress(ctx, zipPath, dest, func(extracted, total int) {
+		if total != 2 {
+			t.Fatalf("total = %d, want 2", total)
+		}
+		if extracted == 1 {
+			cancel()
+		}
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("ExtractWithProgress error = %v, want context.Canceled", err)
+	}
+
+	assertFileContent(t, filepath.Join(dest, "Addon", "01-first.txt"), "first")
+	if _, err := os.Stat(filepath.Join(dest, "Addon", "02-second.txt")); !os.IsNotExist(err) {
+		t.Fatalf("second file was extracted after cancellation or stat failed unexpectedly: %v", err)
+	}
+}
+
 func TestRemoveAddonFolderRejectsUnsafeFolderNames(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -215,7 +248,14 @@ func createTestZip(t *testing.T, entries map[string]string) string {
 	defer zipFile.Close()
 
 	zw := zip.NewWriter(zipFile)
-	for name, content := range entries {
+	names := make([]string, 0, len(entries))
+	for name := range entries {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		content := entries[name]
 		if strings.HasSuffix(name, "/") {
 			if _, err := zw.Create(name); err != nil {
 				t.Fatalf("create zip directory %q: %v", name, err)

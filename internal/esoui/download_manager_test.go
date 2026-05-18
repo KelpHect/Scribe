@@ -3,6 +3,8 @@ package esoui
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -56,6 +58,38 @@ func TestDownloadManagerShutdownWithQueuedTasksDoesNotPanicOrHang(t *testing.T) 
 	waitForTaskState(t, dm, "queued-2", StateQueued)
 
 	shutdownWithin(t, dm)
+}
+
+func TestDownloadManagerCancelDuringExtractionReportsCancelled(t *testing.T) {
+	zipPath := createTestZip(t, map[string]string{
+		"Addon/01-first.txt":  "first",
+		"Addon/02-second.txt": "second",
+	})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, zipPath)
+	}))
+	defer server.Close()
+
+	dest := t.TempDir()
+	var dm *DownloadManager
+	dm = NewDownloadManager(1, func(_ string, data any) {
+		status, ok := data.(TaskProgress)
+		if !ok || status.UID != "extract-cancel" {
+			return
+		}
+		if status.State == StateExtracting && status.FilesExtracted == 1 {
+			dm.Cancel(status.UID)
+		}
+	})
+
+	dm.Enqueue("extract-cancel", "Extract Cancel", server.URL, "", dest)
+	waitForTaskState(t, dm, "extract-cancel", StateCancelled)
+	shutdownWithin(t, dm)
+
+	assertFileContent(t, filepath.Join(dest, "Addon", "01-first.txt"), "first")
+	if _, err := os.Stat(filepath.Join(dest, "Addon", "02-second.txt")); !os.IsNotExist(err) {
+		t.Fatalf("second file was extracted after task cancellation or stat failed unexpectedly: %v", err)
+	}
 }
 
 func newBlockingDownloadServer() *httptest.Server {

@@ -32,9 +32,9 @@ Purpose: prevent corruption, deletion outside the configured AddOns directory, p
 
 ### Shutdown/cancellation
 
-- [ ] Preserve install/update cancellation behavior while extracting large archives.
-  - Evidence: `ExtractWithProgress` checks context before each entry, but no test covers cancellation mid-extraction or asserts that a cancelled running install reports `cancelled` instead of continuing extraction.
-  - Acceptance criteria: tests demonstrate cancellation during extraction stops before later entries, emits/records `cancelled`, and does not continue writing files after context cancellation.
+- [x] Preserve install/update cancellation behavior while extracting large archives.
+  - Completed: extraction and download-manager tests now cancel after the first extracted file and prove later files are not written.
+  - Verification: `internal/esoui/installer_test.go` asserts `context.Canceled` from `ExtractWithProgress`; `internal/esoui/download_manager_test.go` cancels a running extraction and observes the task state become `cancelled`.
 
 ## P1 — User-visible correctness, baseline health, and release confidence
 
