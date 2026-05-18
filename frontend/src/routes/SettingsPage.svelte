@@ -542,6 +542,15 @@
                     <p>Remote categories: <span class="text-foreground font-mono">{diagnostics.remoteCategories}</span></p>
                     <p>Installed addons: <span class="text-foreground font-mono">{diagnostics.installedAddons}</span></p>
                     <p>Cache stale: <span class="text-foreground font-mono">{diagnostics.remoteCacheStale ? 'yes' : 'no'}</span></p>
+                    <p>
+                      Persistence:
+                      <span class={diagnostics.persistenceStatus === 'degraded' ? 'text-destructive font-mono' : 'text-foreground font-mono'}>
+                        {diagnostics.persistenceStatus ?? 'unknown'}
+                      </span>
+                    </p>
+                    {#if diagnostics.persistenceError}
+                      <p class="text-warning">{diagnostics.persistenceError}</p>
+                    {/if}
                   </div>
                 </div>
 

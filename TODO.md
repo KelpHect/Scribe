@@ -191,9 +191,9 @@ Purpose: keep startup/memory responsive and make performance/debug data actionab
 - [x] Review remote refresh concurrency and duplicate background refreshes.
   - Completed: stale cached `GetRemoteAddons` calls now use a remote-refresh in-flight guard before starting the background refresh goroutine, and the guard is released when refresh work exits.
   - Verification: `remote_refresh_test.go` covers the guard preventing duplicate starts while in flight and allowing another refresh after completion; `go test .` and `./scripts/verify.sh` pass.
-- [ ] Add diagnostics/logging for failed cache DB initialization without exposing private paths unnecessarily.
-  - Evidence: startup silently falls back in some paths when DB/cache/settings initialization fails, while docs do not describe troubleshooting persistent DB failures.
-  - Acceptance criteria: failures are logged with actionable, privacy-conscious messages and the UI can still explain degraded persistence/cache behavior.
+- [x] Add diagnostics/logging for failed cache DB initialization without exposing private paths unnecessarily.
+  - Completed: app startup now records degraded persistence when the shared settings/cache DB cannot open, logs a privacy-safe permissions/disk-space message instead of local paths, and surfaces persistence status/error in Settings diagnostics.
+  - Verification: `persistence_test.go` covers path redaction and diagnostics status; `go test .`, `npm --prefix frontend run check`, and `./scripts/verify.sh` pass.
 
 ### Maintainability
 

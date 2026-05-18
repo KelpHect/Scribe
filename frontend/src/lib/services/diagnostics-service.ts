@@ -31,6 +31,8 @@ export interface DiagnosticsSnapshot {
   totalAllocMb?: number;
   memoryBudgetOk?: boolean;
   startupBudgetOk?: boolean;
+  persistenceStatus?: string;
+  persistenceError?: string;
 }
 
 export async function fetchDiagnostics(): Promise<DiagnosticsSnapshot> {

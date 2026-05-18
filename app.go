@@ -53,6 +53,10 @@ type App struct {
 
 	db *gorm.DB
 
+	persistenceMu     sync.RWMutex
+	persistenceStatus string
+	persistenceError  string
+
 	esoClient        *esoui.Client
 	esoCache         *esoui.Cache
 	remoteMu         sync.RWMutex
@@ -110,6 +114,8 @@ type DiagnosticsSnapshot struct {
 	TotalAllocMB        uint64             `json:"totalAllocMb"`
 	MemoryBudgetOK      bool               `json:"memoryBudgetOk"`
 	StartupBudgetOK     bool               `json:"startupBudgetOk"`
+	PersistenceStatus   string             `json:"persistenceStatus"`
+	PersistenceError    string             `json:"persistenceError"`
 }
 
 type RemoteCatalogStatus struct {
@@ -179,6 +185,7 @@ func (a *App) startup(ctx context.Context) {
 
 	if db, err := esoui.OpenAppDB(); err == nil {
 		a.db = db
+		a.setPersistenceStatus("ok", "")
 
 		a.settingsMgr = settings.NewManager(db)
 
@@ -188,6 +195,9 @@ func (a *App) startup(ctx context.Context) {
 				_, _ = a.scanner.Scan()
 			}
 		}
+	} else {
+		a.setPersistenceStatus("degraded", privacySafePersistenceError(err))
+		wailsRuntime.LogErrorf(a.ctx, "[db] settings/cache database unavailable: %s", a.getPersistenceError())
 	}
 
 	a.shutdownCtx, a.shutdownCancel = context.WithCancel(context.Background())
@@ -208,7 +218,8 @@ func (a *App) initESOUI() {
 		var err error
 		cache, err = esoui.NewCache()
 		if err != nil {
-			wailsRuntime.LogErrorf(a.ctx, "[esoui] cache creation failed: %v", err)
+			a.setPersistenceStatus("degraded", privacySafePersistenceError(err))
+			wailsRuntime.LogErrorf(a.ctx, "[esoui] cache database unavailable: %s", a.getPersistenceError())
 			return
 		}
 	}
@@ -280,6 +291,35 @@ func (a *App) markRemoteReady() {
 	a.remoteReadyAt = time.Now()
 	a.perfMu.Unlock()
 	a.logPerformanceSnapshot("remote-ready")
+}
+
+func (a *App) setPersistenceStatus(status, message string) {
+	a.persistenceMu.Lock()
+	a.persistenceStatus = status
+	a.persistenceError = message
+	a.persistenceMu.Unlock()
+}
+
+func (a *App) getPersistenceStatus() (string, string) {
+	a.persistenceMu.RLock()
+	defer a.persistenceMu.RUnlock()
+	status := a.persistenceStatus
+	if status == "" {
+		status = "unknown"
+	}
+	return status, a.persistenceError
+}
+
+func (a *App) getPersistenceError() string {
+	_, message := a.getPersistenceStatus()
+	return message
+}
+
+func privacySafePersistenceError(err error) string {
+	if err == nil {
+		return ""
+	}
+	return "settings and cache persistence are unavailable; check user config directory permissions and disk space"
 }
 
 func (a *App) logPerformanceSnapshot(label string) {
@@ -387,6 +427,7 @@ func (a *App) getDiagnosticsSnapshot() DiagnosticsSnapshot {
 	if a.esoCache != nil {
 		cacheStale = a.esoCache.IsStale()
 	}
+	persistenceStatus, persistenceError := a.getPersistenceStatus()
 
 	return DiagnosticsSnapshot{
 		StartupMS:           elapsedMS(startedAt, time.Now()),
@@ -414,6 +455,8 @@ func (a *App) getDiagnosticsSnapshot() DiagnosticsSnapshot {
 		TotalAllocMB:        mem.TotalAlloc / (1024 * 1024),
 		MemoryBudgetOK:      mem.Sys/(1024*1024) <= 150,
 		StartupBudgetOK:     elapsedMS(startedAt, frontendReadyAt) <= 1000 || frontendReadyAt.IsZero(),
+		PersistenceStatus:   persistenceStatus,
+		PersistenceError:    persistenceError,
 	}
 }
 
