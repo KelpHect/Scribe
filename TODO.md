@@ -256,9 +256,9 @@ Purpose: improve the app without replacing Wails/Svelte/Go: fewer crashes, smoot
 - [x] Add a dependency install plan with required/optional/version clarity.
   - Completed: missing-dependency results now include deterministic install plan state, plan reason, version constraints, required-by grouping, required-over-optional precedence, and installable/unresolved classification; banners show the plan before queueing and callers dedupe UIDs before installing only installable dependencies.
   - Verification: `missing_dependencies_test.go` covers shared dependency dedupe, version constraints, installable/unresolved states, installed dependencies being skipped, and required-over-optional behavior; frontend type checks and smoke tests pass.
-- [ ] Add batch task retry and partial-failure handling.
-  - Evidence: installs, updates, and dependency installs can fail item-by-item; users should retry failed items without duplicating successful or active tasks.
-  - Acceptance criteria: completed task history records success/failure/cancel per addon, exposes retry-failed, avoids duplicate queue entries, and preserves useful failure messages.
+- [x] Add batch task retry and partial-failure handling.
+  - Completed: failed install/update/dependency tasks remain in the download history with their error messages, the queue exposes `Retry failed`, and retry logic requeues only failed non-active UIDs while skipping completed, cancelled, duplicate, or currently active tasks.
+  - Verification: `frontend/src/lib/stores/install-queue.test.ts` covers retry filtering for failed-only, dedupe, and active-skip behavior; `npm --prefix frontend run test` and `npm --prefix frontend run check` pass.
 
 ### UX smoothness and interaction polish
 

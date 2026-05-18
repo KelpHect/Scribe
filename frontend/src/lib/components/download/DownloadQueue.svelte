@@ -13,6 +13,7 @@
 
   const hasTasks = $derived(downloads.tasks.length > 0);
   const activeCount = $derived(downloads.activeCount);
+  const retryableFailedCount = $derived(downloads.retryableFailedDownloads.length);
   const headerLabel = $derived(
     activeCount > 0
       ? `${activeCount} download${activeCount > 1 ? 's' : ''} in progress`
@@ -68,6 +69,18 @@
             class="text-muted-foreground hover:text-destructive cursor-pointer text-xs"
           >
             Cancel all
+          </button>
+        </div>
+      {:else if retryableFailedCount > 0}
+        <div class="border-border flex items-center justify-between gap-2 border-t px-3 py-1.5">
+          <span class="text-muted-foreground text-xs">
+            {retryableFailedCount} failed {retryableFailedCount === 1 ? 'task' : 'tasks'}
+          </span>
+          <button
+            onclick={() => downloads.retryFailedInstalls()}
+            class="text-muted-foreground hover:text-foreground cursor-pointer text-xs"
+          >
+            Retry failed
           </button>
         </div>
       {/if}

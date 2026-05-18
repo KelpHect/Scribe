@@ -3,7 +3,7 @@ import { fetchMissingDependencies } from '$lib/services/esoui-service';
 import { getRuntime } from '$lib/services/runtime-service';
 import { toast } from 'svelte-sonner';
 import { SvelteMap, SvelteSet } from 'svelte/reactivity';
-import { filterNewInstallUIDs } from '$lib/stores/install-queue';
+import { filterNewInstallUIDs, filterRetryInstallUIDs } from '$lib/stores/install-queue';
 
 export type TaskState =
   | 'queued'
@@ -63,6 +63,11 @@ function getCompletedDownloads(): TaskProgress[] {
 
 function getFailedDownloads(): TaskProgress[] {
   return getTaskList().filter((t) => t.state === 'failed');
+}
+
+function getRetryableFailedDownloads(): TaskProgress[] {
+  const retryUIDs = new Set(filterRetryInstallUIDs(getFailedDownloads(), isInstallActive));
+  return getFailedDownloads().filter((task) => retryUIDs.has(task.uid));
 }
 
 function getActiveCount(): number {
@@ -260,6 +265,22 @@ export async function batchInstall(
   }
 }
 
+export async function retryFailedInstalls(): Promise<number> {
+  const failed = getRetryableFailedDownloads();
+  if (failed.length === 0) return 0;
+
+  const names = Object.fromEntries(failed.map((task) => [task.uid, task.name || task.uid]));
+  const count = await batchInstall(
+    failed.map((task) => task.uid),
+    names
+  );
+
+  if (count === 0) {
+    toast.info('No failed installs to retry');
+  }
+  return count;
+}
+
 export async function cancelInstall(uid: string): Promise<void> {
   const app = await getApp();
   app.CancelInstall(uid);
@@ -305,6 +326,9 @@ export function getDownloadStore() {
     get failedDownloads() {
       return getFailedDownloads();
     },
+    get retryableFailedDownloads() {
+      return getRetryableFailedDownloads();
+    },
     get activeCount() {
       return getActiveCount();
     },
@@ -315,6 +339,7 @@ export function getDownloadStore() {
     isInstallActive,
     installAddon,
     batchInstall,
+    retryFailedInstalls,
     cancelInstall,
     cancelAllInstalls,
     clearFinished,

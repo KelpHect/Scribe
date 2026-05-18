@@ -13,3 +13,18 @@ export function filterNewInstallUIDs(
 
   return unique;
 }
+
+export type RetryableInstallTask = {
+  uid: string;
+  state: string;
+};
+
+export function filterRetryInstallUIDs(
+  tasks: RetryableInstallTask[],
+  isActive: (_uid: string) => boolean
+): string[] {
+  return filterNewInstallUIDs(
+    tasks.filter((task) => task.state === 'failed').map((task) => task.uid),
+    isActive
+  );
+}
