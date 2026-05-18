@@ -213,9 +213,10 @@ Purpose: record explicitly deferred ideas so they are not confused with current 
   - Closed as not implementable under current product constraints: Scribe has no account system, authentication boundary, hosted service, conflict model, or privacy/security design for syncing addon state.
   - Evidence: README excludes cloud sync/accounts, no account/auth code exists, and local settings/cache are intentionally stored in the user config DB.
   - Decision: keep Scribe local-first unless a future product plan defines account identity, sync storage, conflict handling, deletion/export semantics, and privacy/security requirements.
-- [ ] Telemetry/analytics.
-  - Evidence: project scope excludes telemetry and no telemetry code was found.
-  - Acceptance criteria: only reconsider with opt-in privacy design and maintainer approval.
+- [x] Telemetry/analytics.
+  - Closed as not implementable under current product constraints: telemetry would require explicit opt-in UX, a privacy design, event schema, retention policy, endpoint ownership, and maintainer approval.
+  - Evidence: no telemetry code exists; README now states Scribe has no telemetry/analytics and limits network behavior to MMOUI/ESOUI catalog/downloads plus user-triggered external links.
+  - Decision: keep Scribe telemetry-free unless a future approved privacy plan defines exactly what is collected, where it goes, how users opt in/out, and how data is retained/deleted.
 - [ ] Plugin APIs or broad architecture rewrites.
   - Evidence: AGENTS and docs scope Scribe as a small Wails/Svelte desktop app without plugin APIs.
   - Acceptance criteria: only reconsider through a separate design plan.

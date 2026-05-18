@@ -85,6 +85,8 @@ Scribe stores settings, ESOUI catalog cache, search presets, and install MD5 rec
 
 That database is separate from your ESO `AddOns` folder. To reset Scribe's cache/settings, close Scribe and rename or delete only `esoui_cache.db`; do not delete your AddOns directory. Scribe will recreate the database on next launch and refresh ESOUI data.
 
+Scribe does not include telemetry or analytics. Network requests are for MMOUI/ESOUI catalog/download behavior and user-triggered external links.
+
 ## Performance budgets
 
 Settings includes a diagnostics panel for startup, memory, catalog, and remote-refresh metrics. Startup-related PRs should include a fresh-launch diagnostics snapshot. Current targets are frontend-ready under 1000 ms and Go `Sys` memory at or under 150 MB.
