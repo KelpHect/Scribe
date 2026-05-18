@@ -57,9 +57,9 @@ Purpose: fix gaps users or contributors hit in normal settings, install, update,
 - [x] Restore a clean frontend type-check baseline.
   - Completed: dependency-update compatibility fixes removed the `matchAll` unknown type issue, `InstalledPage.svelte` declaration ordering issue, clickable-card a11y warning, and TypeScript 6 `baseUrl` warning while preserving Wails aliases.
   - Verification: after Wails-generated bindings are present, `npm --prefix frontend run check` reports 0 errors and 0 warnings.
-- [ ] Make clean-checkout verification deterministic when generated Wails artifacts are absent.
-  - Evidence: `frontend/wailsjs/` and `frontend/dist/` are absent in this workspace; `go test ./...` fails at `//go:embed all:frontend/dist`; frontend type-checking fails on missing Wails binding modules.
-  - Acceptance criteria: docs and/or scripts provide a single clean setup/check path that regenerates needed artifacts via Wails before running `go test ./...` and frontend checks; generated files remain unhand-edited.
+- [x] Make clean-checkout verification deterministic when generated Wails artifacts are absent.
+  - Completed: `scripts/verify.sh` regenerates Wails bindings and `frontend/dist` through Wails, then runs frontend type checks and Go tests.
+  - Verification: README/CONTRIBUTING document the script as the clean-checkout check path and reiterate that generated files are not hand-edited.
 - [ ] Add frontend type checking to CI once generated bindings are available.
   - Evidence: `frontend/package.json` provides `npm run check` and AGENTS requires it for frontend changes, but `.github/workflows/ci.yml` only runs Wails build and Go tests.
   - Acceptance criteria: CI runs `npm --prefix frontend run check` in a step where generated Wails bindings exist and fails PRs on Svelte/TypeScript errors.

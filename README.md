@@ -111,6 +111,8 @@ wails dev
 
 - this is a Wails app, not SvelteKit
 - `frontend/wailsjs/` is generated
+- `frontend/dist/` is generated and required before root Go tests
+- run `./scripts/verify.sh` from a clean checkout to regenerate generated files, type-check the frontend, and run Go tests
 - release automation reads the version from `frontend/package.json`
 
 </details>

@@ -43,11 +43,10 @@ sudo dnf install -y gcc-c++ pkgconf-pkg-config npm gtk3-devel webkit2gtk4.1-deve
 ## Before you submit
 
 ```bash
-wails build -tags webkit2_41     # Linux
-wails build                      # Windows/macOS
-npm --prefix frontend run check  # frontend changes
-go test ./...
+./scripts/verify.sh
 ```
+
+This regenerates Wails bindings and `frontend/dist`, then runs frontend type checks and Go tests. Generated files are build output; do not hand-edit them.
 
 If you touch release workflows or packaging, say that clearly in the PR body.
 
