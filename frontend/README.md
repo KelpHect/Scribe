@@ -5,12 +5,14 @@ This is the Svelte frontend for Scribe. No SvelteKit, no SSR, no router magic. W
 ## Commands
 
 ```bash
-npm install
-npm run dev
-npm run build
-npm run check
-npm run test
+npm --prefix frontend install
+npm --prefix frontend run dev
+npm --prefix frontend run build
+npm --prefix frontend run check
+npm --prefix frontend run test
 ```
+
+`npm --prefix frontend run lint` applies ESLint fixes. Use it only when you intend to mutate files.
 
 ## Gotchas
 

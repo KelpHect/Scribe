@@ -138,9 +138,9 @@ Purpose: make setup, verification, release expectations, and generated-file reco
 - [x] Document generated-file recovery in README/CONTRIBUTING/frontend README.
   - Completed: README, CONTRIBUTING, and `frontend/README.md` now explain that `frontend/wailsjs/` and `frontend/dist/` are Wails-generated, when to use `wails dev`/`wails build` to recover them, and that generated files are not hand-edited.
   - Verification: `git diff --check` passes.
-- [ ] Align documented check commands with actual project gates.
-  - Evidence: `CONTRIBUTING.md` lists only `wails build` and `go test ./...`; AGENTS additionally requires frontend checks for frontend changes and warns `npm run lint` autofixes.
-  - Acceptance criteria: docs list Go, frontend, and packaging check commands with clean-checkout caveats and Linux WebKit dependency notes.
+- [x] Align documented check commands with actual project gates.
+  - Completed: README, CONTRIBUTING, and `frontend/README.md` now list the Go, frontend check/test/build, Wails packaging, clean-checkout generated-file caveats, Linux `webkit2_41` build tag, and the mutating ESLint caveat.
+  - Verification: `git diff --check` passes.
 - [ ] Document local database/cache location and reset behavior.
   - Evidence: `internal/esoui/cache.go` and settings persistence use the historical user config dir `Scribe/esoui_cache.db`, but user-facing docs do not describe where settings/cache live or how to safely reset cache without touching AddOns.
   - Acceptance criteria: docs describe config DB location by OS at a high level, cache-vs-AddOns distinction, and a safe reset/troubleshooting flow.

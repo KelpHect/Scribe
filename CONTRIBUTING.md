@@ -48,6 +48,19 @@ sudo dnf install -y gcc-c++ pkgconf-pkg-config npm gtk3-devel webkit2gtk4.1-deve
 
 This regenerates Wails bindings and `frontend/dist`, then runs frontend type checks and Go tests. Generated files are build output; do not hand-edit them.
 
+Use these focused checks while you work:
+
+```bash
+npm --prefix frontend run check
+npm --prefix frontend run test
+npm --prefix frontend run build
+go test ./...
+wails build -tags webkit2_41   # Linux
+wails build                    # Windows/macOS
+```
+
+Run `wails build` before root `go test ./...` on a clean checkout so `frontend/dist/` exists. Avoid `npm --prefix frontend run lint` as a verification command; it runs ESLint with `--fix` and mutates files.
+
 ## Generated files
 
 Wails generates `frontend/wailsjs/` and `frontend/dist/`.
