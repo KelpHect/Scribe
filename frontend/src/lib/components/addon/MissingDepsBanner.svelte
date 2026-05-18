@@ -59,6 +59,7 @@
   </div>
   <div class="flex shrink-0 items-center gap-2">
     <button
+      type="button"
       onclick={oninstall}
       disabled={batchInstalling || installableDeps.length === 0}
       class="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
@@ -70,6 +71,7 @@
       {/if}
     </button>
     <button
+      type="button"
       onclick={ondismiss}
       class="text-muted-foreground hover:text-foreground text-xs transition-colors"
       aria-label="Dismiss"

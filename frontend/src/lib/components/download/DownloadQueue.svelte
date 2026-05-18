@@ -34,6 +34,7 @@
       </div>
 
       <button
+        type="button"
         onclick={() => (collapsed = !collapsed)}
         class="hover:bg-accent flex h-6 w-6 cursor-pointer items-center justify-center rounded"
         aria-label={collapsed ? 'Expand' : 'Collapse'}
@@ -47,6 +48,7 @@
 
       {#if !downloads.isDownloading}
         <button
+          type="button"
           onclick={() => downloads.clearFinished()}
           class="hover:bg-accent flex h-6 w-6 cursor-pointer items-center justify-center rounded"
           aria-label="Clear all"
@@ -70,6 +72,7 @@
       {#if downloads.isDownloading}
         <div class="border-border border-t px-3 py-1.5">
           <button
+            type="button"
             onclick={() => downloads.cancelAllInstalls()}
             class="text-muted-foreground hover:text-destructive cursor-pointer text-xs"
           >
@@ -82,6 +85,7 @@
             {retryableFailedCount} failed {retryableFailedCount === 1 ? 'task' : 'tasks'}
           </span>
           <button
+            type="button"
             onclick={() => downloads.retryFailedInstalls()}
             class="text-muted-foreground hover:text-foreground cursor-pointer text-xs"
           >

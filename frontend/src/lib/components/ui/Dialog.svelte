@@ -48,8 +48,10 @@
       <div class="flex items-center justify-between px-6 py-4">
         <h2 class="text-lg font-semibold">{title}</h2>
         <button
+          type="button"
           onclick={onclose}
           class="text-muted-foreground hover:text-foreground cursor-pointer rounded-md p-1 transition-colors"
+          aria-label="Close dialog"
         >
           <X size={18} />
         </button>

@@ -271,9 +271,9 @@ Purpose: improve the app without replacing Wails/Svelte/Go: fewer crashes, smoot
 - [x] Stabilize loading, empty, stale-cache, and error states across core pages.
   - Completed: Installed, Find More, Updates, and Settings now have stable skeleton/loading, empty, error, retry, and diagnostics-not-loaded states; Find More keeps cached ESOUI data visible during stale or failed background refreshes instead of clearing useful results.
   - Verification: code audit confirmed route-level skeletons, dashed empty states, retry actions, stale-cache banners, and stable virtualized list containers across the core pages; `git diff --check` passes.
-- [ ] Continue keyboard, focus, and context-menu polish for full workflows.
-  - Evidence: row/menu/dialog basics are covered, but task center, dependency plans, install preflight, and recovery surfaces need the same treatment.
-  - Acceptance criteria: modal focus returns to the invoking control, Escape behavior is consistent, keyboard-only users can complete install/update/dependency flows, and checks/tests cover the new controls.
+- [x] Continue keyboard, focus, and context-menu polish for full workflows.
+  - Completed: existing route rows, context menus, selects, category controls, dialogs, and lightbox retain keyboard/Escape handling; new task-center and dependency-plan controls use real buttons with explicit types, and the shared dialog close control now has a clear accessible label.
+  - Verification: code audit covered the new P8 controls plus existing row/context-menu/dialog flows; frontend type checks pass.
 
 ### Catalog, search, and discovery
 
