@@ -33,6 +33,7 @@
     compareVersionStrings,
     getUpdatedState
   } from '$lib/utils';
+  import { getLatestCompatibility } from '$lib/perf/remote-list';
   import {
     fetchCategories,
     fetchMatchedAddons,
@@ -156,6 +157,7 @@
     return remoteAddons.map((addon: RemoteAddon) => {
       const category = categoryMap.get(addon.categoryId) ?? null;
       const thumb = addon.uiIMGThumbs?.[0] || addon.uiIMGs?.[0] || category?.iconUrl || undefined;
+      const latestCompatibility = getLatestCompatibility(addon.compatabilities);
       return {
         addon,
         nameLower: addon.uiName.toLowerCase(),
@@ -165,14 +167,8 @@
         listIconUrl: thumb,
         listIconIsThumbnail: !!(addon.uiIMGThumbs?.[0] || addon.uiIMGs?.[0]),
         compatibilityVersions: (addon.compatabilities ?? []).map((cv) => cv.version),
-        latestCompatibilityVersion:
-          [...(addon.compatabilities ?? [])].sort((a, b) =>
-            compareVersionStrings(a.version, b.version)
-          )[(addon.compatabilities ?? []).length - 1]?.version ?? '',
-        latestCompatibilityName:
-          [...(addon.compatabilities ?? [])].sort((a, b) =>
-            compareVersionStrings(a.version, b.version)
-          )[(addon.compatabilities ?? []).length - 1]?.name ?? '',
+        latestCompatibilityVersion: latestCompatibility?.version ?? '',
+        latestCompatibilityName: latestCompatibility?.name ?? '',
         updatedState: getUpdatedState(addon.uiDate)
       } satisfies PreparedRemoteAddon;
     });

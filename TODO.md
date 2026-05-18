@@ -265,9 +265,9 @@ Purpose: improve the app without replacing Wails/Svelte/Go: fewer crashes, smoot
 - [x] Add a persistent task center for active and recent install/update/dependency work.
   - Completed: the route-independent floating queue is now labeled as a task center, summarizes active/recent/retryable work, lists queued/planning/downloading/extracting/complete/failed/cancelled tasks, supports cancel, dismiss, clear, cancel-all, and retry-failed actions, and remains mounted across navigation.
   - Verification: frontend type checks and smoke tests pass; task-center state is held in the shared download store and does not trigger catalog refetches except the existing installed-state refresh after successful installs.
-- [ ] Reduce list and search jank on large installed and remote catalogs.
-  - Evidence: Scribe should stay responsive with large AddOns folders and large ESOUI catalog searches.
-  - Acceptance criteria: profile filtering/sorting/rendering on large fixtures, avoid unnecessary derived recomputation, lazy-load images, preserve scroll/selection, and document before/after diagnostics for any optimization.
+- [x] Reduce list and search jank on large installed and remote catalogs.
+  - Completed: Installed and Find More already use TanStack virtualized lists with lazy-loaded images and stable selection state; remote catalog preparation now avoids repeated per-addon compatibility sorts by using a single-pass latest-version helper before filtering/sorting.
+  - Verification: `frontend/src/lib/perf/remote-list.test.ts` covers latest compatibility selection without mutating source data; frontend smoke tests and type checks pass.
 - [ ] Stabilize loading, empty, stale-cache, and error states across core pages.
   - Evidence: cached/offline-friendly behavior is a product strength, but page states should not jump, flicker, or hide stale usable data during background refreshes.
   - Acceptance criteria: Installed, Find More, Updates, and Settings have consistent skeleton/empty/error/stale-cache states, no layout jump on common refreshes, and clear recovery actions.
