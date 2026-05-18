@@ -46,6 +46,14 @@ Every framework or shell spike must use the same scenarios:
 - Electron is justified only if owning Chromium materially improves stability or Linux support enough to outweigh memory and package-size cost.
 - Native rewrite work is out of scope unless there is a new accepted plan and a strict parity-first milestone.
 
+## SolidJS Spike Decision
+
+Status: not run, not kept.
+
+Reason: the current Svelte hot paths now have baselines, and the optimized Find More indexed filter/sort benchmark is under frame budget for the 7k-addon fixture catalog. A SolidJS port would still need to rebuild route state, stores, component behavior, and Wails service wrappers while not addressing backend install/cache/download bottlenecks. That migration cost is not justified until Svelte-specific rendering remains over budget after the current helper extraction, event batching, and virtual-list work.
+
+Trigger to revisit: a reproducible profile shows Svelte route/store rendering, not backend work, bridge events, images, or filtering helpers, as the dominant cause of search, scroll, or task-center jank.
+
 ## Sources
 
 - Wails installation and Linux dependency notes: https://wails.io/docs/gettingstarted/installation/

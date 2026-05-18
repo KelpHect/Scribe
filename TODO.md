@@ -431,9 +431,11 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
   - Acceptance criteria: matrix compares startup, memory, package size, Linux/Fedora dependencies, Windows behavior, webview/runtime ownership, packaging complexity, native API access, Wails bridge replacement cost, and regression risk.
   - Completed: `docs/desktop-stack-evaluation.md` compares Wails/Svelte, Wails/SolidJS, Tauri, Electron, and Avalonia/native across startup, memory, package size, Linux/Fedora dependencies, Windows behavior, runtime ownership, native API access, bridge replacement cost, regression risk, and fit for Scribe; it also defines required spike measurements and decision rules.
   - Verification: official Wails, Tauri, Electron, and SolidJS docs were checked before documenting the matrix.
-- [ ] Run a SolidJS frontend spike only after Svelte hot paths have baselines.
+- [x] Run a SolidJS frontend spike only after Svelte hot paths have baselines.
   - Evidence: Solid has fine-grained reactivity, but current Svelte 5 code already uses runes, lazy chunks, TanStack Query, and virtualization.
   - Acceptance criteria: isolated spike ports the shell plus Find More catalog list against the existing Go/Wails service shape or mocked services; compare bundle size, search latency, scroll smoothness, memory, and migration cost before deciding.
+  - Completed: spike was intentionally not run or kept because Svelte hot paths now have baselines and the optimized Find More indexed filter/sort path is under frame budget for the 7k-addon fixture; `docs/desktop-stack-evaluation.md` records the SolidJS decision and revisit trigger.
+  - Verification: frontend catalog benchmark results from the prior indexed-filter task provide the gating evidence for not starting a speculative SolidJS port.
 - [ ] Run an alternate desktop-shell spike only if Wails itself is proven to be the bottleneck.
   - Evidence: WebKitGTK packaging friction and runtime behavior matter on Linux, but replacing Wails means replacing bindings, build/release flow, and native integrations.
   - Acceptance criteria: spike proves a concrete Wails limitation with measurements, then compares Tauri/Electron/custom shell using the same fixture workflows; no app rewrite begins without an accepted migration plan.
