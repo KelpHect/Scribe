@@ -226,6 +226,79 @@ Purpose: record explicitly deferred ideas so they are not confused with current 
   - Evidence: README documents unsigned Windows builds and ad-hoc/non-notarized macOS builds; release workflow performs ad-hoc macOS signing only; CONTRIBUTING now blocks signing/notarization automation without defined credentials and release approval.
   - Decision: keep current unsigned/ad-hoc distribution disclosure until maintainers provide credentials, secret-management rules, and an explicit release-scope implementation request.
 
+## P8 — Next app-quality backlog (open)
+
+Purpose: improve the app without replacing Wails/Svelte/Go: fewer crashes, smoother UX, better install/update/dependency outcomes, stronger discovery, and measurable performance. Risk level: medium because these affect core workflows. Scope guardrail: keep improvements incremental, local-first, ESOUI/MMOUI-only, and compatible with current generated-file and release rules.
+
+### Crash resistance and recovery
+
+- [ ] Add a frontend route/service error boundary with user-facing recovery actions.
+  - Evidence: dynamic route imports, Wails service wrappers, and async stores can fail today; failures should not leave a blank or frozen app surface.
+  - Acceptance criteria: route/component failures show a recoverable error state with retry, navigation remains usable, error details can be copied, and frontend tests cover at least one failed service and one failed dynamic route path.
+- [ ] Add a local-only redacted diagnostics export.
+  - Evidence: Settings exposes diagnostics, but users still need a one-click way to share startup/cache/download state without leaking arbitrary local paths.
+  - Acceptance criteria: export includes app version, platform, startup timings, memory, persistence status, catalog/cache status, recent task failures, and redacted paths; no telemetry or network upload is added.
+- [ ] Audit background goroutine and async task lifecycles for shutdown safety.
+  - Evidence: download cancellation has regression coverage, but remote refresh, startup scans, diagnostics refresh, and future workers should have the same idempotent shutdown expectations.
+  - Acceptance criteria: tests or focused harnesses prove repeated cancel/shutdown calls do not panic, leak task ownership, or update UI state after shutdown.
+
+### Install, update, and dependency reliability
+
+- [ ] Add install/update archive preflight planning before mutating AddOns.
+  - Evidence: extraction boundaries are tested, but users do not see a clear plan of which folders will be added, replaced, skipped, or rejected before install/update work starts.
+  - Acceptance criteria: backend computes a preflight plan from the downloaded archive, validates manifest/folder expectations, rejects ambiguous unsafe archives, and the UI can show the planned folder changes before extraction.
+- [ ] Make install/update extraction atomic or rollback-safe.
+  - Evidence: failed extraction should not leave partially replaced addon folders or broken dependencies.
+  - Acceptance criteria: installs/updates stage into a temp location, preserve or restore the previous installed folder on failure/cancel, clean temp files, and tests cover cancel, invalid archive, disk/write failure simulation, and successful replacement.
+- [ ] Improve update detection states for ESOUI version and MD5 edge cases.
+  - Evidence: ESOUI metadata can be inconsistent; users need clearer states than a single update badge when version, MD5, local-newer, unknown, or unchanged cases disagree.
+  - Acceptance criteria: matching classifies up-to-date, remote-newer, local-newer, MD5-only changed, unknown-version, and unmatched states; tests cover each state; UI labels explain why an update is or is not offered.
+- [ ] Add a dependency install plan with required/optional/version clarity.
+  - Evidence: missing dependency discovery exists, but bulk dependency installs should show what will be installed, skipped, unresolved, optional, or version-constrained before queueing.
+  - Acceptance criteria: dependency plan groups required and optional dependencies, marks installed/up-to-date/unresolved items, explains non-installable dependencies, dedupes shared dependencies, and only queues the confirmed installable set.
+- [ ] Add batch task retry and partial-failure handling.
+  - Evidence: installs, updates, and dependency installs can fail item-by-item; users should retry failed items without duplicating successful or active tasks.
+  - Acceptance criteria: completed task history records success/failure/cancel per addon, exposes retry-failed, avoids duplicate queue entries, and preserves useful failure messages.
+
+### UX smoothness and interaction polish
+
+- [ ] Add a persistent task center for active and recent install/update/dependency work.
+  - Evidence: queue/progress exists, but users need one place to inspect active work, cancel safely, retry failures, and understand what happened after navigation.
+  - Acceptance criteria: task center shows active, queued, completed, failed, and cancelled work; supports cancel/retry where safe; survives route changes; and does not force unrelated catalog refetches.
+- [ ] Reduce list and search jank on large installed and remote catalogs.
+  - Evidence: Scribe should stay responsive with large AddOns folders and large ESOUI catalog searches.
+  - Acceptance criteria: profile filtering/sorting/rendering on large fixtures, avoid unnecessary derived recomputation, lazy-load images, preserve scroll/selection, and document before/after diagnostics for any optimization.
+- [ ] Stabilize loading, empty, stale-cache, and error states across core pages.
+  - Evidence: cached/offline-friendly behavior is a product strength, but page states should not jump, flicker, or hide stale usable data during background refreshes.
+  - Acceptance criteria: Installed, Find More, Updates, and Settings have consistent skeleton/empty/error/stale-cache states, no layout jump on common refreshes, and clear recovery actions.
+- [ ] Continue keyboard, focus, and context-menu polish for full workflows.
+  - Evidence: row/menu/dialog basics are covered, but task center, dependency plans, install preflight, and recovery surfaces need the same treatment.
+  - Acceptance criteria: modal focus returns to the invoking control, Escape behavior is consistent, keyboard-only users can complete install/update/dependency flows, and checks/tests cover the new controls.
+
+### Catalog, search, and discovery
+
+- [ ] Improve offline-first catalog search ranking and filters.
+  - Evidence: ESOUI/MMOUI remains the only source, so discovery quality should come from better use of the cached catalog instead of adding new sources.
+  - Acceptance criteria: search ranks exact title/folder matches above loose text matches, supports category and library/dependency-oriented filters, works against stale cached data, and refresh failures do not clear useful results.
+- [ ] Improve addon detail pages for update/install decisions.
+  - Evidence: users need enough context to decide whether to install, update, or add optional dependencies without opening the browser for every addon.
+  - Acceptance criteria: detail views clearly show installed/remote versions, update reason, dependency status, optional dependency affordances, ESOUI link, cached freshness, and safe install/update actions.
+- [ ] Add local-only addon health insights.
+  - Evidence: Scribe already scans manifests and dependencies; it can surface actionable local issues without cloud features or extra sources.
+  - Acceptance criteria: health view flags missing required libraries, outdated-by-metadata addons, orphaned unknown folders, disabled/stub manifests where detectable, and provides safe actions without bulk deleting user folders.
+
+### Performance and maintainability
+
+- [ ] Establish repeatable startup, scan, catalog, and memory benchmarks.
+  - Evidence: diagnostics budgets exist, but repeatable fixtures make regressions easier to catch before release.
+  - Acceptance criteria: benchmark or scripted diagnostics fixtures cover cold startup, warm startup, large AddOns scan, cached catalog load, remote search filtering, and memory snapshots; thresholds are documented before enforcement.
+- [ ] Profile backend scan/cache hot paths before optimizing.
+  - Evidence: scanner, cache load, matching, dependency resolution, and update suppression are the likely hot paths; broad rewrites are out of scope.
+  - Acceptance criteria: pprof or benchmark evidence identifies top costs, optimizations are targeted, and tests prove behavior is unchanged.
+- [ ] Expand frontend smoke tests around real user flows.
+  - Evidence: current Vitest coverage is intentionally small; next UX work needs guardrails for store/service interactions.
+  - Acceptance criteria: tests cover install/update queue guards, dependency plan confirmation, task retry, stale-cache messaging, error recovery, and route-state preservation with mocked Wails services.
+
 ## Completed / current-state evidence
 
 - [x] Wails desktop app boundary exists and delegates domain work to internal packages.
