@@ -197,9 +197,9 @@ Purpose: keep startup/memory responsive and make performance/debug data actionab
 
 ### Maintainability
 
-- [ ] Extract testable helpers from `App` methods that currently require Wails app state.
-  - Evidence: behavior such as missing dependency aggregation and MD5 false-positive suppression lives on `App`, making it harder to unit test without constructing Wails-adjacent state.
-  - Acceptance criteria: small pure/internal helpers are introduced where needed, with tests, without changing the Wails binding surface.
+- [x] Extract testable helpers from `App` methods that currently require Wails app state.
+  - Completed: missing dependency aggregation now lives in the pure `findMissingDependencies` helper, while `GetMissingDependencies` remains the Wails-facing scanner wrapper; existing MD5 suppression already uses the pure `suppressMD5Matches` helper.
+  - Verification: `missing_dependencies_test.go` covers the pure helper and the App wrapper without changing the Wails binding surface; `go test .` and `./scripts/verify.sh` pass.
 
 ## P7 — Deferred/future scope (not active production-readiness work)
 

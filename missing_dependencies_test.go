@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"Scribe/internal/addon"
 	"Scribe/internal/esoui"
 	"Scribe/internal/scanner"
 )
@@ -61,6 +62,43 @@ func TestGetMissingDependenciesResolution(t *testing.T) {
 
 	if _, ok := byFolder["libinstalled"]; ok {
 		t.Fatal("installed dependency LibInstalled should not be reported missing")
+	}
+}
+
+func TestFindMissingDependenciesPureHelper(t *testing.T) {
+	locals := []*addon.Addon{
+		{FolderName: "RootAddon", DependsOn: []string{"LibRequired>=1.0"}, OptionalDependsOn: []string{"LibOptional", "LibInstalled"}},
+		{FolderName: "OtherAddon", OptionalDependsOn: []string{"LibRequired<=2.0"}},
+		{FolderName: "LibInstalled"},
+	}
+	remotes := []esoui.RemoteAddon{
+		{UID: "required-uid", UIName: "Required Library", UIDirs: []string{"LibRequired"}},
+		{UID: "optional-uid", UIName: "Optional Library", UIDirs: []string{"Nested", "LibOptional"}},
+	}
+
+	missing := findMissingDependencies(locals, remotes)
+	byFolder := make(map[string]esoui.MissingDepInfo, len(missing))
+	for _, dep := range missing {
+		byFolder[dep.DepFolderName] = dep
+	}
+
+	required := byFolder["librequired"]
+	if required.Optional {
+		t.Fatal("LibRequired Optional = true, want false because a required dependency wins")
+	}
+	if required.RemoteUID != "required-uid" || !required.CanInstall {
+		t.Fatalf("LibRequired remote mapping = %+v, want installable required-uid", required)
+	}
+	if !containsString(required.RequiredBy, "RootAddon") || !containsString(required.RequiredBy, "OtherAddon") {
+		t.Fatalf("LibRequired RequiredBy = %#v, want both addons", required.RequiredBy)
+	}
+
+	optional := byFolder["liboptional"]
+	if !optional.Optional || optional.RemoteUID != "optional-uid" || !optional.CanInstall {
+		t.Fatalf("LibOptional = %+v, want optional installable optional-uid", optional)
+	}
+	if _, ok := byFolder["libinstalled"]; ok {
+		t.Fatal("installed dependency should not be reported missing")
 	}
 }
 

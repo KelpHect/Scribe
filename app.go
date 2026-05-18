@@ -1020,9 +1020,13 @@ func (a *App) GetMissingDependencies() ([]esoui.MissingDepInfo, error) {
 		return nil, fmt.Errorf("scan addons: %w", err)
 	}
 
+	return findMissingDependencies(locals, a.getRemoteList()), nil
+}
+
+func findMissingDependencies(locals []*addon.Addon, remotes []esoui.RemoteAddon) []esoui.MissingDepInfo {
 	installedNames := make(map[string]struct{}, len(locals))
-	for _, a := range locals {
-		installedNames[strings.ToLower(a.FolderName)] = struct{}{}
+	for _, local := range locals {
+		installedNames[strings.ToLower(local.FolderName)] = struct{}{}
 	}
 
 	type depEntry struct {
@@ -1063,10 +1067,9 @@ func (a *App) GetMissingDependencies() ([]esoui.MissingDepInfo, error) {
 	}
 
 	if len(missing) == 0 {
-		return nil, nil
+		return nil
 	}
 
-	remotes := a.getRemoteList()
 	dirToRemote := make(map[string]*esoui.RemoteAddon, len(remotes))
 	for i := range remotes {
 		r := &remotes[i]
@@ -1089,7 +1092,7 @@ func (a *App) GetMissingDependencies() ([]esoui.MissingDepInfo, error) {
 		}
 		result = append(result, info)
 	}
-	return result, nil
+	return result
 }
 
 func (a *App) GetSettings() (settings.AppSettings, error) {
