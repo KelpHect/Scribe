@@ -29,15 +29,13 @@
     compareEsoUiCategoryOrder,
     formatCompact,
     getCategorySection,
-    getCategoryIndentLevel,
-    compareVersionStrings,
-    getUpdatedState
+    getCategoryIndentLevel
   } from '$lib/utils';
   import {
-    getLatestCompatibility,
-    isLibraryLikeRemoteAddon,
-    remoteAddonSearchScore
-  } from '$lib/perf/remote-list';
+    buildRemoteCatalogIndex,
+    filterRemoteCatalog,
+    sortGameVersionsDescending
+  } from '$lib/perf/remote-catalog-index';
   import {
     measureFrontendTiming,
     recordFrontendGauge
@@ -71,21 +69,6 @@
     count: number;
     section: CategorySection;
     indentLevel?: number;
-  };
-
-  type PreparedRemoteAddon = {
-    addon: RemoteAddon;
-    nameLower: string;
-    authorLower: string;
-    category: Category | null;
-    categoryName: string;
-    libraryLike: boolean;
-    listIconUrl?: string;
-    listIconIsThumbnail: boolean;
-    compatibilityVersions: string[];
-    latestCompatibilityVersion: string;
-    latestCompatibilityName: string;
-    updatedState: 'today' | 'recent' | 'normal';
   };
 
   const CATEGORY_SECTION_ORDER: CategorySection[] = [
@@ -164,29 +147,8 @@
   const showingStaleCache = $derived(catalogStatusView === 'showing-stale-cache');
 
   const categoryMap = $derived(new Map(categories.map((c: Category) => [c.id, c])));
-  const selectedCategorySet = $derived(new Set(remote.categoryFilter));
 
-  const preparedRemoteAddons = $derived.by(() => {
-    return remoteAddons.map((addon: RemoteAddon) => {
-      const category = categoryMap.get(addon.categoryId) ?? null;
-      const thumb = addon.uiIMGThumbs?.[0] || addon.uiIMGs?.[0] || category?.iconUrl || undefined;
-      const latestCompatibility = getLatestCompatibility(addon.compatabilities);
-      return {
-        addon,
-        nameLower: addon.uiName.toLowerCase(),
-        authorLower: addon.uiAuthorName.toLowerCase(),
-        category,
-        categoryName: category?.name ?? '',
-        libraryLike: isLibraryLikeRemoteAddon(addon, category?.name ?? ''),
-        listIconUrl: thumb,
-        listIconIsThumbnail: !!(addon.uiIMGThumbs?.[0] || addon.uiIMGs?.[0]),
-        compatibilityVersions: (addon.compatabilities ?? []).map((cv) => cv.version),
-        latestCompatibilityVersion: latestCompatibility?.version ?? '',
-        latestCompatibilityName: latestCompatibility?.name ?? '',
-        updatedState: getUpdatedState(addon.uiDate)
-      } satisfies PreparedRemoteAddon;
-    });
-  });
+  const indexedRemoteAddons = $derived(buildRemoteCatalogIndex(remoteAddons, categories));
 
   const installedUIDs = $derived(
     new Set(matchedAddons.map((m: MatchedAddon) => m.remote?.uid).filter(Boolean) as string[])
@@ -203,16 +165,14 @@
   const availableVersions = $derived.by(() => {
     // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const versionNames = new Map<string, string>();
-    for (const r of remoteAddons) {
-      for (const cv of r.compatabilities ?? []) {
+    for (const r of indexedRemoteAddons) {
+      for (const cv of r.addon.compatabilities ?? []) {
         if (cv.version && !versionNames.has(cv.version)) {
           versionNames.set(cv.version, cv.name ?? cv.version);
         }
       }
     }
-    return Array.from(versionNames.entries())
-      .map(([version, name]) => ({ version, name }))
-      .sort((a, b) => compareVersionStrings(b.version, a.version));
+    return sortGameVersionsDescending(versionNames.entries());
   });
 
   const latestVersion = $derived(availableVersions[0] ?? null);
@@ -246,59 +206,22 @@
   const filterResult = $derived.by(() => {
     return measureFrontendTiming(
       'findMore.filterSort',
-      () => {
-        const q = remote.searchQuery.toLowerCase().trim();
-        const catFilter = remote.categoryFilter;
-        const sortKey = remote.sortBy;
-        const sortDirection = remote.sortDirection;
-        // eslint-disable-next-line svelte/prefer-svelte-reactivity
-        const countMap = new Map<string, number>();
-        const list: PreparedRemoteAddon[] = [];
-
-        for (const prepared of preparedRemoteAddons) {
-          const r = prepared.addon;
-          const searchScore = remoteAddonSearchScore(r, q);
-          if (q && !Number.isFinite(searchScore)) {
-            continue;
-          }
-          if (contentFilter === 'libraries' && !prepared.libraryLike) continue;
-          if (remote.hideInstalled && installedUIDs.has(r.uid)) {
-            continue;
-          }
-          if (versionFilter && !prepared.compatibilityVersions.includes(versionFilter)) continue;
-          countMap.set(r.categoryId, (countMap.get(r.categoryId) ?? 0) + 1);
-          if (catFilter.length > 0 && !selectedCategorySet.has(r.categoryId)) continue;
-          list.push(prepared);
-        }
-
-        list.sort((a: PreparedRemoteAddon, b: PreparedRemoteAddon) => {
-          if (q) {
-            const score = remoteAddonSearchScore(a.addon, q) - remoteAddonSearchScore(b.addon, q);
-            if (score !== 0) return score;
-          }
-          const result =
-            sortKey === 'downloads'
-              ? (a.addon.uiDownloadTotal ?? 0) - (b.addon.uiDownloadTotal ?? 0)
-              : sortKey === 'favorites'
-                ? (a.addon.uiFavoriteTotal ?? 0) - (b.addon.uiFavoriteTotal ?? 0)
-                : sortKey === 'date'
-                  ? (a.addon.uiDate ?? '').localeCompare(b.addon.uiDate ?? '')
-                  : sortKey === 'author'
-                    ? a.addon.uiAuthorName.localeCompare(b.addon.uiAuthorName)
-                    : sortKey === 'category'
-                      ? a.categoryName.localeCompare(b.categoryName) ||
-                        a.addon.uiName.localeCompare(b.addon.uiName)
-                      : a.addon.uiName.localeCompare(b.addon.uiName);
-          return sortDirection === 'asc' ? result : -result;
-        });
-
-        return { list, countMap, q, sortKey, sortDirection };
-      },
+      () =>
+        filterRemoteCatalog(indexedRemoteAddons, {
+          query: remote.searchQuery,
+          contentFilter,
+          hideInstalled: remote.hideInstalled,
+          installedUIDs,
+          versionFilter,
+          categoryFilter: remote.categoryFilter,
+          sortKey: remote.sortBy,
+          sortDirection: remote.sortDirection
+        }),
       (result) => ({
-        sourceCount: preparedRemoteAddons.length,
+        sourceCount: indexedRemoteAddons.length,
         resultCount: result.list.length,
         categoryCount: result.countMap.size,
-        queryLength: result.q.length,
+        queryLength: result.query.length,
         categoryFilterCount: remote.categoryFilter.length,
         versionFiltered: !!versionFilter,
         contentFilter,

@@ -86,6 +86,7 @@
 - Keep large lists virtualized with stable item dimensions, fixed image boxes, and bounded overscan.
 - Coalesce high-frequency bridge events before writing to reactive stores; state transitions can be immediate, byte/progress updates should not force avoidable re-render loops.
 - Keep search/filter/sort work indexed or memoized for large catalogs; do not repeatedly lowercase, parse versions, score search, or sort compatibility data inside hot render paths.
+- Keep Find More catalog indexing/filtering in the tested pure helpers under `frontend/src/lib/perf`; route components should pass state into those helpers instead of rebuilding search/sort logic inline.
 - Prefer native desktop-feeling utility UI over marketing layouts, decorative effects, or large animation-heavy surfaces.
 
 ## Performance rules

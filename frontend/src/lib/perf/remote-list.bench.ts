@@ -1,10 +1,11 @@
 import { bench, describe } from 'vitest';
-import type { RemoteAddon } from '$lib/services/esoui-service';
+import type { Category, RemoteAddon } from '$lib/services/esoui-service';
 import {
   getLatestCompatibility,
   isLibraryLikeRemoteAddon,
   remoteAddonSearchScore
 } from './remote-list';
+import { buildRemoteCatalogIndex, filterRemoteCatalog } from './remote-catalog-index';
 
 function makeRemoteAddons(count: number): RemoteAddon[] {
   return Array.from({ length: count }, (_, i) => ({
@@ -30,6 +31,11 @@ function makeRemoteAddons(count: number): RemoteAddon[] {
 
 describe('remote list preparation benchmarks', () => {
   const addons = makeRemoteAddons(7000);
+  const categories: Category[] = [
+    { id: 'addons', name: 'Stand-Alone Addons', iconUrl: '', parentId: '', parentIds: [], count: 0 },
+    { id: 'libraries', name: 'Libraries', iconUrl: '', parentId: '', parentIds: [], count: 0 }
+  ];
+  const index = buildRemoteCatalogIndex(addons, categories);
 
   bench('remote search score over large cached catalog', () => {
     addons
@@ -43,5 +49,18 @@ describe('remote list preparation benchmarks', () => {
       latestCompatibility: getLatestCompatibility(addon.compatabilities),
       libraryLike: isLibraryLikeRemoteAddon(addon, addon.categoryId)
     }));
+  });
+
+  bench('remote catalog indexed filter and sort', () => {
+    filterRemoteCatalog(index, {
+      query: 'bench addon 42',
+      contentFilter: 'all',
+      hideInstalled: true,
+      installedUIDs: new Set(['1', '2', '3']),
+      versionFilter: '10.0.0',
+      categoryFilter: [],
+      sortKey: 'downloads',
+      sortDirection: 'desc'
+    });
   });
 });
