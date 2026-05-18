@@ -315,7 +315,7 @@ Purpose: improve the app without replacing Wails/Svelte/Go: fewer crashes, smoot
   - Completed: frontend smoke coverage now includes install/update queue dedupe and retry guards, missing dependency plan normalization, matched update-state normalization, stale-cache/no-cache catalog state classification, recoverable route errors, and independent route state preservation using mocked Wails calls or pure helpers.
   - Verification: Vitest covers the added service/catalog/route cases without live ESOUI or generated Wails bindings.
 
-## P9 — Wails-first performance, stability, and desktop experience backlog (open)
+## P9 — Wails-first performance, stability, and desktop experience backlog (complete)
 
 Purpose: make the current app lighter, smoother, less crash-prone, and more predictable before considering any framework or desktop-shell migration. Risk level: medium-high because these touch core install, catalog, startup, and rendering paths. Scope guardrail: keep changes incremental, measured, ESOUI/MMOUI-only, and compatible with the current Wails app.
 
