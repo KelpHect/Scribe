@@ -113,6 +113,7 @@ wails dev
 - `frontend/wailsjs/` is generated
 - `frontend/dist/` is generated and required before root Go tests
 - run `./scripts/verify.sh` from a clean checkout to regenerate generated files, type-check the frontend, and run Go tests
+- set `SCRIBE_PPROF=1` to start the local pprof server on `localhost:6060`; `SCRIBEEGO_PPROF=1` is kept as a legacy alias
 - release automation reads the version from `frontend/package.json`
 
 </details>

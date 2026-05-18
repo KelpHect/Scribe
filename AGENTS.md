@@ -97,7 +97,7 @@
 - Cache schema/version changes must intentionally invalidate or migrate SQLite cache.
 - Settings AddOns path changes can diverge if routed through `SetAddonPath` without `SaveSettings`; persist path-changing UI flows.
 - The Auto Update setting is persisted but not implemented as a worker; do not describe it as active behavior unless implementing a safe opt-in flow.
-- `pprof.go` currently uses `SCRIBEEGO_PPROF`; document or rename compatibly before relying on it.
+- `SCRIBE_PPROF=1` starts the local pprof server; `SCRIBEEGO_PPROF=1` remains a legacy alias.
 - `OpenPath` is broad OS shell opening; constrain or justify any expansion of frontend-provided paths.
 
 ## Blockers: stop and ask

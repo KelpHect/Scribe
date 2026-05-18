@@ -48,6 +48,8 @@ sudo dnf install -y gcc-c++ pkgconf-pkg-config npm gtk3-devel webkit2gtk4.1-deve
 
 This regenerates Wails bindings and `frontend/dist`, then runs frontend type checks and Go tests. Generated files are build output; do not hand-edit them.
 
+For local profiling, start the app with `SCRIBE_PPROF=1` to expose pprof on `localhost:6060`. The old `SCRIBEEGO_PPROF=1` spelling still works for compatibility.
+
 If you touch release workflows or packaging, say that clearly in the PR body.
 
 ## Style

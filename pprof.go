@@ -9,8 +9,13 @@ import (
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+const (
+	pprofEnv       = "SCRIBE_PPROF"
+	legacyPprofEnv = "SCRIBEEGO_PPROF"
+)
+
 func maybeStartPprof(ctx context.Context) {
-	if os.Getenv("SCRIBEEGO_PPROF") != "1" {
+	if !pprofEnabled() {
 		return
 	}
 	go func() {
@@ -20,4 +25,8 @@ func maybeStartPprof(ctx context.Context) {
 			wailsRuntime.LogInfof(ctx, "[pprof] server stopped: %v", err)
 		}
 	}()
+}
+
+func pprofEnabled() bool {
+	return os.Getenv(pprofEnv) == "1" || os.Getenv(legacyPprofEnv) == "1"
 }

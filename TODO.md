@@ -66,9 +66,9 @@ Purpose: fix gaps users or contributors hit in normal settings, install, update,
 
 ### Operations/docs
 
-- [ ] Fix or intentionally document the pprof environment variable name.
-  - Evidence: `pprof.go` checks `SCRIBEEGO_PPROF`, which appears inconsistent with the app name and is undocumented in README/CONTRIBUTING/frontend docs.
-  - Acceptance criteria: the intended env var is documented, or a correctly named variable is added with compatibility for the old spelling.
+- [x] Fix or intentionally document the pprof environment variable name.
+  - Completed: `SCRIBE_PPROF=1` is now the documented profiling switch, with `SCRIBEEGO_PPROF=1` retained as a legacy alias.
+  - Verification: `pprof_test.go` covers both env names and the disabled default.
 
 ## P2 — Backend correctness and data/persistence regression coverage
 
