@@ -5,8 +5,7 @@
   import Download from 'lucide-svelte/icons/download';
   import Loader2 from 'lucide-svelte/icons/loader-2';
   import RefreshCw from 'lucide-svelte/icons/refresh-cw';
-  import { Badge, Button, Skeleton } from '$lib/components/ui';
-  import { ErrorBoundary } from '$lib/components/ui';
+  import { ErrorBoundary, Skeleton } from '$lib/components/ui';
   import { UpdateRow } from '$lib/components/addon';
   import { PageToolbar } from '$lib/components/layout';
   import { getRemoteStore, getDownloadStore } from '$lib/stores';
@@ -115,57 +114,55 @@
 
   <div class="flex min-h-0 flex-1 flex-col gap-2 px-4 pt-2.5 pb-3">
     <ErrorBoundary {error} onretry={() => remote.forceRefresh()}>
-      {#snippet children()}
-        {#if isLoading}
-          <div class="flex flex-col gap-1.5">
-            {#each { length: 4 } as _, i (i)}
-              <div class="border-border bg-card flex items-center gap-3 rounded-lg border px-3 py-2.5">
-                <Skeleton class="h-10 w-10 shrink-0 rounded-md" />
-                <div class="flex flex-1 flex-col gap-1.5">
-                  <Skeleton class="h-4 w-48" />
-                  <Skeleton class="h-3 w-32" />
-                </div>
-                <Skeleton class="h-7 w-20 rounded-md" />
+      {#if isLoading}
+        <div class="flex flex-col gap-1.5">
+          {#each { length: 4 } as _, i (i)}
+            <div class="border-border bg-card flex items-center gap-3 rounded-lg border px-3 py-2.5">
+              <Skeleton class="h-10 w-10 shrink-0 rounded-md" />
+              <div class="flex flex-1 flex-col gap-1.5">
+                <Skeleton class="h-4 w-48" />
+                <Skeleton class="h-3 w-32" />
               </div>
-            {/each}
-          </div>
-        {:else if updatesAvailable.length === 0}
-          <div
-            class="border-border flex flex-1 items-center justify-center rounded-lg border border-dashed p-8"
-          >
-            <div class="flex flex-col items-center gap-3 text-center">
-              <div class="bg-muted flex h-16 w-16 items-center justify-center rounded-full">
-                <Download size={28} class="text-muted-foreground" />
-              </div>
-              <h3 class="text-lg font-medium">All up to date</h3>
-              <p class="text-muted-foreground max-w-sm text-sm">
-                No updates available. Addon updates will appear here when newer versions are detected on
-                ESOUI.
-              </p>
+              <Skeleton class="h-7 w-20 rounded-md" />
             </div>
+          {/each}
+        </div>
+      {:else if updatesAvailable.length === 0}
+        <div
+          class="border-border flex flex-1 items-center justify-center rounded-lg border border-dashed p-8"
+        >
+          <div class="flex flex-col items-center gap-3 text-center">
+            <div class="bg-muted flex h-16 w-16 items-center justify-center rounded-full">
+              <Download size={28} class="text-muted-foreground" />
+            </div>
+            <h3 class="text-lg font-medium">All up to date</h3>
+            <p class="text-muted-foreground max-w-sm text-sm">
+              No updates available. Addon updates will appear here when newer versions are detected on
+              ESOUI.
+            </p>
           </div>
-        {:else}
-          <div class="flex flex-col gap-1.5">
-            {#each updatesAvailable as match (match.folderName)}
-              {@const uid = match.remote?.uid ?? ''}
-              {@const task = getTaskState(uid)}
-              {@const isUpdating =
-                task?.state === 'queued' ||
-                task?.state === 'downloading' ||
-                task?.state === 'extracting'}
-              <UpdateRow
-                {match}
-                iconUrl={getAddonIconUrl(match)}
-                isThumbnail={getIsThumbnail(match)}
-                {task}
-                {isUpdating}
-                globalInstalling={remote.isInstallingUID(uid)}
-                onupdate={() => updateOne(match)}
-              />
-            {/each}
-          </div>
-        {/if}
-      {/snippet}
+        </div>
+      {:else}
+        <div class="flex flex-col gap-1.5">
+          {#each updatesAvailable as match (match.folderName)}
+            {@const uid = match.remote?.uid ?? ''}
+            {@const task = getTaskState(uid)}
+            {@const isUpdating =
+              task?.state === 'queued' ||
+              task?.state === 'downloading' ||
+              task?.state === 'extracting'}
+            <UpdateRow
+              {match}
+              iconUrl={getAddonIconUrl(match)}
+              isThumbnail={getIsThumbnail(match)}
+              {task}
+              {isUpdating}
+              globalInstalling={remote.isInstallingUID(uid)}
+              onupdate={() => updateOne(match)}
+            />
+          {/each}
+        </div>
+      {/if}
     </ErrorBoundary>
   </div>
 </div>

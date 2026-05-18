@@ -371,7 +371,7 @@
           <h3 class="mb-3 text-sm font-medium">Preferences</h3>
           <div class="flex flex-col gap-4">
             <form.Field name="autoUpdate">
-              {#snippet children(field)}
+              {#snippet children(_field)}
                 <div class="flex items-center justify-between">
                   <div>
                     <p class="text-sm font-medium">Auto Update</p>

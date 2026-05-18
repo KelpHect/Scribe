@@ -3,7 +3,7 @@ export type Page = 'installed' | 'find-more' | 'updates' | 'settings';
 class NavigationStore {
   current: Page = $state<Page>('installed');
   pendingSearch: string = $state('');
-  preloadFn: ((page: Page) => void) | null = null;
+  preloadFn: ((_page: Page) => void) | null = null;
 
   navigate(page: Page, search?: string): void {
     this.pendingSearch = search ?? '';
@@ -14,7 +14,7 @@ class NavigationStore {
     return this.current === page;
   }
 
-  setPreload(fn: (page: Page) => void): void {
+  setPreload(fn: (_page: Page) => void): void {
     this.preloadFn = fn;
   }
 

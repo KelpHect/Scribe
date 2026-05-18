@@ -28,13 +28,11 @@
   import {
     compareEsoUiCategoryOrder,
     formatCompact,
-    normalizeCategoryName,
     getCategorySection,
     getCategoryIndentLevel,
     compareVersionStrings,
     getUpdatedState
   } from '$lib/utils';
-  import type { CategorySection } from '$lib/utils';
   import {
     fetchCategories,
     fetchMatchedAddons,

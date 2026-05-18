@@ -113,11 +113,12 @@ wails dev
 ./scripts/verify.sh
 npm --prefix frontend run check
 npm --prefix frontend run test
+npm --prefix frontend run lint:check
 npm --prefix frontend run build
 go test ./...
 ```
 
-On Linux, local Wails builds need `-tags webkit2_41` after installing the GTK/WebKit packages above. Do not use `npm --prefix frontend run lint` for verification unless you want ESLint autofixes applied.
+On Linux, local Wails builds need `-tags webkit2_41` after installing the GTK/WebKit packages above. Use `npm --prefix frontend run lint:check` for lint verification; `npm --prefix frontend run lint` applies autofixes.
 
 ### generated files
 

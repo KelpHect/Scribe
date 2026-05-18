@@ -1,5 +1,5 @@
 import { writeFileSync } from 'node:fs';
-import { join, basename } from 'node:path';
+import { join } from 'node:path';
 
 const BUDGETS = {
   'index.js': 20_000,
@@ -41,14 +41,11 @@ export default function buildReportPlugin() {
       const chunks = [];
       let totalJs = 0;
       let totalCss = 0;
-      let totalGzipJs = 0;
-      let totalGzipCss = 0;
       const violations = [];
 
       for (const [fileName, output] of Object.entries(bundle)) {
         if (output.type === 'chunk' || output.type === 'asset') {
           const size = output.type === 'chunk' ? output.code.length : output.source.length;
-          const gzipSize = output.type === 'chunk' ? output.code.length : output.source.length;
           const isJs = fileName.endsWith('.js');
           const isCss = fileName.endsWith('.css');
 

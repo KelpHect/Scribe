@@ -53,7 +53,7 @@ export function serializeSortValue(
 
 let installing: boolean = $state(false);
 let installingUID: string | null = $state(null);
-let pendingInstallUIDs = new SvelteSet<string>();
+const pendingInstallUIDs = new SvelteSet<string>();
 let installError: string | null = $state(null);
 let refreshing: boolean = $state(false);
 

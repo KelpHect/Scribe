@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
+    "lint:check": "eslint .",
     "lint": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{ts,svelte,css}\""
   },

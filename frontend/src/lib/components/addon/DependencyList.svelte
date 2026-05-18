@@ -6,7 +6,6 @@
   import CheckCircle from 'lucide-svelte/icons/check-circle';
   import Download from 'lucide-svelte/icons/download';
   import Loader2 from 'lucide-svelte/icons/loader-2';
-  import Package from 'lucide-svelte/icons/package';
   import Search from 'lucide-svelte/icons/search';
   import { Button, Separator } from '$lib/components/ui';
 
@@ -19,9 +18,9 @@
     batchInstallError?: string | null;
     installingUID?: string | null;
     installErrors?: Record<string, string>;
-    oninstall?: (dep: string, uid: string) => void;
+    oninstall?: (_dep: string, _uid: string) => void;
     oninstallall?: () => void;
-    onsearch?: (dep: string) => void;
+    onsearch?: (_dep: string) => void;
   }
 
   const {

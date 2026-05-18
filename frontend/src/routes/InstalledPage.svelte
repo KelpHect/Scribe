@@ -14,7 +14,6 @@
   import Search from 'lucide-svelte/icons/search';
   import Trash2 from 'lucide-svelte/icons/trash-2';
   import { Badge, Button, Dialog, Skeleton } from '$lib/components/ui';
-  import { ErrorBoundary } from '$lib/components/ui';
   import { PageToolbar } from '$lib/components/layout';
   import AddonCard from '$lib/components/addon/AddonCard.svelte';
   import AddonDetail from '$lib/components/addon/AddonDetail.svelte';
@@ -46,7 +45,7 @@
     installedAddonsQueryKey,
     matchedAddonsQueryKey,
     remoteAddonsQueryKey,
-    refreshInstalledState,
+    refreshInstalledState
   } from '$lib/db/query-state';
 
   const remote = getRemoteStore();
@@ -72,7 +71,7 @@
   let dismissedRequiredDeps = $state(false);
   let dismissedOptionalDeps = $state(false);
   let batchInstalling = $state(false);
-  let uninstallingFolders = $state(new SvelteSet<string>());
+  const uninstallingFolders = new SvelteSet<string>();
   let bulkUninstalling = $state(false);
   let uninstallConfirmOpen = $state(false);
   let pendingUninstallAddons = $state<Addon[]>([]);
@@ -149,10 +148,6 @@
   const remoteAddons = $derived((remoteAddonsQuery.data as RemoteAddon[]) ?? []);
   const addonPath = $derived((addonPathQuery.data as string) ?? '');
   const loading = $derived(installedQuery.isLoading && addons.length === 0);
-  const error = $derived.by(() => {
-    if (installedQuery.isError) return 'Failed to load installed addons';
-    return addonPathQuery.error instanceof Error ? addonPathQuery.error.message : null;
-  });
   const filteredAddons = $derived.by(() => {
     const q = searchQuery.toLowerCase().trim();
     if (!q) return addons;

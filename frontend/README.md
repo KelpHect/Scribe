@@ -10,9 +10,10 @@ npm --prefix frontend run dev
 npm --prefix frontend run build
 npm --prefix frontend run check
 npm --prefix frontend run test
+npm --prefix frontend run lint:check
 ```
 
-`npm --prefix frontend run lint` applies ESLint fixes. Use it only when you intend to mutate files.
+`npm --prefix frontend run lint` applies ESLint fixes. Use `lint:check` for non-mutating verification.
 
 ## Gotchas
 

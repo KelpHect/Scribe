@@ -6,7 +6,7 @@
   import X from 'lucide-svelte/icons/x';
 
   interface Props {
-    screenshots: { thumb: string; full: string }[];
+    screenshots: Array<{ thumb: string; full: string }>;
     index: number;
     onclose: () => void;
     onprev: () => void;

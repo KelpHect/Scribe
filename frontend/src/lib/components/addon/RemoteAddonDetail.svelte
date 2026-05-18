@@ -14,7 +14,6 @@
   import Heart from 'lucide-svelte/icons/heart';
   import Loader2 from 'lucide-svelte/icons/loader-2';
   import Package from 'lucide-svelte/icons/package';
-  import Tag from 'lucide-svelte/icons/tag';
   import User from 'lucide-svelte/icons/user';
   import { openExternalURL } from '$lib/services/runtime-service';
   import { getRemoteStore, getDownloadStore } from '$lib/stores';

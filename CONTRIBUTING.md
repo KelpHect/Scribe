@@ -53,13 +53,14 @@ Use these focused checks while you work:
 ```bash
 npm --prefix frontend run check
 npm --prefix frontend run test
+npm --prefix frontend run lint:check
 npm --prefix frontend run build
 go test ./...
 wails build -tags webkit2_41   # Linux
 wails build                    # Windows/macOS
 ```
 
-Run `wails build` before root `go test ./...` on a clean checkout so `frontend/dist/` exists. Avoid `npm --prefix frontend run lint` as a verification command; it runs ESLint with `--fix` and mutates files.
+Run `wails build` before root `go test ./...` on a clean checkout so `frontend/dist/` exists. Use `npm --prefix frontend run lint:check` for lint verification. Avoid `npm --prefix frontend run lint` unless you want ESLint autofixes applied.
 
 ## Generated files
 
