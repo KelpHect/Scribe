@@ -301,9 +301,11 @@ Purpose: improve the app without replacing Wails/Svelte/Go: fewer crashes, smoot
   - Acceptance criteria: pprof or benchmark evidence identifies top costs, optimizations are targeted, and tests prove behavior is unchanged.
   - Completed: `scripts/profile-backend.sh` captures CPU and memory pprof output for scanner scans, cached catalog load, matching/search, and dependency resolution into ignored `build/reports/profiles/` files, and prints top costs for review before any optimization work.
   - Verification: the script runs against deterministic benchmark fixtures and avoids live ESOUI, real AddOns folders, or committed profile artifacts.
-- [ ] Expand frontend smoke tests around real user flows.
+- [x] Expand frontend smoke tests around real user flows.
   - Evidence: current Vitest coverage is intentionally small; next UX work needs guardrails for store/service interactions.
   - Acceptance criteria: tests cover install/update queue guards, dependency plan confirmation, task retry, stale-cache messaging, error recovery, and route-state preservation with mocked Wails services.
+  - Completed: frontend smoke coverage now includes install/update queue dedupe and retry guards, missing dependency plan normalization, matched update-state normalization, stale-cache/no-cache catalog state classification, recoverable route errors, and independent route state preservation using mocked Wails calls or pure helpers.
+  - Verification: Vitest covers the added service/catalog/route cases without live ESOUI or generated Wails bindings.
 
 ## Completed / current-state evidence
 

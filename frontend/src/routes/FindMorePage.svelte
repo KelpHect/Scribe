@@ -38,6 +38,7 @@
     isLibraryLikeRemoteAddon,
     remoteAddonSearchScore
   } from '$lib/perf/remote-list';
+  import { getCatalogStatusView } from '$lib/catalog/status';
   import {
     fetchCategories,
     fetchMatchedAddons,
@@ -146,15 +147,16 @@
   const isLoading = $derived(remoteAddonsQuery.isLoading && remoteAddons.length === 0);
   const isError = $derived(remoteAddonsQuery.isError);
   const hasRemoteCatalogStatus = $derived(remoteStatusQuery.isSuccess && remoteStatus !== null);
-  const staleRefreshFailed = $derived(
-    remoteAddons.length > 0 && !!remoteStatus?.cacheStale && !!remoteStatus.lastRefreshError
+  const catalogStatusView = $derived(
+    getCatalogStatusView({
+      remoteCount: remoteAddons.length,
+      hasRemoteCatalogStatus,
+      remoteStatus,
+      isError
+    })
   );
-  const showingStaleCache = $derived(
-    remoteAddons.length > 0 &&
-      hasRemoteCatalogStatus &&
-      !!remoteStatus?.cacheStale &&
-      !remoteStatus.lastRefreshError
-  );
+  const staleRefreshFailed = $derived(catalogStatusView === 'stale-refresh-failed');
+  const showingStaleCache = $derived(catalogStatusView === 'showing-stale-cache');
 
   const categoryMap = $derived(new Map(categories.map((c: Category) => [c.id, c])));
   const selectedCategorySet = $derived(new Set(remote.categoryFilter));
@@ -589,7 +591,7 @@
                   Try a different search term, category, version, or content filter.
                 </p>
               {:else}
-                {#if isError || (hasRemoteCatalogStatus && !remoteStatus?.hasData)}
+                {#if catalogStatusView === 'no-cache'}
                   <h3 class="text-lg font-medium">No cached addon data available</h3>
                   <p class="text-muted-foreground max-w-sm text-sm">
                     Scribe could not load ESOUI and has no saved catalog to show. Check your

@@ -43,4 +43,27 @@ describe('loadLazyRoute', () => {
     expect(state.error).toBeNull();
     expect(attempts).toBe(2);
   });
+
+  it('keeps route states independent so mounted pages can preserve state', async () => {
+    const installed = createLazyRouteState<string>();
+    const findMore = createLazyRouteState<string>();
+
+    await loadLazyRoute(
+      installed,
+      async () => ({ default: 'InstalledPage' }),
+      'Failed to load installed route'
+    );
+    await loadLazyRoute(
+      findMore,
+      async () => {
+        throw new Error('find more chunk missing');
+      },
+      'Failed to load find more route'
+    );
+
+    expect(installed.component).toBe('InstalledPage');
+    expect(installed.error).toBeNull();
+    expect(findMore.component).toBeNull();
+    expect(findMore.error?.message).toBe('find more chunk missing');
+  });
 });
