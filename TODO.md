@@ -88,9 +88,9 @@ Purpose: reduce update/matching/cache/settings regressions before broader distri
 
 ### Persistence/data
 
-- [ ] Add cache database round-trip and schema-invalidation tests.
-  - Evidence: `internal/esoui/cache.go` schema-versioned cache persists remote addons/categories/feed URLs/fetched time and invalidates on missing/mismatched schema, but no tests cover these behaviors.
-  - Acceptance criteria: temp SQLite tests cover `Set`/`Get` round trip, stale detection, `Invalidate`, schema mismatch deletion, categories/addons JSON fields, and feed URL persistence.
+- [x] Add cache database round-trip and schema-invalidation tests.
+  - Completed: temp SQLite cache tests cover persisted feed URLs, addon/category JSON fields, Set/Get reload, stale detection, explicit `Invalidate`, and schema mismatch deletion.
+  - Verification: `go test ./internal/esoui` passes.
 - [ ] Add settings persistence tests.
   - Evidence: `internal/settings/settings.go` has defaults, bool/int parsing, theme fallback, and upsert logic with no direct tests.
   - Acceptance criteria: temp SQLite tests cover defaults, save/load, invalid memory/theme fallback, addon path round trip, and repeated saves updating existing rows.
