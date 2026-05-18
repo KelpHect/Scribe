@@ -48,9 +48,9 @@ Purpose: fix gaps users or contributors hit in normal settings, install, update,
 - [x] Resolve the Auto Update preference mismatch.
   - Completed: the Settings UI now marks Auto Update as unavailable/manual-review only, and backend settings keep the inert preference false until a safe worker exists.
   - Verification: `npm --prefix frontend run check`, `npm --prefix frontend run build`, `go test ./...`, and Linux Wails build pass.
-- [ ] Validate Settings form inputs before persistence.
-  - Evidence: `validateAddonPath` only trims strings, `memoryLimitMb` accepts any number from the input, and `settings.Manager.SaveSettings` stores the theme value as provided even though load only accepts known themes.
-  - Acceptance criteria: invalid addon paths, negative/non-finite memory limits, and unsupported themes are rejected or normalized consistently in frontend and backend tests.
+- [x] Validate Settings form inputs before persistence.
+  - Completed: frontend Settings validation rejects invalid AddOns paths and negative/non-finite memory thresholds, while backend settings persistence rejects invalid non-empty paths and normalizes inert auto-update, negative memory, and unsupported themes.
+  - Verification: `internal/settings/settings_test.go` covers invalid path rejection plus memory/theme/auto-update normalization; frontend and app checks pass.
 
 ### Baseline checks/CI
 

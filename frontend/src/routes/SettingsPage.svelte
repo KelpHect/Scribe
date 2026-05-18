@@ -116,8 +116,21 @@
   const installedAddons = $derived((installedQuery.data as Addon[]) ?? []);
 
   function validateAddonPath(val: string) {
-    const result = v.safeParse(v.pipe(v.string(), v.trim()), val);
+    const result = v.safeParse(
+      v.pipe(
+        v.string(),
+        v.trim(),
+        v.check((path) => path === '' || path.startsWith('/') || /^[A-Za-z]:[\\/]/.test(path) || path.startsWith('\\\\'), 'Use an absolute AddOns folder path'),
+        v.check((path) => !path.includes('\0'), 'AddOns folder path contains invalid characters')
+      ),
+      val
+    );
     if (!result.success) return result.issues[0].message;
+    return undefined;
+  }
+
+  function validateMemoryLimitMb(val: number) {
+    if (!Number.isFinite(val) || val < 0) return 'Memory threshold must be 0 or higher';
     return undefined;
   }
 
@@ -420,7 +433,10 @@
               {/snippet}
             </form.Field>
 
-            <form.Field name="memoryLimitMb">
+            <form.Field
+              name="memoryLimitMb"
+              validators={{ onChange: ({ value }) => validateMemoryLimitMb(value) }}
+            >
               {#snippet children(field)}
                 <div class="flex items-start justify-between gap-4">
                   <div>
@@ -456,6 +472,9 @@
                     <span class="text-muted-foreground text-xs">MB</span>
                   </div>
                 </div>
+                {#if field.state.meta.errors.length > 0}
+                  <p class="text-destructive mt-2 text-xs">{field.state.meta.errors[0]}</p>
+                {/if}
               {/snippet}
             </form.Field>
           </div>

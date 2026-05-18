@@ -2,7 +2,9 @@ package settings
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"Scribe/internal/esoui"
 
@@ -53,7 +55,9 @@ func (m *Manager) GetSettings() (AppSettings, error) {
 
 	s := defaults()
 	if v, ok := kv[keyAddonPath]; ok {
-		s.AddonPath = v
+		if normalized, err := normalizeAddonPath(v); err == nil {
+			s.AddonPath = normalized
+		}
 	}
 	// Auto update has no safe worker yet; keep the stored preference inert until one exists.
 	s.AutoUpdate = false
@@ -63,16 +67,22 @@ func (m *Manager) GetSettings() (AppSettings, error) {
 		}
 	}
 	if v, ok := kv[keyTheme]; ok {
-		switch v {
-		case "scribe", "neutral", "dark":
-			s.Theme = v
-		}
+		s.Theme = normalizeTheme(v)
 	}
 	return s, nil
 }
 
 func (m *Manager) SaveSettings(s AppSettings) error {
+	normalizedPath, err := normalizeAddonPath(s.AddonPath)
+	if err != nil {
+		return err
+	}
+	s.AddonPath = normalizedPath
 	s.AutoUpdate = false
+	if s.MemoryLimitMB < 0 {
+		s.MemoryLimitMB = defaults().MemoryLimitMB
+	}
+	s.Theme = normalizeTheme(s.Theme)
 	rows := []esoui.DBSetting{
 		{Key: keyAddonPath, Value: s.AddonPath},
 		{Key: keyAutoUpdate, Value: strconv.FormatBool(s.AutoUpdate)},
@@ -86,4 +96,27 @@ func (m *Manager) SaveSettings(s AppSettings) error {
 		return fmt.Errorf("save settings: %w", err)
 	}
 	return nil
+}
+
+func normalizeAddonPath(path string) (string, error) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return "", nil
+	}
+	if strings.ContainsRune(trimmed, 0) {
+		return "", fmt.Errorf("addon path contains invalid characters")
+	}
+	if !filepath.IsAbs(trimmed) {
+		return "", fmt.Errorf("addon path must be absolute")
+	}
+	return filepath.Clean(trimmed), nil
+}
+
+func normalizeTheme(theme string) string {
+	switch theme {
+	case "scribe", "neutral", "dark":
+		return theme
+	default:
+		return defaults().Theme
+	}
 }
