@@ -102,6 +102,8 @@ Run repeatable local fixtures with:
 
 The script covers large AddOns scans, cached catalog load, backend remote search, frontend catalog filtering/ranking, and prints the cold/warm startup plus memory snapshot capture steps. Fixture benchmark numbers are recorded before enforcement; only the diagnostics budgets above are current targets.
 
+Backend hot-path profiles can be captured with `./scripts/profile-backend.sh`. It writes CPU and memory profiles for scanner scans, cached catalog load, matching/search, and dependency resolution under `build/reports/profiles/`, which is ignored by git.
+
 ## When not to use this
 
 - you want a signed and notarized app on every platform right now
@@ -134,6 +136,7 @@ wails dev
 ```bash
 ./scripts/verify.sh
 ./scripts/benchmarks.sh
+./scripts/profile-backend.sh
 npm --prefix frontend run check
 npm --prefix frontend run test
 npm --prefix frontend run bench -- --run

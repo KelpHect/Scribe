@@ -106,6 +106,14 @@ For repeatable fixture benchmarks, run:
 
 This covers large AddOns scanning, cached catalog load, backend remote search, frontend catalog filtering/ranking, and the documented cold/warm startup diagnostics capture path. Treat these fixture numbers as baselines to record before enforcement, not as release-blocking thresholds.
 
+For backend hot-path profiling, run:
+
+```bash
+./scripts/profile-backend.sh
+```
+
+It captures CPU and memory profiles for scanner scans, cached catalog load, matching/search, and dependency resolution under `build/reports/profiles/`. The output is ignored by git; summarize the top costs in the PR or issue before optimizing.
+
 For local profiling, start the app with `SCRIBE_PPROF=1` to expose pprof on `localhost:6060`. The old `SCRIBEEGO_PPROF=1` spelling still works for compatibility.
 
 If you touch release workflows or packaging, say that clearly in the PR body.

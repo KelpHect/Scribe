@@ -1,4 +1,5 @@
 build/bin/
+build/reports/
 frontend/dist/
 frontend/wailsjs/
 node_modules/
@@ -11,6 +12,7 @@ node_modules/
 *.bak
 *.tmp
 *.md5
+*.test
 
 .DS_Store
 Thumbs.db

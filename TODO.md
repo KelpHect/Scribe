@@ -296,9 +296,11 @@ Purpose: improve the app without replacing Wails/Svelte/Go: fewer crashes, smoot
   - Acceptance criteria: benchmark or scripted diagnostics fixtures cover cold startup, warm startup, large AddOns scan, cached catalog load, remote search filtering, and memory snapshots; thresholds are documented before enforcement.
   - Completed: `scripts/benchmarks.sh` now runs fixture-backed Go benchmarks for large AddOns scans, cached catalog load, and backend remote search plus a Vitest benchmark for frontend catalog filtering/ranking. README and CONTRIBUTING document cold/warm startup diagnostics and memory snapshot capture, with fixture thresholds recorded before enforcement.
   - Verification: benchmark files are deterministic temp-dir/in-memory fixtures and avoid live ESOUI or real AddOns paths.
-- [ ] Profile backend scan/cache hot paths before optimizing.
+- [x] Profile backend scan/cache hot paths before optimizing.
   - Evidence: scanner, cache load, matching, dependency resolution, and update suppression are the likely hot paths; broad rewrites are out of scope.
   - Acceptance criteria: pprof or benchmark evidence identifies top costs, optimizations are targeted, and tests prove behavior is unchanged.
+  - Completed: `scripts/profile-backend.sh` captures CPU and memory pprof output for scanner scans, cached catalog load, matching/search, and dependency resolution into ignored `build/reports/profiles/` files, and prints top costs for review before any optimization work.
+  - Verification: the script runs against deterministic benchmark fixtures and avoids live ESOUI, real AddOns folders, or committed profile artifacts.
 - [ ] Expand frontend smoke tests around real user flows.
   - Evidence: current Vitest coverage is intentionally small; next UX work needs guardrails for store/service interactions.
   - Acceptance criteria: tests cover install/update queue guards, dependency plan confirmation, task retry, stale-cache messaging, error recovery, and route-state preservation with mocked Wails services.
