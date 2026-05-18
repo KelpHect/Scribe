@@ -65,6 +65,12 @@ function getFailedDownloads(): TaskProgress[] {
   return getTaskList().filter((t) => t.state === 'failed');
 }
 
+function getRecentDownloads(): TaskProgress[] {
+  return getTaskList().filter(
+    (t) => t.state === 'complete' || t.state === 'failed' || t.state === 'cancelled'
+  );
+}
+
 function getRetryableFailedDownloads(): TaskProgress[] {
   const retryUIDs = new Set(filterRetryInstallUIDs(getFailedDownloads(), isInstallActive));
   return getFailedDownloads().filter((task) => retryUIDs.has(task.uid));
@@ -325,6 +331,9 @@ export function getDownloadStore() {
     },
     get failedDownloads() {
       return getFailedDownloads();
+    },
+    get recentDownloads() {
+      return getRecentDownloads();
     },
     get retryableFailedDownloads() {
       return getRetryableFailedDownloads();

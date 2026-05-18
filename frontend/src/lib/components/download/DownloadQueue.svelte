@@ -13,20 +13,25 @@
 
   const hasTasks = $derived(downloads.tasks.length > 0);
   const activeCount = $derived(downloads.activeCount);
+  const recentCount = $derived(downloads.recentDownloads.length);
   const retryableFailedCount = $derived(downloads.retryableFailedDownloads.length);
-  const headerLabel = $derived(
-    activeCount > 0
-      ? `${activeCount} download${activeCount > 1 ? 's' : ''} in progress`
-      : 'Downloads'
-  );
 </script>
 
 {#if hasTasks}
   <div
     class="border-border bg-popover fixed right-4 bottom-4 z-50 flex w-80 flex-col overflow-hidden rounded-lg border shadow-lg"
+    aria-label="Task center"
   >
     <div class="border-border bg-muted/50 flex items-center gap-2 border-b px-3 py-2">
-      <span class="flex-1 text-sm font-medium">{headerLabel}</span>
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-medium">Task Center</p>
+        <p class="text-muted-foreground truncate text-[11px]">
+          {activeCount} active · {recentCount} recent
+          {#if retryableFailedCount > 0}
+            · {retryableFailedCount} retryable
+          {/if}
+        </p>
+      </div>
 
       <button
         onclick={() => (collapsed = !collapsed)}

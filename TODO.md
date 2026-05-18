@@ -262,9 +262,9 @@ Purpose: improve the app without replacing Wails/Svelte/Go: fewer crashes, smoot
 
 ### UX smoothness and interaction polish
 
-- [ ] Add a persistent task center for active and recent install/update/dependency work.
-  - Evidence: queue/progress exists, but users need one place to inspect active work, cancel safely, retry failures, and understand what happened after navigation.
-  - Acceptance criteria: task center shows active, queued, completed, failed, and cancelled work; supports cancel/retry where safe; survives route changes; and does not force unrelated catalog refetches.
+- [x] Add a persistent task center for active and recent install/update/dependency work.
+  - Completed: the route-independent floating queue is now labeled as a task center, summarizes active/recent/retryable work, lists queued/planning/downloading/extracting/complete/failed/cancelled tasks, supports cancel, dismiss, clear, cancel-all, and retry-failed actions, and remains mounted across navigation.
+  - Verification: frontend type checks and smoke tests pass; task-center state is held in the shared download store and does not trigger catalog refetches except the existing installed-state refresh after successful installs.
 - [ ] Reduce list and search jank on large installed and remote catalogs.
   - Evidence: Scribe should stay responsive with large AddOns folders and large ESOUI catalog searches.
   - Acceptance criteria: profile filtering/sorting/rendering on large fixtures, avoid unnecessary derived recomputation, lazy-load images, preserve scroll/selection, and document before/after diagnostics for any optimization.
