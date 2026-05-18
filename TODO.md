@@ -209,9 +209,10 @@ Purpose: record explicitly deferred ideas so they are not confused with current 
   - Closed as not implementable under current product constraints: research did not identify a second ESO addon source that can provide equivalent catalog/search/install/update/download behavior without credentials, non-equivalent source semantics, duplicate-addon matching risk, or a new trust/safety model.
   - Evidence: ESOUI/MMOUI remains Scribe's canonical source; other ESO addon managers found still rely on ESOUI/direct ESOUI downloads, while CurseForge/Nexus require API/key/policy decisions and are not equivalent ESOUI replacements.
   - Decision: keep Scribe ESOUI/MMOUI-only unless a future product decision names a specific non-equivalent source and accepts its API, credential, duplication, and safety trade-offs.
-- [ ] Account/cloud sync.
-  - Evidence: README excludes cloud sync/accounts and no account/auth code exists.
-  - Acceptance criteria: only reconsider with explicit product requirements and privacy/security design.
+- [x] Account/cloud sync.
+  - Closed as not implementable under current product constraints: Scribe has no account system, authentication boundary, hosted service, conflict model, or privacy/security design for syncing addon state.
+  - Evidence: README excludes cloud sync/accounts, no account/auth code exists, and local settings/cache are intentionally stored in the user config DB.
+  - Decision: keep Scribe local-first unless a future product plan defines account identity, sync storage, conflict handling, deletion/export semantics, and privacy/security requirements.
 - [ ] Telemetry/analytics.
   - Evidence: project scope excludes telemetry and no telemetry code was found.
   - Acceptance criteria: only reconsider with opt-in privacy design and maintainer approval.
