@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const defaultProgressWriterInterval = 250 * time.Millisecond
+
 type ProgressFn func(written, total int64)
 
 type ProgressWriter struct {
@@ -21,7 +23,7 @@ type ProgressWriter struct {
 
 func NewProgressWriter(dst io.Writer, total int64, fn ProgressFn, interval time.Duration) *ProgressWriter {
 	if interval <= 0 {
-		interval = 100 * time.Millisecond
+		interval = defaultProgressWriterInterval
 	}
 	return &ProgressWriter{
 		dst:      dst,

@@ -385,9 +385,11 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
   - Acceptance criteria: state transitions remain immediate, byte/progress updates are batched with `requestAnimationFrame` or a measured throttle, task center remains responsive during concurrent downloads, and cancel/retry behavior is unchanged.
   - Completed: download progress handling now applies first events, state transitions, and terminal states immediately while coalescing same-state byte/file progress updates through `requestAnimationFrame` with a 16 ms fallback; task lookup/cancel/retry behavior still sees active pending work, and diagnostics count overwritten pending updates as dropped/coalesced events.
   - Verification: `downloads.svelte.test.ts` covers immediate-vs-batched progress classification, and frontend diagnostics tests still cover progress event accounting.
-- [ ] Make backend progress interval adaptive.
+- [x] Make backend progress interval adaptive.
   - Evidence: byte-level progress does not need the same frequency as state changes, especially with multiple downloads.
   - Acceptance criteria: planning/downloading/extracting/complete/failed/cancelled transitions emit immediately; byte progress is throttled to a measured interval such as 200-250 ms unless a benchmark proves otherwise.
+  - Completed: backend byte progress now uses a 200 ms interval for a single active task and 250 ms when multiple downloads are active, while extraction file-counter progress uses the same adaptive interval; queued, downloading, planning, extracting, complete, failed, and cancelled state emissions remain immediate.
+  - Verification: `progress_writer_test.go` covers throttled byte progress plus final emission, and download-manager tests cover the adaptive interval selector.
 - [ ] Improve install/update preflight presentation.
   - Evidence: archive preflight exists, but users need clearer confidence before mutating AddOns.
   - Acceptance criteria: install/update confirmation shows folders to add/replace, dependency impact, expected download size when known, rollback behavior, and any warning that blocks install before mutation.

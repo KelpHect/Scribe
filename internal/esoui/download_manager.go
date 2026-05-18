@@ -54,9 +54,10 @@ type downloadTask struct {
 }
 
 const (
-	defaultConcurrency = 3
-	progressInterval   = 100 * time.Millisecond
-	queuedTaskTimeout  = 10 * time.Minute
+	defaultConcurrency     = 3
+	singleTaskProgressTick = 200 * time.Millisecond
+	concurrentProgressTick = 250 * time.Millisecond
+	queuedTaskTimeout      = 10 * time.Minute
 )
 
 type DownloadManager struct {
@@ -282,7 +283,19 @@ func (dm *DownloadManager) runTask(task *downloadTask) error {
 		InstallPlan: plan,
 	})
 
-	return installPlannedArchiveWithProgress(task.ctx, tmpPath, task.destDir, plan, func(extracted, total int) {
+	return installPlannedArchiveWithProgress(task.ctx, tmpPath, task.destDir, plan, dm.extractionProgressEmitter(task, plan))
+}
+
+func (dm *DownloadManager) extractionProgressEmitter(task *downloadTask, plan []InstallPlanEntry) ExtractionProgressFn {
+	var lastEmit time.Time
+	return func(extracted, total int) {
+		now := time.Now()
+		interval := dm.currentProgressInterval()
+		if extracted != total && !lastEmit.IsZero() && now.Sub(lastEmit) < interval {
+			return
+		}
+		lastEmit = now
+
 		pct := float64(0)
 		if total > 0 {
 			pct = float64(extracted) / float64(total) * 100
@@ -296,7 +309,7 @@ func (dm *DownloadManager) runTask(task *downloadTask) error {
 			TotalFiles:     total,
 			InstallPlan:    plan,
 		})
-	})
+	}
 }
 
 func (dm *DownloadManager) downloadFile(task *downloadTask) (string, error) {
@@ -352,7 +365,7 @@ func (dm *DownloadManager) downloadFile(task *downloadTask) (string, error) {
 			TotalBytes:      total,
 			Speed:           speed,
 		})
-	}, progressInterval)
+	}, dm.currentProgressInterval())
 
 	if _, err := io.Copy(pw, resp.Body); err != nil {
 		tmp.Close()
@@ -367,6 +380,20 @@ func (dm *DownloadManager) downloadFile(task *downloadTask) (string, error) {
 	}
 
 	return tmpPath, nil
+}
+
+func (dm *DownloadManager) currentProgressInterval() time.Duration {
+	dm.mu.Lock()
+	activeCount := len(dm.active)
+	dm.mu.Unlock()
+	return progressIntervalForActiveCount(activeCount)
+}
+
+func progressIntervalForActiveCount(activeCount int) time.Duration {
+	if activeCount > 1 {
+		return concurrentProgressTick
+	}
+	return singleTaskProgressTick
 }
 
 func verifyMD5(filePath, expectedHex string) error {
