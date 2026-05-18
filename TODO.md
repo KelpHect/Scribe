@@ -147,9 +147,9 @@ Purpose: make setup, verification, release expectations, and generated-file reco
 
 ### Tooling/scripts
 
-- [ ] Add a non-mutating verification script or Make target for common checks.
-  - Evidence: setup/check commands are scattered across docs and AGENTS; `frontend/package.json` has `lint` that runs `eslint . --fix`, which is risky for verification-only use.
-  - Acceptance criteria: a documented command runs formatting/diff sanity, frontend check, Wails build as needed, and Go tests without applying automatic source rewrites.
+- [x] Add a non-mutating verification script or Make target for common checks.
+  - Completed: `scripts/verify.sh` now runs `git diff --check`, the Wails build/regeneration path, frontend type checks, frontend smoke tests, and Go tests without invoking mutating lint/format commands; docs describe the command as the common clean-checkout verification path.
+  - Verification: `./scripts/verify.sh` passes.
 - [ ] Add a non-fixing lint script if linting is intended in CI or local checks.
   - Evidence: current `npm --prefix frontend run lint` invokes `eslint . --fix`, so using it as a check mutates the working tree.
   - Acceptance criteria: `frontend/package.json` exposes a `lint:check` or equivalent that reports lint issues without changing files; docs avoid recommending mutating lint for verification.

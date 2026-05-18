@@ -46,7 +46,7 @@ sudo dnf install -y gcc-c++ pkgconf-pkg-config npm gtk3-devel webkit2gtk4.1-deve
 ./scripts/verify.sh
 ```
 
-This regenerates Wails bindings and `frontend/dist`, then runs frontend type checks and Go tests. Generated files are build output; do not hand-edit them.
+This runs diff sanity, regenerates Wails bindings and `frontend/dist`, then runs frontend type checks, frontend smoke tests, and Go tests. Generated files are build output; do not hand-edit them.
 
 Use these focused checks while you work:
 

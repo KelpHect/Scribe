@@ -15,6 +15,8 @@ if [ "$(go env GOOS)" = "linux" ]; then
   build_args+=(-tags webkit2_41)
 fi
 
+git diff --check
 "${WAILS[@]}" "${build_args[@]}"
 npm --prefix frontend run check
+npm --prefix frontend run test
 go test ./...
