@@ -66,6 +66,22 @@ func TestMatchAddonsSelectsMostSpecificRemoteDirectoryCandidate(t *testing.T) {
 	}
 }
 
+func TestBestRemoteForDirPrefersLatestCanonicalCandidate(t *testing.T) {
+	remotes := []RemoteAddon{
+		{UID: "old-bundle", UIName: "Old Bundle", UIVersion: "1.0", UIDate: "2020-01-02", UIDirs: []string{"SharedLib", "OtherLib"}, UIDownloadTotal: 10},
+		{UID: "latest-specific", UIName: "Shared Lib", UIVersion: "3.0", UIDate: "2026-01-02", UIDirs: []string{"SharedLib"}, UIDownloadTotal: 1000},
+		{UID: "older-specific", UIName: "Shared Lib", UIVersion: "2.0", UIDate: "2024-01-02", UIDirs: []string{"SharedLib"}, UIDownloadTotal: 2000},
+	}
+
+	best, ok := BestRemoteForDir(remotes, "sharedlib")
+	if !ok {
+		t.Fatal("BestRemoteForDir returned no match")
+	}
+	if best.UID != "latest-specific" {
+		t.Fatalf("BestRemoteForDir UID = %q, want latest-specific", best.UID)
+	}
+}
+
 func TestMatchAddonsClassifiesUnmatchedLocalAddons(t *testing.T) {
 	matches := MatchAddons(
 		[]*addon.Addon{{FolderName: "LocalOnly", Version: "1.0"}},

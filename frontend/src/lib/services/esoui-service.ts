@@ -164,7 +164,7 @@ export async function fetchMissingDependencies(): Promise<MissingDepInfo[]> {
       planReason:
         (dep as MissingDepInfo).planReason ??
         (dep.canInstall
-          ? 'Matched ESOUI addon metadata and can be queued for install.'
+          ? 'Matched the latest canonical ESOUI addon entry; dependency version constraints are informational and do not pin downloads.'
           : 'No ESOUI catalog entry matched this dependency folder.')
     }));
   } catch {

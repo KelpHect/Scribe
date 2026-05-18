@@ -3,7 +3,7 @@
 ## Scope
 - Make small, focused changes for Scribe, a Wails desktop app that manages ESO addons from ESOUI/MMOUI.
 - Do not commit, tag, push, publish releases, dispatch workflows, or perform release automation; RusticTools/user owns git operations.
-- Do not add alternate addon sources, account/cloud sync, telemetry, plugin APIs, signing/notarization, or broad rewrites unless explicitly requested.
+- Do not add alternate addon sources, account/cloud sync, telemetry, plugin APIs, signing/notarization, or broad rewrites unless explicitly requested and backed by an accepted plan.
 - Do not delete, move, or bulk-modify user addon folders except for the explicitly named install/update/uninstall action.
 - Treat `frontend/wailsjs/`, `frontend/dist/`, `build/bin/`, `node_modules/`, `frontend/tsconfig.tsbuildinfo`, build reports, and packaged binaries as generated; do not hand-edit or commit them.
 
@@ -12,6 +12,14 @@
 - Prefer maintainer-style diffs: smallest correct change, no drive-by refactors, no comment spam, comments only for constraints/trade-offs.
 - Final responses should lead with the user-visible change, then checks run, then risks/follow-up.
 - If release/packaging/version behavior changes, call it out clearly; release tags are derived from `frontend/package.json` as `vX.Y.Z`.
+
+## Current direction
+- The active product is the existing Wails/Svelte/Go app. Do not revive the deleted Avalonia/native rewrite unless the user asks for a new accepted plan.
+- The current quality goal is a lighter, smoother, more stable desktop app: faster startup, less UI jank, safer installs/updates, clearer recovery, and fewer moving parts.
+- Svelte 5 remains the default frontend until measurements prove another choice is worth the migration cost.
+- SolidJS, Electron, Tauri, custom WebKit shells, or other desktop/frontend stacks are allowed only as measured spikes or documented architecture evaluations, not speculative rewrites.
+- Electron is not assumed lighter by default because it bundles its own runtime; consider it only if its stability, tooling, or user experience wins outweigh package size and memory cost.
+- Prefer improving the current data flow, bridge traffic, cache behavior, install pipeline, and UI rendering before replacing the shell or framework.
 
 ## Completion gates
 - For Go/app changes, run `wails build` and `go test ./...` from the repo root.
@@ -22,6 +30,7 @@
 - Clean-checkout caveat: root `go test ./...` fails if `frontend/dist` is absent because `main.go` embeds `all:frontend/dist`; run Wails/build first.
 - Clean-checkout caveat: frontend type checks fail if `frontend/wailsjs` is absent/stale; regenerate via `wails dev`/`wails build`, never by authoring generated bindings.
 - `npm --prefix frontend run check` is expected to pass after bindings are regenerated; rerun it before claiming frontend package or type-check changes are clean.
+- For performance-sensitive changes, run the relevant benchmark path: `./scripts/benchmarks.sh`, `scripts/profile-backend.sh`, `npm --prefix frontend run bench -- --run`, or a narrower package benchmark when appropriate.
 - For docs-only AGENTS/TODO audits, at minimum run `git diff --check`; do not run heavyweight app builds unless code/config behavior changed.
 
 ## Priorities
@@ -29,7 +38,8 @@
 2. Preserve fast desktop startup and low memory use; diagnostics target <1s frontend-ready and <=150 MB Go runtime/system memory.
 3. Favor cached/offline-friendly ESOUI catalog behavior while refreshing stale remote data in the background.
 4. Keep UI state stable across navigation; avoid unnecessary TanStack Query invalidation/refetch loops.
-5. Prefer smallest correct changes over broad refactors.
+5. Reduce jank with measured, local fixes before replacing frameworks or adding abstractions.
+6. Prefer smallest correct changes over broad refactors.
 
 ## Stack
 - Go 1.26.3, Wails v2.12, Node.js 24/npm 11, Svelte 5 runes, TypeScript 6, Vite 8, Tailwind CSS v4.
@@ -53,6 +63,10 @@
 - Frontend service modules in `frontend/src/lib/services` stay thin Wails/runtime wrappers; shared client state belongs in `frontend/src/lib/stores` or TanStack Query helpers under `frontend/src/lib/db`.
 - Route components under `frontend/src/routes` compose pages and queries; reusable UI belongs under `frontend/src/lib/components`.
 - External URLs must go through Wails runtime helpers from frontend services; do not add ad-hoc browser/process launching for URLs.
+- Do not introduce framework-agnostic abstraction layers, service locators, event buses, or plugin-style extension points unless they remove proven duplication or fix a measured problem.
+- Keep expensive transforms in pure helpers where they can be tested and benchmarked; avoid burying catalog filtering, matching, or install planning inside component markup.
+- Do not move logic into the frontend merely to avoid Go changes when the operation belongs next to filesystem, SQLite, archive, or ESOUI code.
+- Missing dependency installs resolve a dependency folder to the latest canonical ESOUI catalog entry; manifest version constraints are shown for context and must not pin downloads to an older dependency release.
 
 ## Data and persistence rules
 - Preserve the historical config directory name `Scribe`; changing it strands existing `esoui_cache.db` settings/cache.
@@ -69,6 +83,18 @@
 - Keep mounted route state stable across navigation where current UX relies on it.
 - `frontend/wailsjs` imports are generated; frontend services should use `callWails`/runtime wrappers instead of duplicating binding logic.
 - Global hotkeys/context menus and memory cleanup live in `App.svelte`; avoid page-level listeners that leak or conflict with global behavior.
+- Keep large lists virtualized with stable item dimensions, fixed image boxes, and bounded overscan.
+- Coalesce high-frequency bridge events before writing to reactive stores; state transitions can be immediate, byte/progress updates should not force avoidable re-render loops.
+- Keep search/filter/sort work indexed or memoized for large catalogs; do not repeatedly lowercase, parse versions, score search, or sort compatibility data inside hot render paths.
+- Prefer native desktop-feeling utility UI over marketing layouts, decorative effects, or large animation-heavy surfaces.
+
+## Performance rules
+- Measure before optimizing and record the baseline in the task notes when the change is performance-motivated.
+- Treat startup scan, remote catalog load, Find More filtering/sorting, virtual list scrolling, image/detail loading, download progress updates, and install extraction as the main hot paths.
+- Prefer cache reuse, incremental work, batching, throttling, and pure helper optimization over broad rewrites.
+- Avoid adding dependencies for small utilities when a small local helper is clearer and cheaper.
+- Remove unused dependencies only after verifying usage and lockfile effects with npm; do not churn packages for aesthetics.
+- A framework or shell migration must have a spike branch/plan with measured bundle size, startup time, memory, scroll/search latency, install-progress responsiveness, packaging impact, and regression risk.
 
 ## Security/safety rules
 - Never allow archive extraction or uninstall paths to escape the configured AddOns directory; preserve zip-slip checks and folder-name validation.

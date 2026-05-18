@@ -11,6 +11,14 @@ Last audit refresh: 2026-05-18
 - Generated/runtime surfaces: `frontend/wailsjs/`, `frontend/dist/`, `build/bin/`, build reports, and packaged binaries are treated as generated; Wails build/regeneration is the supported recovery path.
 - Verification baseline: `./scripts/verify.sh` runs diff sanity, Wails build/regeneration, frontend type checks, frontend smoke tests, and Go tests without mutating lint/format commands.
 
+## Current direction
+
+- Keep the production app Wails/Svelte/Go while improving speed, stability, install reliability, dependency handling, and day-to-day desktop feel.
+- Do not revive the removed Avalonia/native rewrite unless a new accepted plan explicitly asks for it.
+- Treat SolidJS, Electron, Tauri, custom WebKit, or other desktop/frontend options as measured spikes only. The goal is a better app, not a framework swap for its own sake.
+- Prioritize evidence from benchmarks, diagnostics, UI profiling, and real user workflows before large changes.
+- Keep Scribe local-first and ESOUI/MMOUI-only.
+
 ## P0 — Safety, data-loss prevention, and shutdown correctness
 
 Purpose: prevent corruption, deletion outside the configured AddOns directory, panics, hangs, and unsafe destructive operations. Risk level: critical because failures can damage user addon folders or crash during install/update/cancel. Scope guardrail: keep fixes narrow; do not bulk-modify addon folders beyond the explicitly named install/update/uninstall action.
@@ -306,6 +314,105 @@ Purpose: improve the app without replacing Wails/Svelte/Go: fewer crashes, smoot
   - Acceptance criteria: tests cover install/update queue guards, dependency plan confirmation, task retry, stale-cache messaging, error recovery, and route-state preservation with mocked Wails services.
   - Completed: frontend smoke coverage now includes install/update queue dedupe and retry guards, missing dependency plan normalization, matched update-state normalization, stale-cache/no-cache catalog state classification, recoverable route errors, and independent route state preservation using mocked Wails calls or pure helpers.
   - Verification: Vitest covers the added service/catalog/route cases without live ESOUI or generated Wails bindings.
+
+## P9 — Wails-first performance, stability, and desktop experience backlog (open)
+
+Purpose: make the current app lighter, smoother, less crash-prone, and more predictable before considering any framework or desktop-shell migration. Risk level: medium-high because these touch core install, catalog, startup, and rendering paths. Scope guardrail: keep changes incremental, measured, ESOUI/MMOUI-only, and compatible with the current Wails app.
+
+### Measurement and baselines
+
+- [ ] Record a clean performance baseline before more optimization.
+  - Evidence: existing diagnostics and benchmark scripts exist, but future work needs current cold/warm startup, memory, catalog, search, scroll, and install-progress numbers to avoid guesswork.
+  - Acceptance criteria: run or document `./scripts/verify.sh`, `./scripts/benchmarks.sh`, frontend catalog benchmarks, cold/warm diagnostics exports, and a short manual Find More scroll/search profile; record baseline numbers or a redacted summary in this ledger or dedicated docs.
+- [ ] Add frontend interaction timing probes for Find More search/filter/sort and task-center updates.
+  - Evidence: Find More does catalog preparation, search scoring, category counting, sorting, and virtual-list updates; task progress writes frequent bridge events into reactive state.
+  - Acceptance criteria: local diagnostics can capture search/filter duration, visible list size, result count, progress event rate, and dropped/error states without telemetry or network upload.
+- [ ] Add a repeatable UI smoke/profile script for desktop workflows.
+  - Evidence: current tests cover stores/services, but not real navigation, modal opening, search typing, scroll behavior, or task-center interaction inside the rendered app.
+  - Acceptance criteria: scripted local workflow covers Installed, Find More, Updates, Settings, addon details, dependency banners, task center, and failure/retry states using mocks or fixture data where possible.
+
+### Startup and cache responsiveness
+
+- [ ] Move initial AddOns scan off the startup critical path.
+  - Evidence: `startup()` currently detects and scans AddOns before database setup and async ESOUI initialization, which can delay first useful UI on large folders.
+  - Acceptance criteria: app can render quickly with cached/last-known state, then refresh installed addons asynchronously; diagnostics distinguish frontend-ready, cached-state-ready, scan-start, scan-ready, and remote-ready timing.
+- [ ] Add incremental scanner caching for unchanged addon folders.
+  - Evidence: full rescans reparse manifests even when folder mtimes/sizes have not changed.
+  - Acceptance criteria: scanner stores safe per-folder metadata in the app DB or a cache table, reparses changed folders only, invalidates correctly on folder deletion/rename, and preserves canonical-manifest preference tests.
+- [ ] Make remote catalog refresh more visibly background-first.
+  - Evidence: stale cache handling exists, but the UI should never feel empty or blocked when a usable cached ESOUI catalog exists.
+  - Acceptance criteria: cached remote data appears immediately when available, stale/background refresh status remains visible, refresh failure keeps prior results, and manual refresh does not duplicate in-flight work.
+
+### Catalog, search, and rendering jank
+
+- [ ] Optimize Find More catalog indexing and search ranking.
+  - Evidence: search score and lowercase/string/date/version work can be repeated during filtering and sorting.
+  - Acceptance criteria: create a tested pure catalog index that precomputes lowercase title/author/folder fields, category name/order, latest compatibility, date number, library-like flag, and stable sort keys; sorting reuses per-query search scores instead of recomputing them in comparators.
+- [ ] Add a worker-backed catalog filtering spike if main-thread filtering still exceeds frame budget.
+  - Evidence: a large ESOUI catalog can make search/filter/sort CPU-bound even with virtualization.
+  - Acceptance criteria: timeboxed Web Worker or worker-like spike processes fixture catalog search/filter/sort off the UI thread and is kept only if it measurably improves responsiveness without complicating state flow.
+- [ ] Tighten virtual-list and image behavior.
+  - Evidence: virtualized lists exist, but image load, item measurement, overscan, and details preloading can still cause scroll hitching.
+  - Acceptance criteria: list rows keep stable dimensions, lazy images have fixed boxes and fallbacks, overscan is bounded, image/detail prefetch is limited, and scroll remains smooth on large installed and remote lists.
+- [ ] Bound addon detail and screenshot cache memory.
+  - Evidence: details and screenshots are useful but can accumulate memory across browsing sessions.
+  - Acceptance criteria: detail queries/images use an explicit bounded cache or eviction policy, memory cleanup has deterministic behavior, and diagnostics expose detail cache size/count.
+
+### Install, update, and task-center smoothness
+
+- [ ] Coalesce download progress events before reactive store writes.
+  - Evidence: backend emits progress every 100 ms per active task, and the frontend currently writes each event into a reactive map.
+  - Acceptance criteria: state transitions remain immediate, byte/progress updates are batched with `requestAnimationFrame` or a measured throttle, task center remains responsive during concurrent downloads, and cancel/retry behavior is unchanged.
+- [ ] Make backend progress interval adaptive.
+  - Evidence: byte-level progress does not need the same frequency as state changes, especially with multiple downloads.
+  - Acceptance criteria: planning/downloading/extracting/complete/failed/cancelled transitions emit immediately; byte progress is throttled to a measured interval such as 200-250 ms unless a benchmark proves otherwise.
+- [ ] Improve install/update preflight presentation.
+  - Evidence: archive preflight exists, but users need clearer confidence before mutating AddOns.
+  - Acceptance criteria: install/update confirmation shows folders to add/replace, dependency impact, expected download size when known, rollback behavior, and any warning that blocks install before mutation.
+- [ ] Clean stale temporary install/update artifacts on startup.
+  - Evidence: rollback-safe staging and backups exist; crashes or forced exits can still leave temporary folders.
+  - Acceptance criteria: startup detects Scribe-owned stale staging/backup folders under AddOns, presents or safely cleans only app-owned temp artifacts, never deletes user addon folders, and logs privacy-safe diagnostics.
+
+### Dependency and update experience
+
+- [x] Ensure missing dependency installs use the latest canonical ESOUI addon entry.
+  - Evidence: dependency folder resolution could map a folder to whichever ESOUI catalog entry was seen last when duplicate `UIDirs` existed, including older bundled entries.
+  - Acceptance criteria: duplicate remote folder candidates prefer the canonical/single-folder addon entry, then the newest catalog date/version before queueing; dependency version constraints remain visible but do not pin the download to an older release.
+  - Completed: dependency resolution and addon matching now share deterministic best-remote selection, and the install path fetches addon details for the selected UID so the queued download comes from that addon page's latest details.
+  - Verification: `missing_dependencies_test.go` covers old bundled vs latest canonical dependency resolution; `internal/esoui/matcher_test.go` covers best remote selection.
+- [ ] Improve missing dependency UX for required vs optional libraries.
+  - Evidence: dependency planning exists, but install affordances should be clearer and less noisy.
+  - Acceptance criteria: required dependencies are prioritized, optional dependencies are grouped separately, version constraints are visible, unresolved dependencies explain why no install action exists, and batch install dedupes already active tasks.
+- [ ] Add update explanation details everywhere update actions appear.
+  - Evidence: update-state reasons now exist, but rows, detail views, and task flows should consistently explain remote-newer, local-newer, MD5-only changed, unknown-version, and unmatched states.
+  - Acceptance criteria: Installed, Updates, addon detail, and task planning surfaces share one tested formatter for update reason text and safe action eligibility.
+- [ ] Add recovery guidance for failed installs and partial failures.
+  - Evidence: retry exists, but users need useful next steps when download, MD5, archive preflight, extraction, or commit fails.
+  - Acceptance criteria: failed task details classify the stage, show a short safe action, include copyable diagnostics, and never suggest manually deleting broad AddOns directories.
+
+### Desktop shell and frontend framework evaluation
+
+- [ ] Document a Wails vs Tauri vs Electron vs SolidJS evaluation matrix.
+  - Evidence: the user is open to Electron or other desktop shells if they improve stability and experience, but Electron is not automatically lighter and framework swaps do not fix backend/cache/install issues.
+  - Acceptance criteria: matrix compares startup, memory, package size, Linux/Fedora dependencies, Windows behavior, webview/runtime ownership, packaging complexity, native API access, Wails bridge replacement cost, and regression risk.
+- [ ] Run a SolidJS frontend spike only after Svelte hot paths have baselines.
+  - Evidence: Solid has fine-grained reactivity, but current Svelte 5 code already uses runes, lazy chunks, TanStack Query, and virtualization.
+  - Acceptance criteria: isolated spike ports the shell plus Find More catalog list against the existing Go/Wails service shape or mocked services; compare bundle size, search latency, scroll smoothness, memory, and migration cost before deciding.
+- [ ] Run an alternate desktop-shell spike only if Wails itself is proven to be the bottleneck.
+  - Evidence: WebKitGTK packaging friction and runtime behavior matter on Linux, but replacing Wails means replacing bindings, build/release flow, and native integrations.
+  - Acceptance criteria: spike proves a concrete Wails limitation with measurements, then compares Tauri/Electron/custom shell using the same fixture workflows; no app rewrite begins without an accepted migration plan.
+
+### Maintainability and anti-overengineering
+
+- [ ] Move hot route logic into tested pure helpers without adding broad architecture layers.
+  - Evidence: large route components are harder to profile and test, but a heavy abstraction rewrite would add risk.
+  - Acceptance criteria: extract only catalog indexing, update reason formatting, dependency display planning, and task summary shaping where tests/benchmarks justify it.
+- [ ] Audit dependencies for real use and runtime impact.
+  - Evidence: current `node_modules` has extraneous packages locally, and package churn can obscure real performance work.
+  - Acceptance criteria: verify usage before removal, clean install with npm, compare build report/lockfile effects, and keep dependencies that solve real problems such as virtualization/query caching.
+- [ ] Add coding-pattern notes to docs after each performance fix.
+  - Evidence: performance regressions often come from repeated hot-path mistakes.
+  - Acceptance criteria: update `AGENTS.md`, README, or CONTRIBUTING only with durable lessons such as progress-event batching, catalog index reuse, startup scan boundaries, and generated-file recovery rules.
 
 ## Completed / current-state evidence
 

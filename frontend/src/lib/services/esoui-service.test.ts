@@ -62,7 +62,8 @@ describe('fetchMissingDependencies', () => {
         requiredBy: [],
         versionConstraints: [],
         planState: 'installable',
-        planReason: 'Matched ESOUI addon metadata and can be queued for install.'
+        planReason:
+          'Matched the latest canonical ESOUI addon entry; dependency version constraints are informational and do not pin downloads.'
       })
     ]);
   });

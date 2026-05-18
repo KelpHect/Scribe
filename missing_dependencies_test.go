@@ -114,6 +114,47 @@ func TestFindMissingDependenciesPureHelper(t *testing.T) {
 	}
 }
 
+func TestFindMissingDependenciesUsesLatestCanonicalRemoteForDuplicateDirs(t *testing.T) {
+	locals := []*addon.Addon{
+		{FolderName: "RootAddon", DependsOn: []string{"LibRequired<=1.0"}},
+	}
+	remotes := []esoui.RemoteAddon{
+		{
+			UID:               "latest-lib",
+			UIName:            "Required Library",
+			UIVersion:         "3.0",
+			UIDate:            "2026-01-02",
+			UIDirs:            []string{"LibRequired"},
+			UIDownloadTotal:   1000,
+			UIDownloadMonthly: 200,
+		},
+		{
+			UID:               "old-bundle",
+			UIName:            "Old Bundle",
+			UIVersion:         "1.0",
+			UIDate:            "2020-01-02",
+			UIDirs:            []string{"OtherBundledDir", "LibRequired"},
+			UIDownloadTotal:   10,
+			UIDownloadMonthly: 1,
+		},
+	}
+
+	missing := findMissingDependencies(locals, remotes)
+	if len(missing) != 1 {
+		t.Fatalf("missing dependencies = %#v, want one dependency", missing)
+	}
+	dep := missing[0]
+	if dep.RemoteUID != "latest-lib" || dep.RemoteName != "Required Library" {
+		t.Fatalf("Remote mapping = %+v, want latest canonical dependency addon", dep)
+	}
+	if !containsString(dep.VersionConstraints, "<=1.0") {
+		t.Fatalf("VersionConstraints = %#v, want original requested constraint preserved for display", dep.VersionConstraints)
+	}
+	if dep.PlanReason == "" {
+		t.Fatal("PlanReason is empty")
+	}
+}
+
 func writeManifest(t *testing.T, root, folderName, content string) {
 	t.Helper()
 

@@ -24,11 +24,101 @@ func buildDirIndex(remotes []RemoteAddon) map[string][]*RemoteAddon {
 	for i := range remotes {
 		r := &remotes[i]
 		for _, dir := range r.UIDirs {
-			key := strings.ToLower(dir)
+			key := normalizeRemoteDir(dir)
+			if key == "" {
+				continue
+			}
 			index[key] = append(index[key], r)
 		}
 	}
 	return index
+}
+
+func normalizeRemoteDir(dir string) string {
+	return strings.ToLower(strings.TrimSpace(dir))
+}
+
+func remoteDirCount(r *RemoteAddon) int {
+	count := 0
+	for _, dir := range r.UIDirs {
+		if normalizeRemoteDir(dir) != "" {
+			count++
+		}
+	}
+	return count
+}
+
+func remoteDateValue(r *RemoteAddon) string {
+	return strings.TrimSpace(r.UIDate)
+}
+
+func remoteIsBetterForDir(candidate, current *RemoteAddon, key string) bool {
+	candidateDirCount := remoteDirCount(candidate)
+	currentDirCount := remoteDirCount(current)
+
+	candidateExactOnly := candidateDirCount == 1
+	currentExactOnly := currentDirCount == 1
+	if candidateExactOnly != currentExactOnly {
+		return candidateExactOnly
+	}
+
+	if candidateDirCount != currentDirCount {
+		return candidateDirCount < currentDirCount
+	}
+
+	candidateDate := remoteDateValue(candidate)
+	currentDate := remoteDateValue(current)
+	if candidateDate != currentDate {
+		return candidateDate > currentDate
+	}
+
+	state, candidateNewer, _ := classifyVersionUpdate(current.UIVersion, candidate.UIVersion)
+	if candidateNewer {
+		return true
+	}
+	if state == UpdateStateLocalNewer {
+		return false
+	}
+
+	if candidate.UIDownloadTotal != current.UIDownloadTotal {
+		return candidate.UIDownloadTotal > current.UIDownloadTotal
+	}
+
+	candidateNameMatches := normalizeRemoteDir(candidate.UIName) == key
+	currentNameMatches := normalizeRemoteDir(current.UIName) == key
+	if candidateNameMatches != currentNameMatches {
+		return candidateNameMatches
+	}
+
+	return candidate.UID < current.UID
+}
+
+func bestRemoteForDir(candidates []*RemoteAddon, key string) *RemoteAddon {
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	best := candidates[0]
+	for _, candidate := range candidates[1:] {
+		if remoteIsBetterForDir(candidate, best, key) {
+			best = candidate
+		}
+	}
+	return best
+}
+
+func BestRemoteForDir(remotes []RemoteAddon, dir string) (RemoteAddon, bool) {
+	key := normalizeRemoteDir(dir)
+	if key == "" {
+		return RemoteAddon{}, false
+	}
+
+	index := buildDirIndex(remotes)
+	best := bestRemoteForDir(index[key], key)
+	if best == nil {
+		return RemoteAddon{}, false
+	}
+	return *best, true
 }
 
 func MatchAddons(locals []*addon.Addon, remotes []RemoteAddon) []MatchedAddon {
@@ -36,7 +126,7 @@ func MatchAddons(locals []*addon.Addon, remotes []RemoteAddon) []MatchedAddon {
 	var matched []MatchedAddon
 
 	for _, local := range locals {
-		key := strings.ToLower(local.FolderName)
+		key := normalizeRemoteDir(local.FolderName)
 		candidates, ok := index[key]
 		if !ok || len(candidates) == 0 {
 			matched = append(matched, MatchedAddon{
@@ -49,12 +139,7 @@ func MatchAddons(locals []*addon.Addon, remotes []RemoteAddon) []MatchedAddon {
 			continue
 		}
 
-		best := candidates[0]
-		for _, c := range candidates[1:] {
-			if len(c.UIDirs) < len(best.UIDirs) {
-				best = c
-			}
-		}
+		best := bestRemoteForDir(candidates, key)
 
 		state, updateAvailable, reason := classifyVersionUpdate(local.Version, best.UIVersion)
 		matched = append(matched, MatchedAddon{

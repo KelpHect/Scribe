@@ -1104,11 +1104,22 @@ func findMissingDependencies(locals []*addon.Addon, remotes []esoui.RemoteAddon)
 		return nil
 	}
 
-	dirToRemote := make(map[string]*esoui.RemoteAddon, len(remotes))
+	dirToRemote := make(map[string]esoui.RemoteAddon, len(remotes))
 	for i := range remotes {
-		r := &remotes[i]
+		r := remotes[i]
 		for _, dir := range r.UIDirs {
-			dirToRemote[strings.ToLower(dir)] = r
+			key := strings.ToLower(strings.TrimSpace(dir))
+			if key == "" {
+				continue
+			}
+			best, ok := dirToRemote[key]
+			if !ok {
+				dirToRemote[key] = r
+				continue
+			}
+			if selected, ok := esoui.BestRemoteForDir([]esoui.RemoteAddon{best, r}, key); ok && selected.UID == r.UID {
+				dirToRemote[key] = r
+			}
 		}
 	}
 
@@ -1127,7 +1138,7 @@ func findMissingDependencies(locals []*addon.Addon, remotes []esoui.RemoteAddon)
 			info.RemoteName = r.UIName
 			info.CanInstall = true
 			info.PlanState = "installable"
-			info.PlanReason = "Matched ESOUI addon metadata and can be queued for install."
+			info.PlanReason = "Matched the latest canonical ESOUI addon entry; dependency version constraints are informational and do not pin downloads."
 		}
 		result = append(result, info)
 	}
