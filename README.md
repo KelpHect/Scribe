@@ -63,9 +63,12 @@ Optional release asset:
 ## What it does well
 
 - browse addon pages without dumping ESOUI's weird formatting straight into your face
+- show cached ESOUI catalog data clearly when background refreshes fail
 - install or update addons with queueing and progress
+- avoid duplicate install/update queue entries from rapid repeated actions
 - install missing required dependencies in one click
 - install optional dependencies too if you want the extra features
+- keep destructive uninstall and folder-opening actions constrained to the configured AddOns directory
 - keep installed addons grouped and searchable without losing your UI state every launch
 
 ## Known limitations

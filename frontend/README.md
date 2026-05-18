@@ -4,6 +4,8 @@ This is the Svelte frontend for Scribe. No SvelteKit, no SSR, no router magic. W
 
 ## Commands
 
+From the repo root:
+
 ```bash
 npm --prefix frontend install
 npm --prefix frontend run dev

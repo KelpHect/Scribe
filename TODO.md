@@ -1,15 +1,15 @@
 # Scribe TODO Audit Ledger
 
-Last audit refresh: 2026-05-17
+Last audit refresh: 2026-05-18
 
 ## Audit scope inspected
 
 - Code: `app.go`, `main.go`, `pprof.go`, `internal/addon`, `internal/scanner`, `internal/esoui`, `internal/settings`, and the Svelte frontend under `frontend/src` including routes, components, stores, services, query helpers, theme/runtime/diagnostics flows, and utilities.
-- Tests: `internal/scanner/scanner_test.go`; confirmed no other Go tests and no configured frontend test runner beyond `svelte-check`.
+- Tests: Go coverage now spans scanner parsing/path detection, ESOUI cache/client/install/download behavior, settings persistence, root app safety helpers, and missing-dependency/MD5 helpers; frontend smoke tests run through Vitest for store/service flows alongside `svelte-check`.
 - Docs/plans: `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, `frontend/README.md`, and the prior `TODO.md`. No `docs/`, `plan/`, `plans/`, `roadmap/`, `roadmaps/`, or `backlog/` directories/files were present outside this ledger.
 - Scripts/config: `go.mod`, `go.sum`, `wails.json`, `frontend/package.json`, `frontend/package-lock.json`, `frontend/vite.config.ts`, `frontend/svelte.config.js`, `frontend/eslint.config.js`, `scripts/build-release.sh`, `scripts/build-release.ps1`, `.github/workflows/ci.yml`, `.github/workflows/release.yml`, and `.github/workflows/tag-release.yml`.
-- Generated/runtime surfaces: checked `frontend/wailsjs/` and `frontend/dist/` presence; both are absent in this workspace and are treated as generated. Also inspected build icons/manifests and Wails embed behavior.
-- Verification run during audit: `git diff --check` passed; `go test ./...` failed because `frontend/dist` is absent; `npm --prefix frontend run check` failed with missing Wails bindings plus real TypeScript errors.
+- Generated/runtime surfaces: `frontend/wailsjs/`, `frontend/dist/`, `build/bin/`, build reports, and packaged binaries are treated as generated; Wails build/regeneration is the supported recovery path.
+- Verification baseline: `./scripts/verify.sh` runs diff sanity, Wails build/regeneration, frontend type checks, frontend smoke tests, and Go tests without mutating lint/format commands.
 
 ## P0 — Safety, data-loss prevention, and shutdown correctness
 
@@ -247,6 +247,6 @@ Purpose: record explicitly deferred ideas so they are not confused with current 
 - [x] Sticky desktop query caching is configured.
   - Evidence: `frontend/src/lib/db/client.ts` sets long `staleTime`/`gcTime` and disables focus/reconnect refetch loops.
 - [x] Basic release automation builds Windows, Linux, and macOS assets from version tags.
-  - Evidence: `.github/workflows/release.yml` builds a matrix for Windows, Linux, and macOS; `.github/workflows/tag-release.yml` reads `frontend/package.json` version as `vX.Y.Z`.
+  - Evidence: `.github/workflows/release.yml` validates `RELEASE_TAG` against `frontend/package.json` and builds a matrix for Windows, Linux, and macOS; manual `.github/workflows/tag-release.yml` reads `frontend/package.json` version as `vX.Y.Z`.
 - [x] Docs disclose important current distribution limitations.
   - Evidence: README notes unsigned Windows builds, Linux UPX use, ad-hoc/non-notarized macOS builds, ESOUI/MMOUI dependency, and intentionally excluded sources/cloud/plugin scope.

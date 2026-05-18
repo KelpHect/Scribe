@@ -15,8 +15,9 @@
 
 ## Completion gates
 - For Go/app changes, run `wails build` and `go test ./...` from the repo root.
-- For frontend changes, also run `npm --prefix frontend run check`; run `npm --prefix frontend run build` when touching bundling, styling, assets, Wails bindings, or route/component loading.
+- For frontend changes, also run `npm --prefix frontend run check` and `npm --prefix frontend run test`; run `npm --prefix frontend run build` when touching bundling, styling, assets, Wails bindings, or route/component loading.
 - Use `npm --prefix frontend install` to restore frontend deps; do not use another package manager.
+- Use `npm --prefix frontend run lint:check` for non-mutating lint verification when lint rules/config or broad frontend code shape changes.
 - Avoid `npm --prefix frontend run lint` unless intentionally applying eslint autofixes, because the script runs `eslint . --fix`.
 - Clean-checkout caveat: root `go test ./...` fails if `frontend/dist` is absent because `main.go` embeds `all:frontend/dist`; run Wails/build first.
 - Clean-checkout caveat: frontend type checks fail if `frontend/wailsjs` is absent/stale; regenerate via `wails dev`/`wails build`, never by authoring generated bindings.
@@ -73,21 +74,21 @@
 - Never allow archive extraction or uninstall paths to escape the configured AddOns directory; preserve zip-slip checks and folder-name validation.
 - Validate destructive operations by folder name only; reject empty, dot, slash/backslash, traversal, and absolute-path semantics.
 - Preserve cancellation/shutdown behavior for downloads and background refreshes; avoid goroutine leaks around Wails shutdown.
-- Known P0 hazard: queued-download cancellation currently risks `sync.WaitGroup` underflow/double `Done`; fix with regression tests before relying on broad cancel/shutdown changes.
+- Queued-download cancellation has regression coverage; keep `Cancel`, `CancelAll`, and shutdown ownership of `sync.WaitGroup` `Done()` calls with the worker goroutines.
 - Do not log or expose arbitrary local paths beyond intentional UI for configured addon path/open-folder behavior.
 - Do not require secrets, certificates, GitHub tokens, maintainer credentials, or a user's real AddOns directory for tests.
 
 ## Tests and fixtures
-- Existing Go coverage is mostly scanner manifest selection in `internal/scanner/scanner_test.go`; add focused table tests near the package being changed.
+- Existing tests cover scanner parsing/path detection, ESOUI cache/client/install/download behavior, settings persistence, app-level safety helpers, and frontend store/service smoke flows; add focused tests near the package being changed.
 - Scanner invariant: canonical manifests named after the folder (`Folder.addon`/`Folder.txt`) must win over stub files.
 - Add/keep regression tests for parser dependency fields (`DependsOn`, `PCDependsOn`, `OptionalDependsOn`), color-code stripping, version matching, cache/settings DB round trips, extraction boundaries, and uninstall validation when touching those areas.
 - Use temp dirs/temp SQLite files for filesystem/database tests; never point tests at a real ESO AddOns directory or user config DB.
 - Prefer ESOUI fixture data or mocked clients for remote behavior; stop and ask if expected MMOUI behavior cannot be inferred safely.
 
 ## Release/deployment rules
-- CI builds Windows, Linux, and macOS on `main`/PR, then runs `go test ./...`; CI currently does not run frontend type checks.
-- Release workflow publishes tag assets: Windows portable/optional NSIS installer, Linux binary, macOS universal zip.
-- Tag-release workflow reads `frontend/package.json` version, validates `X.Y.Z`, creates `vX.Y.Z`, and dispatches release; do not trigger it.
+- CI builds Windows, Linux, and macOS on `main`/PR, then runs frontend type checks and `go test ./...`.
+- Release workflow validates `RELEASE_TAG` against `frontend/package.json`, then publishes mandatory assets: Windows portable, Linux binary, and macOS universal zip. The Windows NSIS installer is optional.
+- Tag-release workflow is manual-only; it reads `frontend/package.json` version, validates `X.Y.Z`, creates `vX.Y.Z`, and dispatches release; do not trigger it.
 - Local release scripts inject version/commit/date ldflags and may use UPX if installed; do not assume UPX exists.
 - Windows builds are unsigned, Linux CI builds use UPX, and macOS builds are ad-hoc signed/not notarized; do not claim stronger distribution guarantees.
 
@@ -98,7 +99,7 @@
 - Settings AddOns path changes can diverge if routed through `SetAddonPath` without `SaveSettings`; persist path-changing UI flows.
 - The Auto Update setting is persisted but not implemented as a worker; do not describe it as active behavior unless implementing a safe opt-in flow.
 - `SCRIBE_PPROF=1` starts the local pprof server; `SCRIBEEGO_PPROF=1` remains a legacy alias.
-- `OpenPath` is broad OS shell opening; constrain or justify any expansion of frontend-provided paths.
+- `OpenPath` is constrained to the configured AddOns directory or descendants after symlink resolution; justify any expansion of frontend-provided paths.
 
 ## Blockers: stop and ask
 - A request would delete, move, or bulk-modify user addon directories beyond the named install/update/uninstall action.
