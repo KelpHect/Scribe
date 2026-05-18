@@ -1,6 +1,11 @@
 import { fetchAddonDetails, type RemoteAddonDetails } from '$lib/services/esoui-service';
 import { refreshRemoteCatalog } from '$lib/db/query-state';
-import { installAddon, batchInstall as batchInstallFn } from '$lib/stores/downloads.svelte';
+import {
+  installAddon,
+  batchInstall as batchInstallFn,
+  isInstallActive
+} from '$lib/stores/downloads.svelte';
+import { SvelteSet } from 'svelte/reactivity';
 
 let searchQuery: string = $state('');
 let sortBy: 'title' | 'author' | 'category' | 'downloads' | 'favorites' | 'date' =
@@ -47,6 +52,7 @@ export function serializeSortValue(
 
 let installing: boolean = $state(false);
 let installingUID: string | null = $state(null);
+let pendingInstallUIDs = new SvelteSet<string>();
 let installError: string | null = $state(null);
 let refreshing: boolean = $state(false);
 
@@ -91,34 +97,56 @@ function setHideInstalled(value: boolean) {
   hideInstalled = value;
 }
 
-async function install(uid: string): Promise<void> {
-  if (installing) return;
-  installing = true;
-  installingUID = uid;
+function isInstallingUID(uid: string): boolean {
+  return pendingInstallUIDs.has(uid) || isInstallActive(uid);
+}
+
+function firstPendingUID(): string | null {
+  for (const uid of pendingInstallUIDs) return uid;
+  return null;
+}
+
+async function install(uid: string): Promise<boolean> {
+  const normalizedUID = uid.trim();
+  if (!normalizedUID || isInstallingUID(normalizedUID)) return false;
+  pendingInstallUIDs.add(normalizedUID);
+  installing = pendingInstallUIDs.size > 0;
+  installingUID = normalizedUID;
   installError = null;
   try {
-    await installAddon(uid);
+    return await installAddon(normalizedUID);
   } catch (e) {
-    installError = e instanceof Error ? e.message : `Install failed for UID ${uid}`;
+    installError = e instanceof Error ? e.message : `Install failed for UID ${normalizedUID}`;
     throw e;
   } finally {
-    installing = false;
-    installingUID = null;
+    pendingInstallUIDs.delete(normalizedUID);
+    installing = pendingInstallUIDs.size > 0;
+    installingUID = firstPendingUID();
   }
 }
 
 async function batchInstall(uids: string[]): Promise<number> {
-  if (installing) return 0;
-  installing = true;
+  const uniqueUIDs = Array.from(new Set(uids.map((uid) => uid.trim()).filter(Boolean))).filter(
+    (uid) => !isInstallingUID(uid)
+  );
+  if (uniqueUIDs.length === 0) return 0;
+  for (const uid of uniqueUIDs) {
+    pendingInstallUIDs.add(uid);
+  }
+  installing = pendingInstallUIDs.size > 0;
+  installingUID = firstPendingUID();
   installError = null;
   try {
-    return await batchInstallFn(uids);
+    return await batchInstallFn(uniqueUIDs);
   } catch (e) {
     installError = e instanceof Error ? e.message : 'Batch install failed';
     throw e;
   } finally {
-    installing = false;
-    installingUID = null;
+    for (const uid of uniqueUIDs) {
+      pendingInstallUIDs.delete(uid);
+    }
+    installing = pendingInstallUIDs.size > 0;
+    installingUID = firstPendingUID();
   }
 }
 
@@ -145,6 +173,7 @@ export function getRemoteStore() {
     get installingUID() {
       return installingUID;
     },
+    isInstallingUID,
     get installError() {
       return installError;
     },

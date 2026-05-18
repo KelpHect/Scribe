@@ -6,7 +6,7 @@ export type ContextMenuItem = {
   type?: 'item';
   label: string;
   icon?: any;
-  action: () => void | Promise<void>;
+  action: () => void | Promise<unknown>;
   disabled?: boolean;
   variant?: 'default' | 'destructive';
 };

@@ -75,7 +75,7 @@
     lightboxIndex = null;
   });
 
-  const isInstalling = $derived(remote.installing && remote.installingUID === addon?.uid);
+  const isInstalling = $derived(addon ? remote.isInstallingUID(addon.uid) : false);
   const isInstalled = $derived(!!installedFolderName);
 
   const downloadTask = $derived(addon ? downloads.getTask(addon.uid) : undefined);
@@ -84,7 +84,7 @@
       downloadTask?.state === 'downloading' ||
       downloadTask?.state === 'extracting'
   );
-  const isActionDisabled = $derived(isInstalling || isInQueue || remote.installing);
+  const isActionDisabled = $derived(isInstalling || isInQueue);
   const installButtonLabel = $derived.by(() => {
     if (!downloadTask) return isInstalling ? 'Starting...' : '';
     switch (downloadTask.state) {

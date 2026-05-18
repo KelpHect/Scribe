@@ -46,7 +46,7 @@
   const iconUrl = $derived(matched?.remote?.uiIMGs?.[0] ?? category?.iconUrl ?? null);
 
   const isInstalling = $derived(
-    remote.installing && remote.installingUID === (matched?.remote?.uid ?? null)
+    matched?.remote?.uid ? remote.isInstallingUID(matched.remote.uid) : false
   );
 
   let installError = $state<string | null>(null);
@@ -213,7 +213,7 @@
             size="sm"
             class="shrink-0"
             onclick={handleUpdate}
-            disabled={isInstalling || remote.installing}
+            disabled={isInstalling}
           >
             {#if isInstalling}
               <Loader2 size={13} class="animate-spin" />Updating...
@@ -229,7 +229,7 @@
             size="sm"
             class="text-muted-foreground hover:text-destructive shrink-0"
             onclick={requestUninstall}
-            disabled={isUninstalling || remote.installing}
+            disabled={isUninstalling}
             aria-label="Uninstall addon"
           >
             <Trash2 size={14} />

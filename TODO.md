@@ -119,9 +119,9 @@ Purpose: improve user trust, accessibility, and clarity once critical correctnes
 - [x] Improve keyboard/a11y coverage for clickable rows and custom controls.
   - Completed: installed and remote addon rows now support focus, Enter/Space activation, and keyboard context menus; context menus focus the first enabled item and support Escape/arrow/Home/End navigation; category clear controls are keyboard reachable; dialogs and the lightbox expose dialog semantics/focus while remaining suppressions are documented for backdrop/rich-text delegation.
   - Verification: `npm --prefix frontend run check`, `npm --prefix frontend run build`, Linux Wails build, `go test ./...`, and `git diff --check` pass.
-- [ ] Prevent accidental duplicate install/update queues from rapid UI actions.
-  - Evidence: backend deduplicates queued/active UIDs, but frontend sets optimistic queued state before `InstallAddon`/`BatchInstall` and global `remote.installing` can block unrelated installs while still allowing mixed component entry points.
-  - Acceptance criteria: rapid clicks and overlapping row/detail/batch installs produce one queued task per UID and UI state remains accurate after backend dedupe.
+- [x] Prevent accidental duplicate install/update queues from rapid UI actions.
+  - Completed: download and remote stores now keep per-UID pending guards, normalize/dedupe batch UID lists, skip already queued/downloading/extracting UIDs before calling Wails, and expose per-UID install state so row/detail/update actions no longer globally block unrelated installs.
+  - Verification: `npm --prefix frontend run check`, `npm --prefix frontend run build`, Linux Wails build, `go test ./...`, and `git diff --check` pass.
 
 ### Frontend tests
 

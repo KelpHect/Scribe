@@ -242,7 +242,14 @@
         ? [{ label: 'Open ESOUI', icon: ExternalLink, action: () => openExternalURL(matched.remote!.uiFileInfoUrl) }]
         : []),
       ...(matched?.updateAvailable && matched.remote?.uid
-        ? [{ label: 'Update', icon: Download, action: () => remote.install(matched.remote!.uid) }]
+        ? [
+            {
+              label: 'Update',
+              icon: Download,
+              disabled: remote.isInstallingUID(matched.remote.uid),
+              action: () => remote.install(matched.remote!.uid)
+            }
+          ]
         : []),
       { type: 'separator' },
       {

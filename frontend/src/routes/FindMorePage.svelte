@@ -357,7 +357,14 @@
       { label: 'View Details', icon: Search, action: () => openDetail(addon) },
       { type: 'separator' },
       ...(!alreadyInstalled
-        ? [{ label: 'Install', icon: Download, action: () => remote.install(addon.uid) }]
+        ? [
+            {
+              label: 'Install',
+              icon: Download,
+              disabled: remote.isInstallingUID(addon.uid),
+              action: () => remote.install(addon.uid)
+            }
+          ]
         : []),
       ...(addon.uiFileInfoUrl
         ? [
@@ -388,7 +395,7 @@
       {
         label: alreadyInstalled ? 'Already Installed' : 'Install',
         icon: Download,
-        disabled: alreadyInstalled || remote.installingUID === addon.uid,
+        disabled: alreadyInstalled || remote.isInstallingUID(addon.uid),
         action: () => remote.install(addon.uid)
       }
     ];
@@ -635,7 +642,7 @@
                   {@const compatName = item.latestCompatibilityName}
                   {@const installTask = getInstallTask(addon.uid)}
                   {@const rowInstalling =
-                    remote.installingUID === addon.uid ||
+                    remote.isInstallingUID(addon.uid) ||
                     installTask?.state === 'queued' ||
                     installTask?.state === 'downloading' ||
                     installTask?.state === 'extracting'}
@@ -742,7 +749,7 @@
                         <button
                           type="button"
                           onclick={(e) => installFromRow(e, addon)}
-                          disabled={rowInstalling || remote.installing}
+                          disabled={rowInstalling}
                           class="border-border bg-background hover:bg-accent text-foreground flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors disabled:cursor-default disabled:opacity-60"
                           aria-label="Install addon"
                         >

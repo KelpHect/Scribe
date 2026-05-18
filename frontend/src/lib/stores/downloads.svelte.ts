@@ -2,7 +2,7 @@ import { refreshInstalledState } from '$lib/db/query-state';
 import { fetchMissingDependencies } from '$lib/services/esoui-service';
 import { getRuntime } from '$lib/services/runtime-service';
 import { toast } from 'svelte-sonner';
-import { SvelteMap } from 'svelte/reactivity';
+import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
 export type TaskState =
   | 'queued'
@@ -31,6 +31,7 @@ async function getApp(): Promise<any> {
 }
 
 const tasks = new SvelteMap<string, TaskProgress>();
+const pendingInstallUIDs = new SvelteSet<string>();
 let listenerActive: boolean = $state(false);
 
 function getTaskList(): TaskProgress[] {
@@ -61,6 +62,23 @@ function isDownloading(): boolean {
 
 function getTask(uid: string): TaskProgress | undefined {
   return tasks.get(uid);
+}
+
+export function isInstallActive(uid: string): boolean {
+  if (pendingInstallUIDs.has(uid)) return true;
+  const task = tasks.get(uid);
+  return task?.state === 'queued' || task?.state === 'downloading' || task?.state === 'extracting';
+}
+
+function uniquePendingUIDs(uids: string[]): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const uid of uids.map((item) => item.trim()).filter(Boolean)) {
+    if (seen.has(uid) || isInstallActive(uid)) continue;
+    seen.add(uid);
+    unique.push(uid);
+  }
+  return unique;
 }
 
 let cleanupFn: (() => void) | null = null;
@@ -148,10 +166,13 @@ export function stopListening(): void {
   if (cleanupFn) cleanupFn();
 }
 
-export async function installAddon(uid: string, name?: string): Promise<void> {
-  tasks.set(uid, {
-    uid,
-    name: name ?? uid,
+export async function installAddon(uid: string, name?: string): Promise<boolean> {
+  const normalizedUID = uid.trim();
+  if (!normalizedUID || isInstallActive(normalizedUID)) return false;
+  pendingInstallUIDs.add(normalizedUID);
+  tasks.set(normalizedUID, {
+    uid: normalizedUID,
+    name: name ?? normalizedUID,
     state: 'queued',
     percent: 0,
     bytesDownloaded: 0,
@@ -163,10 +184,13 @@ export async function installAddon(uid: string, name?: string): Promise<void> {
   });
   try {
     const app = await getApp();
-    await app.InstallAddon(uid);
+    await app.InstallAddon(normalizedUID);
+    return true;
   } catch (e) {
-    tasks.delete(uid);
+    tasks.delete(normalizedUID);
     throw e;
+  } finally {
+    pendingInstallUIDs.delete(normalizedUID);
   }
 }
 
@@ -174,7 +198,11 @@ export async function batchInstall(
   uids: string[],
   names?: Record<string, string>
 ): Promise<number> {
-  for (const uid of uids) {
+  const uniqueUIDs = uniquePendingUIDs(uids);
+  if (uniqueUIDs.length === 0) return 0;
+
+  for (const uid of uniqueUIDs) {
+    pendingInstallUIDs.add(uid);
     tasks.set(uid, {
       uid,
       name: names?.[uid] ?? uid,
@@ -190,14 +218,18 @@ export async function batchInstall(
   }
   try {
     const app = await getApp();
-    return (await app.BatchInstall(uids)) as number;
+    return (await app.BatchInstall(uniqueUIDs)) as number;
   } catch (e) {
-    for (const uid of uids) {
+    for (const uid of uniqueUIDs) {
       if (tasks.get(uid)?.state === 'queued') {
         tasks.delete(uid);
       }
     }
     throw e;
+  } finally {
+    for (const uid of uniqueUIDs) {
+      pendingInstallUIDs.delete(uid);
+    }
   }
 }
 
@@ -253,6 +285,7 @@ export function getDownloadStore() {
       return isDownloading();
     },
     getTask,
+    isInstallActive,
     installAddon,
     batchInstall,
     cancelInstall,

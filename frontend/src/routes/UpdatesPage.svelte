@@ -38,6 +38,10 @@
   const error = $derived(matchedQuery.isError ? 'Failed to check for updates.' : null);
 
   const updatesAvailable = $derived(matchedAddons.filter((m: MatchedAddon) => m.updateAvailable));
+  const updateUIDs = $derived(
+    updatesAvailable.map((m: MatchedAddon) => m.remote?.uid).filter((uid): uid is string => !!uid)
+  );
+  const updateableUIDs = $derived(updateUIDs.filter((uid) => !remote.isInstallingUID(uid)));
 
   $effect(() => {
     _setUpdateCount(updatesAvailable.length);
@@ -51,12 +55,9 @@
   }
 
   async function updateAll() {
-    const uids = updatesAvailable
-      .map((m: MatchedAddon) => m.remote?.uid)
-      .filter(Boolean) as string[];
-    if (uids.length === 0) return;
+    if (updateableUIDs.length === 0) return;
     try {
-      await remote.batchInstall(uids);
+      await remote.batchInstall(updateableUIDs);
     } catch {}
   }
 
@@ -98,10 +99,7 @@
       </button>
       <button
         onclick={updateAll}
-        disabled={updatesAvailable.length === 0 ||
-          isLoading ||
-          remote.installing ||
-          downloads.isDownloading}
+        disabled={updateableUIDs.length === 0 || isLoading}
         class="flex h-7 cursor-pointer items-center gap-1 rounded-md bg-[var(--color-toolbar-accent)] px-2.5 text-[11px] font-medium text-[var(--color-toolbar-foreground)] transition-colors hover:bg-[var(--color-toolbar-border)] disabled:opacity-50"
       >
         {#if downloads.isDownloading}
@@ -161,7 +159,7 @@
                 isThumbnail={getIsThumbnail(match)}
                 {task}
                 {isUpdating}
-                globalInstalling={remote.installing}
+                globalInstalling={remote.isInstallingUID(uid)}
                 onupdate={() => updateOne(match)}
               />
             {/each}
