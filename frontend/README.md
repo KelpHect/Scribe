@@ -17,3 +17,5 @@ npm run test
 - keep `vitePreprocess()` in default mode. turning on `script: true` breaks template-only imports in Svelte 5
 - query caching is intentionally sticky b/c desktop apps regain focus all the time and the Go side already serves hot data
 - Vitest smoke tests cover store/service flows with mocked Wails wrappers; do not call live ESOUI from frontend tests
+- `wails dev` or `wails build` regenerates `frontend/wailsjs/`; never author generated bindings by hand
+- `wails build` regenerates `frontend/dist/`, which root Go tests embed

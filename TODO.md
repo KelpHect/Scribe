@@ -135,9 +135,9 @@ Purpose: make setup, verification, release expectations, and generated-file reco
 
 ### Docs
 
-- [ ] Document generated-file recovery in README/CONTRIBUTING/frontend README.
-  - Evidence: AGENTS records that missing `frontend/dist` breaks `go test ./...` and missing `frontend/wailsjs` breaks frontend checks; README/CONTRIBUTING currently only mention `wails build`/`wails dev` at a high level.
-  - Acceptance criteria: contributor docs explain when to run `wails build`/`wails dev`, that `frontend/wailsjs` and `frontend/dist` are generated, and that generated files should not be hand-edited.
+- [x] Document generated-file recovery in README/CONTRIBUTING/frontend README.
+  - Completed: README, CONTRIBUTING, and `frontend/README.md` now explain that `frontend/wailsjs/` and `frontend/dist/` are Wails-generated, when to use `wails dev`/`wails build` to recover them, and that generated files are not hand-edited.
+  - Verification: `git diff --check` passes.
 - [ ] Align documented check commands with actual project gates.
   - Evidence: `CONTRIBUTING.md` lists only `wails build` and `go test ./...`; AGENTS additionally requires frontend checks for frontend changes and warns `npm run lint` autofixes.
   - Acceptance criteria: docs list Go, frontend, and packaging check commands with clean-checkout caveats and Linux WebKit dependency notes.

@@ -48,6 +48,15 @@ sudo dnf install -y gcc-c++ pkgconf-pkg-config npm gtk3-devel webkit2gtk4.1-deve
 
 This regenerates Wails bindings and `frontend/dist`, then runs frontend type checks and Go tests. Generated files are build output; do not hand-edit them.
 
+## Generated files
+
+Wails generates `frontend/wailsjs/` and `frontend/dist/`.
+
+- recover missing or stale bindings with `wails dev` or `wails build`
+- recover missing embedded frontend assets with `wails build`
+- do not hand-edit generated files
+- run `./scripts/verify.sh` from a clean checkout when you want the full recovery-and-check path
+
 For local profiling, start the app with `SCRIBE_PPROF=1` to expose pprof on `localhost:6060`. The old `SCRIBEEGO_PPROF=1` spelling still works for compatibility.
 
 If you touch release workflows or packaging, say that clearly in the PR body.
