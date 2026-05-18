@@ -32,6 +32,10 @@
   import { clipboardSetText, openExternalURL } from '$lib/services/runtime-service';
   import { buildLocalDiagnosticsExport } from '$lib/diagnostics/export';
   import {
+    getFrontendPerformanceSnapshot,
+    type FrontendPerformanceSnapshot
+  } from '$lib/diagnostics/frontend-perf';
+  import {
     addonPathQueryKey,
     installedAddonsQueryKey,
     refreshInstalledState
@@ -48,6 +52,7 @@
     addonDetailFresh: number;
     addonDetailStale: number;
     cachedUIDs: string[];
+    performance: FrontendPerformanceSnapshot;
   };
 
   let detectedPath = $state('');
@@ -65,7 +70,8 @@
     addonDetailQueriesWithData: 0,
     addonDetailFresh: 0,
     addonDetailStale: 0,
-    cachedUIDs: []
+    cachedUIDs: [],
+    performance: getFrontendPerformanceSnapshot()
   });
 
   const downloads = getDownloadStore();
@@ -223,7 +229,8 @@
       addonDetailQueriesWithData: withData,
       addonDetailFresh: fresh,
       addonDetailStale: stale,
-      cachedUIDs: cachedUIDs.slice(0, 8)
+      cachedUIDs: cachedUIDs.slice(0, 8),
+      performance: getFrontendPerformanceSnapshot()
     };
   }
 
@@ -623,9 +630,9 @@
                   {/if}
                 </div>
 
-                <div class="bg-muted/40 rounded-md border p-3 md:col-span-2 xl:col-span-2">
-                  <p class="mb-2 text-xs font-medium">Frontend Detail Query Cache</p>
-                  <div class="text-muted-foreground grid gap-1 text-xs md:grid-cols-2">
+	                <div class="bg-muted/40 rounded-md border p-3 md:col-span-2 xl:col-span-2">
+	                  <p class="mb-2 text-xs font-medium">Frontend Detail Query Cache</p>
+	                  <div class="text-muted-foreground grid gap-1 text-xs md:grid-cols-2">
                     <p>Total queries: <span class="text-foreground font-mono">{frontendDiagnostics.addonDetailQueries}</span></p>
                     <p>With data: <span class="text-foreground font-mono">{frontendDiagnostics.addonDetailQueriesWithData}</span></p>
                     <p>Fresh (5m): <span class="text-foreground font-mono">{frontendDiagnostics.addonDetailFresh}</span></p>
@@ -639,11 +646,50 @@
                       {#each frontendDiagnostics.cachedUIDs as uid (uid)}
                         <span class="rounded-md border px-2 py-0.5 font-mono text-[11px]">{uid}</span>
                       {/each}
-                    </div>
-                  {/if}
+	                    </div>
+	                  {/if}
+	                </div>
+
+                <div class="bg-muted/40 rounded-md border p-3 md:col-span-2 xl:col-span-2">
+                  <p class="mb-2 text-xs font-medium">Frontend Interaction Timings</p>
+                  <div class="text-muted-foreground grid gap-1 text-xs md:grid-cols-2">
+                    {#each frontendDiagnostics.performance.timings as timing (timing.name)}
+                      <p>
+                        {timing.name}: <span class="text-foreground font-mono">{timing.lastMs} ms</span>
+                        <span class="text-muted-foreground">(avg {timing.avgMs}, p95 {timing.p95Ms}, n={timing.count})</span>
+                      </p>
+                    {:else}
+                      <p>No interaction timings captured yet.</p>
+                    {/each}
+                    {#each frontendDiagnostics.performance.gauges as gauge (gauge.name)}
+                      <p>
+                        {gauge.name}: <span class="text-foreground font-mono">{gauge.value}</span>
+                        {#if typeof gauge.meta.resultCount === 'number'}
+                          <span class="text-muted-foreground"> / {gauge.meta.resultCount} results</span>
+                        {/if}
+                      </p>
+                    {/each}
+                    <p>
+                      Progress events:
+                      <span class="text-foreground font-mono">{frontendDiagnostics.performance.progressEvents.totalEvents}</span>
+                      <span class="text-muted-foreground">({frontendDiagnostics.performance.progressEvents.lastMinuteEvents}/min)</span>
+                    </p>
+                    <p>
+                      Progress errors:
+                      <span class="text-foreground font-mono">{frontendDiagnostics.performance.progressEvents.errorEvents}</span>
+                    </p>
+                    <p>
+                      Last progress state:
+                      <span class="text-foreground font-mono">{frontendDiagnostics.performance.progressEvents.lastState || 'n/a'}</span>
+                    </p>
+                    <p>
+                      Active task count:
+                      <span class="text-foreground font-mono">{frontendDiagnostics.performance.progressEvents.lastActiveCount}</span>
+                    </p>
+                  </div>
                 </div>
-              </div>
-            {:else if diagnosticsLoading}
+	              </div>
+	            {:else if diagnosticsLoading}
               <div class="text-muted-foreground flex items-center gap-2 text-sm">
                 <Loader2 size={14} class="animate-spin" />
                 Loading diagnostics...

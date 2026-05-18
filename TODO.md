@@ -326,9 +326,11 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
   - Acceptance criteria: run or document `./scripts/verify.sh`, `./scripts/benchmarks.sh`, frontend catalog benchmarks, cold/warm diagnostics exports, and a short manual Find More scroll/search profile; record baseline numbers or a redacted summary in this ledger or dedicated docs.
   - Completed: `docs/performance-baseline.md` records the current scanner, matcher, cached catalog, backend remote search, frontend catalog benchmark, and generated bundle-report baseline; it also documents the cold/warm diagnostics and manual Find More profile capture procedure for real desktop sessions.
   - Verification: `./scripts/benchmarks.sh` captured fixture-backed Go and frontend benchmark values without live ESOUI or real AddOns directories.
-- [ ] Add frontend interaction timing probes for Find More search/filter/sort and task-center updates.
+- [x] Add frontend interaction timing probes for Find More search/filter/sort and task-center updates.
   - Evidence: Find More does catalog preparation, search scoring, category counting, sorting, and virtual-list updates; task progress writes frequent bridge events into reactive state.
   - Acceptance criteria: local diagnostics can capture search/filter duration, visible list size, result count, progress event rate, and dropped/error states without telemetry or network upload.
+  - Completed: frontend diagnostics now record Find More filter/sort timing metadata, visible virtual-list size, result count, and download progress event totals/rates/error counts; Settings diagnostics and the local diagnostics export include the captured values.
+  - Verification: `frontend/src/lib/diagnostics/frontend-perf.test.ts` covers timing, gauge, and progress-event snapshots.
 - [ ] Add a repeatable UI smoke/profile script for desktop workflows.
   - Evidence: current tests cover stores/services, but not real navigation, modal opening, search typing, scroll behavior, or task-center interaction inside the rendered app.
   - Acceptance criteria: scripted local workflow covers Installed, Find More, Updates, Settings, addon details, dependency banners, task center, and failure/retry states using mocks or fixture data where possible.

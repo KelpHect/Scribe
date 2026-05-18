@@ -1,5 +1,6 @@
 import type { AppInfo } from '$lib/services/app-info-service';
 import type { DiagnosticsSnapshot } from '$lib/services/diagnostics-service';
+import type { FrontendPerformanceSnapshot } from '$lib/diagnostics/frontend-perf';
 import type { TaskProgress } from '$lib/stores/downloads.svelte';
 
 export type FrontendDiagnosticsExport = {
@@ -8,6 +9,7 @@ export type FrontendDiagnosticsExport = {
   addonDetailFresh: number;
   addonDetailStale: number;
   cachedUIDs: string[];
+  performance: FrontendPerformanceSnapshot;
 };
 
 type BuildDiagnosticsExportInput = {

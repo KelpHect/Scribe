@@ -33,13 +33,46 @@ describe('diagnostics export redaction', () => {
       },
       addonPath: '/home/alice/ESO/live/AddOns',
       detectedPath: '/home/alice/ESO/live/AddOns',
-      frontendDiagnostics: {
-        addonDetailQueries: 2,
-        addonDetailQueriesWithData: 1,
-        addonDetailFresh: 1,
-        addonDetailStale: 0,
-        cachedUIDs: ['101']
-      },
+	      frontendDiagnostics: {
+	        addonDetailQueries: 2,
+	        addonDetailQueriesWithData: 1,
+	        addonDetailFresh: 1,
+	        addonDetailStale: 0,
+	        cachedUIDs: ['101'],
+	        performance: {
+	          timings: [
+	            {
+	              name: 'findMore.filterSort',
+	              count: 1,
+	              lastMs: 3.2,
+	              avgMs: 3.2,
+	              maxMs: 3.2,
+	              p95Ms: 3.2,
+	              lastAt: '2026-05-18T12:00:00Z',
+	              meta: { resultCount: 10 }
+	            }
+	          ],
+	          gauges: [
+	            {
+	              name: 'findMore.visibleItems',
+	              value: 12,
+	              updatedAt: '2026-05-18T12:00:00Z',
+	              meta: { resultCount: 10 }
+	            }
+	          ],
+	          progressEvents: {
+	            totalEvents: 4,
+	            lastMinuteEvents: 4,
+	            lastEventAt: '2026-05-18T12:00:00Z',
+	            lastState: 'downloading',
+	            lastUID: '101',
+	            lastTaskCount: 1,
+	            lastActiveCount: 1,
+	            errorEvents: 0,
+	            droppedEvents: 0
+	          }
+	        }
+	      },
       diagnostics: {
         startupMs: 100,
         domReadyMs: 80,
@@ -90,8 +123,10 @@ describe('diagnostics export redaction', () => {
     expect(payload.app).toMatchObject({ version: '1.0.3', platform: 'linux/amd64' });
     expect(payload.paths.addonPath).toBe('[redacted-path]/AddOns');
     expect(payload.memory.sysMb).toBe(80);
-    expect(payload.persistence.status).toBe('ok');
-    expect(payload.catalog.remoteAddons).toBe(5000);
-    expect(payload.recentTaskFailures[0].error).toBe('failed to write [redacted-path]');
-  });
+	    expect(payload.persistence.status).toBe('ok');
+	    expect(payload.catalog.remoteAddons).toBe(5000);
+	    expect(payload.frontendCache.performance.timings[0].name).toBe('findMore.filterSort');
+	    expect(payload.frontendCache.performance.progressEvents.totalEvents).toBe(4);
+	    expect(payload.recentTaskFailures[0].error).toBe('failed to write [redacted-path]');
+	  });
 });

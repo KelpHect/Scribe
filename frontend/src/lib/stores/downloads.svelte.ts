@@ -4,6 +4,7 @@ import { getRuntime } from '$lib/services/runtime-service';
 import { toast } from 'svelte-sonner';
 import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 import { filterNewInstallUIDs, filterRetryInstallUIDs } from '$lib/stores/install-queue';
+import { recordDownloadProgressEvent } from '$lib/diagnostics/frontend-perf';
 
 export type TaskState =
   | 'queued'
@@ -173,6 +174,13 @@ export async function startListening(): Promise<void> {
   const unsubscribe = runtime.EventsOn('download:progress', (data: TaskProgress) => {
     const prev = tasks.get(data.uid);
     tasks.set(data.uid, data);
+    recordDownloadProgressEvent({
+      uid: data.uid,
+      state: data.state,
+      taskCount: tasks.size,
+      activeCount: getActiveCount(),
+      error: data.error
+    });
 
     const prevState = prev?.state;
     if (data.state !== prevState) {

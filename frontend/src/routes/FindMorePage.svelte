@@ -38,6 +38,10 @@
     isLibraryLikeRemoteAddon,
     remoteAddonSearchScore
   } from '$lib/perf/remote-list';
+  import {
+    measureFrontendTiming,
+    recordFrontendGauge
+  } from '$lib/diagnostics/frontend-perf';
   import { getCatalogStatusView } from '$lib/catalog/status';
   import {
     fetchCategories,
@@ -239,52 +243,69 @@
   ];
 
   const filterResult = $derived.by(() => {
-    const q = remote.searchQuery.toLowerCase().trim();
-    const catFilter = remote.categoryFilter;
-    const sortKey = remote.sortBy;
-    const sortDirection = remote.sortDirection;
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity
-    const countMap = new Map<string, number>();
-    const list: PreparedRemoteAddon[] = [];
+    return measureFrontendTiming(
+      'findMore.filterSort',
+      () => {
+        const q = remote.searchQuery.toLowerCase().trim();
+        const catFilter = remote.categoryFilter;
+        const sortKey = remote.sortBy;
+        const sortDirection = remote.sortDirection;
+        // eslint-disable-next-line svelte/prefer-svelte-reactivity
+        const countMap = new Map<string, number>();
+        const list: PreparedRemoteAddon[] = [];
 
-    for (const prepared of preparedRemoteAddons) {
-      const r = prepared.addon;
-      const searchScore = remoteAddonSearchScore(r, q);
-      if (q && !Number.isFinite(searchScore)) {
-        continue;
-      }
-      if (contentFilter === 'libraries' && !prepared.libraryLike) continue;
-      if (remote.hideInstalled && installedUIDs.has(r.uid)) {
-        continue;
-      }
-      if (versionFilter && !prepared.compatibilityVersions.includes(versionFilter)) continue;
-      countMap.set(r.categoryId, (countMap.get(r.categoryId) ?? 0) + 1);
-      if (catFilter.length > 0 && !selectedCategorySet.has(r.categoryId)) continue;
-      list.push(prepared);
-    }
+        for (const prepared of preparedRemoteAddons) {
+          const r = prepared.addon;
+          const searchScore = remoteAddonSearchScore(r, q);
+          if (q && !Number.isFinite(searchScore)) {
+            continue;
+          }
+          if (contentFilter === 'libraries' && !prepared.libraryLike) continue;
+          if (remote.hideInstalled && installedUIDs.has(r.uid)) {
+            continue;
+          }
+          if (versionFilter && !prepared.compatibilityVersions.includes(versionFilter)) continue;
+          countMap.set(r.categoryId, (countMap.get(r.categoryId) ?? 0) + 1);
+          if (catFilter.length > 0 && !selectedCategorySet.has(r.categoryId)) continue;
+          list.push(prepared);
+        }
 
-    list.sort((a: PreparedRemoteAddon, b: PreparedRemoteAddon) => {
-      if (q) {
-        const score = remoteAddonSearchScore(a.addon, q) - remoteAddonSearchScore(b.addon, q);
-        if (score !== 0) return score;
-      }
-      const result =
-        sortKey === 'downloads'
-          ? (a.addon.uiDownloadTotal ?? 0) - (b.addon.uiDownloadTotal ?? 0)
-          : sortKey === 'favorites'
-            ? (a.addon.uiFavoriteTotal ?? 0) - (b.addon.uiFavoriteTotal ?? 0)
-            : sortKey === 'date'
-              ? (a.addon.uiDate ?? '').localeCompare(b.addon.uiDate ?? '')
-              : sortKey === 'author'
-                ? a.addon.uiAuthorName.localeCompare(b.addon.uiAuthorName)
-                : sortKey === 'category'
-                  ? a.categoryName.localeCompare(b.categoryName) ||
-                    a.addon.uiName.localeCompare(b.addon.uiName)
-                  : a.addon.uiName.localeCompare(b.addon.uiName);
-      return sortDirection === 'asc' ? result : -result;
-    });
+        list.sort((a: PreparedRemoteAddon, b: PreparedRemoteAddon) => {
+          if (q) {
+            const score = remoteAddonSearchScore(a.addon, q) - remoteAddonSearchScore(b.addon, q);
+            if (score !== 0) return score;
+          }
+          const result =
+            sortKey === 'downloads'
+              ? (a.addon.uiDownloadTotal ?? 0) - (b.addon.uiDownloadTotal ?? 0)
+              : sortKey === 'favorites'
+                ? (a.addon.uiFavoriteTotal ?? 0) - (b.addon.uiFavoriteTotal ?? 0)
+                : sortKey === 'date'
+                  ? (a.addon.uiDate ?? '').localeCompare(b.addon.uiDate ?? '')
+                  : sortKey === 'author'
+                    ? a.addon.uiAuthorName.localeCompare(b.addon.uiAuthorName)
+                    : sortKey === 'category'
+                      ? a.categoryName.localeCompare(b.categoryName) ||
+                        a.addon.uiName.localeCompare(b.addon.uiName)
+                      : a.addon.uiName.localeCompare(b.addon.uiName);
+          return sortDirection === 'asc' ? result : -result;
+        });
 
-    return { list, countMap };
+        return { list, countMap, q, sortKey, sortDirection };
+      },
+      (result) => ({
+        sourceCount: preparedRemoteAddons.length,
+        resultCount: result.list.length,
+        categoryCount: result.countMap.size,
+        queryLength: result.q.length,
+        categoryFilterCount: remote.categoryFilter.length,
+        versionFiltered: !!versionFilter,
+        contentFilter,
+        hideInstalled: remote.hideInstalled,
+        sortKey: result.sortKey,
+        sortDirection: result.sortDirection
+      })
+    );
   });
 
   const filteredRemote = $derived(filterResult.list);
@@ -338,6 +359,13 @@
       estimateSize: () => ITEM_HEIGHT,
       overscan: 10,
       getItemKey: (index: number) => list[index]?.addon.uid ?? index
+    });
+  });
+
+  $effect(() => {
+    recordFrontendGauge('findMore.visibleItems', $virtualizerStore.getVirtualItems().length, {
+      resultCount: filteredRemote.length,
+      totalSize: $virtualizerStore.getTotalSize()
     });
   });
 
