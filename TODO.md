@@ -407,6 +407,9 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
 - [ ] Move hot route logic into tested pure helpers without adding broad architecture layers.
   - Evidence: large route components are harder to profile and test, but a heavy abstraction rewrite would add risk.
   - Acceptance criteria: extract only catalog indexing, update reason formatting, dependency display planning, and task summary shaping where tests/benchmarks justify it.
+- [ ] Move user-facing settings from SQLite into an atomic `settings.toml` file while keeping SQLite for cache/state.
+  - Evidence: SQLite is appropriate for ESOUI catalog cache, category data, install MD5 records, and keyed app state, but small human-facing settings such as AddOns path, theme, and diagnostics thresholds are easier to inspect, recover, and edit safely as TOML.
+  - Acceptance criteria: app stores settings at the existing user config dir as `settings.toml`, keeps `esoui_cache.db` for catalog/cache/install records, validates TOML settings before use, writes via temp-file-plus-rename, migrates existing SQLite settings to TOML once without losing AddOns path/theme/memory values, and has temp-dir tests for fresh settings, migration, invalid TOML fallback, and atomic write failure behavior.
 - [ ] Audit dependencies for real use and runtime impact.
   - Evidence: current `node_modules` has extraneous packages locally, and package churn can obscure real performance work.
   - Acceptance criteria: verify usage before removal, clean install with npm, compare build report/lockfile effects, and keep dependencies that solve real problems such as virtualization/query caching.
