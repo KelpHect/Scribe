@@ -26,9 +26,9 @@ Purpose: prevent corruption, deletion outside the configured AddOns directory, p
 - [x] Add regression tests for uninstall folder-name validation.
   - Completed: `RemoveAddonFolder` is covered for empty, `.`, `..`, slash/backslash, traversal, absolute-looking names, missing folders, and valid folder removal.
   - Verification: `internal/esoui/installer_test.go` uses temp AddOns directories to prove invalid and missing folder names leave sibling/outside directories intact, while a valid named addon folder is removed.
-- [ ] Add explicit confirmation for list/context/bulk uninstall flows or otherwise require a deliberate destructive step.
-  - Evidence: `AddonDetail.svelte` has an uninstall-confirm state, but `InstalledPage.svelte` row uninstall, context-menu uninstall, and `Uninstall Selected` call `uninstallRemoteAddon(s)` directly; backend deletion is irreversible `os.RemoveAll` of the named folder.
-  - Acceptance criteria: every frontend uninstall entry point requires an intentional confirmation that names the affected addon(s), while preserving backend folder-name validation.
+- [x] Add explicit confirmation for list/context/bulk uninstall flows or otherwise require a deliberate destructive step.
+  - Completed: `InstalledPage.svelte` now routes row, context-menu, and bulk uninstall actions through one confirmation dialog before calling backend uninstall mutations.
+  - Verification: the dialog names the affected addon or lists selected addon folders, and backend folder-name validation remains unchanged.
 
 ### Shutdown/cancellation
 

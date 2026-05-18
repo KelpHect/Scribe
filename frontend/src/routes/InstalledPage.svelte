@@ -13,7 +13,7 @@
   import RefreshCw from 'lucide-svelte/icons/refresh-cw';
   import Search from 'lucide-svelte/icons/search';
   import Trash2 from 'lucide-svelte/icons/trash-2';
-  import { Badge, Skeleton } from '$lib/components/ui';
+  import { Badge, Button, Dialog, Skeleton } from '$lib/components/ui';
   import { ErrorBoundary } from '$lib/components/ui';
   import { PageToolbar } from '$lib/components/layout';
   import AddonCard from '$lib/components/addon/AddonCard.svelte';
@@ -25,7 +25,7 @@
   import { getRemoteStore } from '$lib/stores';
   import { batchInstall } from '$lib/stores/downloads.svelte';
   import { _setUpdateCount } from '$lib/stores/remote.svelte';
-  import { uninstallRemoteAddon, uninstallRemoteAddons } from '$lib/stores/remote-mutations.svelte';
+  import { uninstallRemoteAddons } from '$lib/stores/remote-mutations.svelte';
   import {
     type MatchedAddon,
     type Category,
@@ -70,6 +70,8 @@
   let batchInstalling = $state(false);
   let uninstallingFolders = $state(new SvelteSet<string>());
   let bulkUninstalling = $state(false);
+  let uninstallConfirmOpen = $state(false);
+  let pendingUninstallAddons = $state<Addon[]>([]);
   const selectedFolders = new SvelteSet<string>();
 
   const expandedCategories = new SvelteSet<string>();
@@ -189,34 +191,40 @@
     }
   }
 
-  async function uninstallOne(addon: Addon) {
-    uninstallingFolders.add(addon.folderName);
-    try {
-      await uninstallRemoteAddon(addon.folderName, addon.title);
-      selectedFolders.delete(addon.folderName);
-      void checkMissingDeps();
-    } finally {
-      uninstallingFolders.delete(addon.folderName);
-    }
+  function requestUninstall(addonsToRemove: Addon | Addon[]) {
+    const addons = Array.isArray(addonsToRemove) ? addonsToRemove : [addonsToRemove];
+    pendingUninstallAddons = addons.filter((addon) => !uninstallingFolders.has(addon.folderName));
+    uninstallConfirmOpen = pendingUninstallAddons.length > 0;
   }
 
-  async function uninstallSelected() {
-    if (selectedAddons.length === 0) return;
+  function cancelUninstall() {
+    if (bulkUninstalling) return;
+    uninstallConfirmOpen = false;
+    pendingUninstallAddons = [];
+  }
 
+  async function confirmPendingUninstall() {
+    const addonsToRemove = pendingUninstallAddons;
+    if (addonsToRemove.length === 0) return;
+
+    uninstallConfirmOpen = false;
     bulkUninstalling = true;
-    for (const addon of selectedAddons) {
+    for (const addon of addonsToRemove) {
       uninstallingFolders.add(addon.folderName);
     }
 
     try {
       await uninstallRemoteAddons(
-        selectedAddons.map((addon) => ({ folderName: addon.folderName, displayName: addon.title }))
+        addonsToRemove.map((addon) => ({ folderName: addon.folderName, displayName: addon.title }))
       );
-      clearSelection();
+      for (const addon of addonsToRemove) {
+        selectedFolders.delete(addon.folderName);
+      }
       void checkMissingDeps();
     } finally {
       uninstallingFolders.clear();
       bulkUninstalling = false;
+      pendingUninstallAddons = [];
     }
   }
 
@@ -237,11 +245,7 @@
         label: 'Uninstall',
         icon: Trash2,
         variant: 'destructive',
-        action: async () => {
-          await uninstallRemoteAddon(addon.folderName, addon.title);
-          void refreshInstalledState();
-          void checkMissingDeps();
-        }
+        action: () => requestUninstall(addon)
       }
     ];
     openContextMenu(e, items);
@@ -527,7 +531,7 @@
           {selectedCount} selected
         </Badge>
         <button
-          onclick={() => void uninstallSelected()}
+          onclick={() => requestUninstall(selectedAddons)}
           disabled={bulkUninstalling}
           class="flex h-7 cursor-pointer items-center gap-1 rounded-md border border-[var(--color-toolbar-border)] bg-[var(--color-toolbar-input)] px-2 text-[11px] font-medium text-[var(--color-toolbar-muted)] transition-colors hover:bg-[var(--color-toolbar-accent)] hover:text-[var(--color-toolbar-foreground)] disabled:cursor-not-allowed disabled:opacity-50"
           aria-label="Uninstall selected addons"
@@ -697,7 +701,7 @@
                         selectable={true}
                         checked={selectedFolders.has(row.addon.folderName)}
                         ontoggle={() => toggleSelected(row.addon.folderName)}
-                        onuninstall={() => void uninstallOne(row.addon)}
+                        onuninstall={() => requestUninstall(row.addon)}
                         uninstalling={uninstallingFolders.has(row.addon.folderName)}
                         onclick={() => openDetail(row.addon)}
                       />
@@ -732,3 +736,57 @@
     void checkMissingDeps();
   }}
 />
+
+<Dialog
+  open={uninstallConfirmOpen}
+  onclose={cancelUninstall}
+  title={pendingUninstallAddons.length === 1 ? 'Uninstall addon' : 'Uninstall addons'}
+  panelClass="max-w-md"
+>
+  <div class="flex flex-col gap-4">
+    <div class="space-y-2">
+      <p class="text-sm font-medium">
+        {#if pendingUninstallAddons.length === 1}
+          Delete {pendingUninstallAddons[0]?.title ?? 'this addon'}?
+        {:else}
+          Delete {pendingUninstallAddons.length} selected addons?
+        {/if}
+      </p>
+      <p class="text-muted-foreground text-xs">
+        {#if pendingUninstallAddons.length === 1}
+          The folder <span class="font-mono">{pendingUninstallAddons[0]?.folderName}</span> will be permanently deleted.
+        {:else}
+          These addon folders will be permanently deleted.
+        {/if}
+      </p>
+    </div>
+
+    {#if pendingUninstallAddons.length > 1}
+      <div class="border-border bg-muted/30 max-h-40 overflow-y-auto rounded-md border p-2">
+        <ul class="space-y-1">
+          {#each pendingUninstallAddons as addon (addon.folderName)}
+            <li class="flex min-w-0 flex-col text-xs">
+              <span class="truncate font-medium">{addon.title}</span>
+              <span class="text-muted-foreground truncate font-mono">{addon.folderName}</span>
+            </li>
+          {/each}
+        </ul>
+      </div>
+    {/if}
+
+    <div class="flex justify-end gap-2">
+      <Button variant="outline" size="sm" onclick={cancelUninstall} disabled={bulkUninstalling}>
+        Cancel
+      </Button>
+      <Button
+        variant="destructive"
+        size="sm"
+        onclick={confirmPendingUninstall}
+        disabled={bulkUninstalling}
+      >
+        <Trash2 size={13} />
+        {bulkUninstalling ? 'Uninstalling...' : 'Uninstall'}
+      </Button>
+    </div>
+  </div>
+</Dialog>
