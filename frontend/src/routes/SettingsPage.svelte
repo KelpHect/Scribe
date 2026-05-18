@@ -363,24 +363,24 @@
                   <div>
                     <p class="text-sm font-medium">Auto Update</p>
                     <p class="text-muted-foreground text-xs">
-                      Automatically update addons when updates are available.
+                      Not available yet; updates still require manual review.
                     </p>
                   </div>
                   <button
                     type="button"
                     role="switch"
-                    aria-label="Toggle auto update"
-                    aria-checked={field.state.value}
-                    onclick={() => field.handleChange(!field.state.value)}
+                    aria-label="Auto update is not available"
+                    aria-checked={false}
+                    disabled
                     class={[
-                      'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none',
-                      field.state.value ? 'bg-primary' : 'bg-input'
+                      'relative inline-flex h-5 w-9 shrink-0 cursor-not-allowed items-center rounded-full border-2 border-transparent opacity-60 transition-colors focus-visible:outline-none',
+                      'bg-input'
                     ].join(' ')}
                   >
                     <span
                       class={[
                         'bg-background pointer-events-none block h-4 w-4 rounded-full shadow-lg ring-0 transition-transform',
-                        field.state.value ? 'translate-x-4' : 'translate-x-0'
+                        'translate-x-0'
                       ].join(' ')}
                     ></span>
                   </button>

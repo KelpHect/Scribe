@@ -45,9 +45,9 @@ Purpose: fix gaps users or contributors hit in normal settings, install, update,
 - [x] Make AddOns path updates persistent from every Settings path-change action.
   - Completed: `App.SetAddonPath` persists successful path changes, and Settings detected/browse actions save the same path immediately before refreshing installed state.
   - Verification: `npm --prefix frontend run check`, `npm --prefix frontend run build`, `go test ./...`, and Linux Wails build pass.
-- [ ] Resolve the Auto Update preference mismatch.
-  - Evidence: `settings.AppSettings.AutoUpdate` is persisted and Settings says “Automatically update addons when updates are available,” but no backend or frontend worker consumes `autoUpdate` to perform updates.
-  - Acceptance criteria: either implement a safe opt-in auto-update flow with clear limits/confirmation and tests, or relabel/disable/remove the setting so the UI no longer claims unimplemented behavior.
+- [x] Resolve the Auto Update preference mismatch.
+  - Completed: the Settings UI now marks Auto Update as unavailable/manual-review only, and backend settings keep the inert preference false until a safe worker exists.
+  - Verification: `npm --prefix frontend run check`, `npm --prefix frontend run build`, `go test ./...`, and Linux Wails build pass.
 - [ ] Validate Settings form inputs before persistence.
   - Evidence: `validateAddonPath` only trims strings, `memoryLimitMb` accepts any number from the input, and `settings.Manager.SaveSettings` stores the theme value as provided even though load only accepts known themes.
   - Acceptance criteria: invalid addon paths, negative/non-finite memory limits, and unsupported themes are rejected or normalized consistently in frontend and backend tests.

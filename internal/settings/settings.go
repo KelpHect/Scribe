@@ -55,9 +55,8 @@ func (m *Manager) GetSettings() (AppSettings, error) {
 	if v, ok := kv[keyAddonPath]; ok {
 		s.AddonPath = v
 	}
-	if v, ok := kv[keyAutoUpdate]; ok {
-		s.AutoUpdate = v == "true"
-	}
+	// Auto update has no safe worker yet; keep the stored preference inert until one exists.
+	s.AutoUpdate = false
 	if v, ok := kv[keyMemoryLimitMB]; ok {
 		if parsed, err := strconv.Atoi(v); err == nil && parsed >= 0 {
 			s.MemoryLimitMB = parsed
@@ -73,6 +72,7 @@ func (m *Manager) GetSettings() (AppSettings, error) {
 }
 
 func (m *Manager) SaveSettings(s AppSettings) error {
+	s.AutoUpdate = false
 	rows := []esoui.DBSetting{
 		{Key: keyAddonPath, Value: s.AddonPath},
 		{Key: keyAutoUpdate, Value: strconv.FormatBool(s.AutoUpdate)},
