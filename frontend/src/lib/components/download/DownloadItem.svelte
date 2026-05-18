@@ -8,6 +8,11 @@
   import X from 'lucide-svelte/icons/x';
   import type { TaskProgress } from '$lib/stores/downloads.svelte';
   import { formatBytes } from '$lib/utils';
+  import {
+    formatInstallPlanSummary,
+    getInstallPlanCounts,
+    getInstallPlanSafetyNote
+  } from '$lib/install/preflight';
 
   type Props = {
     task: TaskProgress;
@@ -64,6 +69,11 @@
   );
 
   const progressPercent = $derived(Math.min(100, Math.max(0, task.percent)));
+  const installPlan = $derived(task.installPlan ?? []);
+  const planCounts = $derived(getInstallPlanCounts(installPlan));
+  const planSummary = $derived(formatInstallPlanSummary(installPlan));
+  const safetyNote = $derived(getInstallPlanSafetyNote(installPlan));
+  const expectedSizeLabel = $derived(task.totalBytes > 0 ? formatBytes(task.totalBytes) : '');
 </script>
 
 <div class="border-border bg-card flex flex-col gap-1.5 rounded-md border px-3 py-2.5">
@@ -124,17 +134,43 @@
     </div>
   {/if}
 
-  {#if task.installPlan && task.installPlan.length > 0}
+  {#if installPlan.length > 0}
     <div class="border-border/70 bg-muted/30 rounded-md border px-2 py-1.5">
-      <p class="text-muted-foreground mb-1 text-[11px] font-medium">Install plan</p>
+      <div class="mb-1.5 flex items-start justify-between gap-2">
+        <div class="min-w-0">
+          <p class="text-foreground text-[11px] font-semibold">Preflight passed</p>
+          <p class="text-muted-foreground text-[11px]">
+            {planSummary}
+            {#if expectedSizeLabel}
+              · {expectedSizeLabel}
+            {/if}
+          </p>
+        </div>
+        <div class="flex shrink-0 gap-1">
+          {#if planCounts.add > 0}
+            <span class="rounded border px-1.5 py-0.5 text-[10px]">+{planCounts.add}</span>
+          {/if}
+          {#if planCounts.replace > 0}
+            <span class="border-warning/40 bg-warning/10 rounded border px-1.5 py-0.5 text-[10px]"
+              >R{planCounts.replace}</span
+            >
+          {/if}
+        </div>
+      </div>
       <div class="space-y-1">
-        {#each task.installPlan as item (item.folderName)}
+        {#each installPlan as item (item.folderName)}
           <p class="text-muted-foreground flex items-center justify-between gap-2 text-[11px]">
-            <span class="text-foreground truncate font-mono">{item.folderName}</span>
-            <span class="shrink-0">{item.action === 'replace' ? 'Replace' : 'Add'}</span>
+            <span class="min-w-0 truncate">
+              <span class="text-foreground font-mono">{item.folderName}</span>
+              {#if item.reason}
+                <span class="opacity-80"> · {item.reason}</span>
+              {/if}
+            </span>
+            <span class="shrink-0 font-medium">{item.action === 'replace' ? 'Replace' : 'Add'}</span>
           </p>
         {/each}
       </div>
+      <p class="text-muted-foreground mt-1.5 text-[11px]">{safetyNote}</p>
     </div>
   {/if}
 

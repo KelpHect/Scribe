@@ -10,6 +10,7 @@
   import type { MatchedAddon } from '$lib/services/esoui-service';
   import type { TaskProgress } from '$lib/stores/downloads.svelte';
   import { formatBytes } from '$lib/utils';
+  import { formatInstallPlanSummary, getInstallPlanSafetyNote } from '$lib/install/preflight';
 
   interface Props {
     match: MatchedAddon;
@@ -42,6 +43,10 @@
     if (!url) return;
     await openExternalURL(url);
   }
+
+  const installPlan = $derived(task?.installPlan ?? []);
+  const planSummary = $derived(formatInstallPlanSummary(installPlan));
+  const safetyNote = $derived(getInstallPlanSafetyNote(installPlan));
 </script>
 
 <div
@@ -130,6 +135,12 @@
         >
       {/if}
     </div>
+  {/if}
+
+  {#if installPlan.length > 0}
+    <p class="text-muted-foreground pl-[52px] text-[11px]">
+      Preflight passed: {planSummary}. {safetyNote}
+    </p>
   {/if}
 
   {#if task?.error}

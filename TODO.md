@@ -390,9 +390,11 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
   - Acceptance criteria: planning/downloading/extracting/complete/failed/cancelled transitions emit immediately; byte progress is throttled to a measured interval such as 200-250 ms unless a benchmark proves otherwise.
   - Completed: backend byte progress now uses a 200 ms interval for a single active task and 250 ms when multiple downloads are active, while extraction file-counter progress uses the same adaptive interval; queued, downloading, planning, extracting, complete, failed, and cancelled state emissions remain immediate.
   - Verification: `progress_writer_test.go` covers throttled byte progress plus final emission, and download-manager tests cover the adaptive interval selector.
-- [ ] Improve install/update preflight presentation.
+- [x] Improve install/update preflight presentation.
   - Evidence: archive preflight exists, but users need clearer confidence before mutating AddOns.
   - Acceptance criteria: install/update confirmation shows folders to add/replace, dependency impact, expected download size when known, rollback behavior, and any warning that blocks install before mutation.
+  - Completed: task center, update rows, and remote addon detail dialogs now present the backend preflight plan with add/replace folder counts, affected folder names, item reasons, expected download size when known, and staging/rollback language before extraction/commit finishes; preflight errors still surface as task failures before AddOns mutation.
+  - Verification: `preflight.test.ts` covers add/replace summaries and rollback/staging helper text.
 - [ ] Clean stale temporary install/update artifacts on startup.
   - Evidence: rollback-safe staging and backups exist; crashes or forced exits can still leave temporary folders.
   - Acceptance criteria: startup detects Scribe-owned stale staging/backup folders under AddOns, presents or safely cleans only app-owned temp artifacts, never deletes user addon folders, and logs privacy-safe diagnostics.

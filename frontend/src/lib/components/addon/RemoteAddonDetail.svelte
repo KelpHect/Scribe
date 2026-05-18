@@ -28,6 +28,7 @@
     addonDetailsQueryKey,
     trimAddonDetailQueries
   } from '$lib/db/addon-detail-cache';
+  import { formatInstallPlanSummary, getInstallPlanSafetyNote } from '$lib/install/preflight';
 
   interface Props {
     addon: RemoteAddon | null;
@@ -99,6 +100,9 @@
   const isInstalled = $derived(!!installedFolderName);
 
   const downloadTask = $derived(addon ? downloads.getTask(addon.uid) : undefined);
+  const installPlan = $derived(downloadTask?.installPlan ?? []);
+  const planSummary = $derived(formatInstallPlanSummary(installPlan));
+  const safetyNote = $derived(getInstallPlanSafetyNote(installPlan));
   const isInQueue = $derived(
     downloadTask?.state === 'queued' ||
       downloadTask?.state === 'downloading' ||
@@ -325,6 +329,23 @@
       {#if localInstallError || downloadTask?.error}
         <div class="border-destructive/50 bg-destructive/10 rounded-md p-3">
           <p class="text-destructive text-xs">{localInstallError || downloadTask?.error}</p>
+        </div>
+      {/if}
+
+      {#if installPlan.length > 0}
+        <div class="border-border bg-muted/20 rounded-xl border p-3">
+          <p class="text-foreground text-sm font-semibold">Install preflight passed</p>
+          <p class="text-muted-foreground mt-1 text-xs">{planSummary}. {safetyNote}</p>
+          <div class="mt-2 flex flex-wrap gap-1.5">
+            {#each installPlan as item (item.folderName)}
+              <span class="bg-background rounded-md border px-2 py-1 text-[11px]">
+                <span class="font-mono">{item.folderName}</span>
+                <span class="text-muted-foreground ml-1">
+                  {item.action === 'replace' ? 'Replace' : 'Add'}
+                </span>
+              </span>
+            {/each}
+          </div>
         </div>
       {/if}
 
