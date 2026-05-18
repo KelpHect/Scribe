@@ -50,10 +50,15 @@ wails build -tags webkit2_41
 
 ## Releases
 
+Mandatory release assets:
+
 - `Scribe-windows-amd64.exe`
-- `Scribe-windows-amd64-installer.exe`
 - `Scribe-linux-amd64`
 - `Scribe-macos-universal.zip`
+
+Optional release asset:
+
+- `Scribe-windows-amd64-installer.exe` when the NSIS build produces an installer
 
 ## What it does well
 

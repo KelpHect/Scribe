@@ -166,9 +166,9 @@ Purpose: harden the path from version to user-installable artifacts after the ap
 - [x] Decide whether automatic tag creation on every push to `main` is intended.
   - Completed: `tag-release.yml` is now manual-only via `workflow_dispatch`; README and CONTRIBUTING document that release tagging is a maintainer-controlled action, not an automatic side effect of routine `main` pushes.
   - Verification: `git diff --check` passes.
-- [ ] Verify packaged artifact names and installer expectations across platforms.
-  - Evidence: release docs list Windows portable/installer, Linux binary, and macOS zip; `release.yml` publishes portable Windows even if NSIS installer is absent and logs instead of failing.
-  - Acceptance criteria: release docs and workflow agree on which artifacts are mandatory vs optional, and missing mandatory artifacts fail release builds.
+- [x] Verify packaged artifact names and installer expectations across platforms.
+  - Completed: release docs now classify Windows portable, Linux binary, and macOS universal zip as mandatory and the Windows NSIS installer as optional; `release.yml` validates mandatory staged assets with `test -s` and logs whether the optional installer was produced.
+  - Verification: `git diff --check` passes.
 
 ### Compatibility/operations
 

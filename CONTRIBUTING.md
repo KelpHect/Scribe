@@ -89,6 +89,8 @@ If you touch release workflows or packaging, say that clearly in the PR body.
 
 Release tagging is manual. The tag-release workflow reads `frontend/package.json`, creates `vX.Y.Z`, and dispatches the release only when a maintainer runs it.
 
+Release builds require the Windows portable exe, Linux binary, and macOS universal zip. The Windows NSIS installer is optional and is uploaded only if Wails produces it.
+
 ## Style
 
 - write code like a maintainer has to live with it for a year
