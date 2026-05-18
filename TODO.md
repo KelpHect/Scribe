@@ -291,9 +291,11 @@ Purpose: improve the app without replacing Wails/Svelte/Go: fewer crashes, smoot
 
 ### Performance and maintainability
 
-- [ ] Establish repeatable startup, scan, catalog, and memory benchmarks.
+- [x] Establish repeatable startup, scan, catalog, and memory benchmarks.
   - Evidence: diagnostics budgets exist, but repeatable fixtures make regressions easier to catch before release.
   - Acceptance criteria: benchmark or scripted diagnostics fixtures cover cold startup, warm startup, large AddOns scan, cached catalog load, remote search filtering, and memory snapshots; thresholds are documented before enforcement.
+  - Completed: `scripts/benchmarks.sh` now runs fixture-backed Go benchmarks for large AddOns scans, cached catalog load, and backend remote search plus a Vitest benchmark for frontend catalog filtering/ranking. README and CONTRIBUTING document cold/warm startup diagnostics and memory snapshot capture, with fixture thresholds recorded before enforcement.
+  - Verification: benchmark files are deterministic temp-dir/in-memory fixtures and avoid live ESOUI or real AddOns paths.
 - [ ] Profile backend scan/cache hot paths before optimizing.
   - Evidence: scanner, cache load, matching, dependency resolution, and update suppression are the likely hot paths; broad rewrites are out of scope.
   - Acceptance criteria: pprof or benchmark evidence identifies top costs, optimizations are targeted, and tests prove behavior is unchanged.

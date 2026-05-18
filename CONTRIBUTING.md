@@ -98,6 +98,14 @@ Capture at least:
 
 Threshold changes above those targets need maintainer approval in the PR or issue. Prefer measuring before optimizing; do not trade correctness or AddOns safety for a lower number.
 
+For repeatable fixture benchmarks, run:
+
+```bash
+./scripts/benchmarks.sh
+```
+
+This covers large AddOns scanning, cached catalog load, backend remote search, frontend catalog filtering/ranking, and the documented cold/warm startup diagnostics capture path. Treat these fixture numbers as baselines to record before enforcement, not as release-blocking thresholds.
+
 For local profiling, start the app with `SCRIBE_PPROF=1` to expose pprof on `localhost:6060`. The old `SCRIBEEGO_PPROF=1` spelling still works for compatibility.
 
 If you touch release workflows or packaging, say that clearly in the PR body.

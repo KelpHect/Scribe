@@ -94,6 +94,14 @@ Scribe does not include telemetry or analytics. Network requests are for MMOUI/E
 
 Settings includes a diagnostics panel for startup, memory, catalog, and remote-refresh metrics. Startup-related PRs should include a fresh-launch diagnostics snapshot. Current targets are frontend-ready under 1000 ms and Go `Sys` memory at or under 150 MB.
 
+Run repeatable local fixtures with:
+
+```bash
+./scripts/benchmarks.sh
+```
+
+The script covers large AddOns scans, cached catalog load, backend remote search, frontend catalog filtering/ranking, and prints the cold/warm startup plus memory snapshot capture steps. Fixture benchmark numbers are recorded before enforcement; only the diagnostics budgets above are current targets.
+
 ## When not to use this
 
 - you want a signed and notarized app on every platform right now
@@ -125,8 +133,10 @@ wails dev
 
 ```bash
 ./scripts/verify.sh
+./scripts/benchmarks.sh
 npm --prefix frontend run check
 npm --prefix frontend run test
+npm --prefix frontend run bench -- --run
 npm --prefix frontend run lint:check
 npm --prefix frontend run build
 go test ./...
