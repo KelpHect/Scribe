@@ -700,6 +700,10 @@ func (a *App) suppressMD5FalsePositives(matched []esoui.MatchedAddon) []esoui.Ma
 		remoteMD5s[d.RemoteAddon.UID] = d.UIMD5
 	}
 
+	return suppressMD5Matches(matched, storedMD5s, remoteMD5s)
+}
+
+func suppressMD5Matches(matched []esoui.MatchedAddon, storedMD5s, remoteMD5s map[string]string) []esoui.MatchedAddon {
 	for i := range matched {
 		m := &matched[i]
 		if !m.UpdateAvailable || m.Remote == nil {
