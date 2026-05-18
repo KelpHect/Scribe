@@ -54,9 +54,9 @@ Purpose: fix gaps users or contributors hit in normal settings, install, update,
 
 ### Baseline checks/CI
 
-- [ ] Restore a clean frontend type-check baseline.
-  - Evidence: `npm --prefix frontend run check` failed on 2026-05-17 with missing generated Wails modules, `frontend/src/lib/utils/index.ts` treating `matchAll` entries as `unknown`, and `InstalledPage.svelte` using `addons` before declaration.
-  - Acceptance criteria: after regenerating Wails bindings via Wails, `npm --prefix frontend run check` passes without suppressing real type errors.
+- [x] Restore a clean frontend type-check baseline.
+  - Completed: dependency-update compatibility fixes removed the `matchAll` unknown type issue, `InstalledPage.svelte` declaration ordering issue, clickable-card a11y warning, and TypeScript 6 `baseUrl` warning while preserving Wails aliases.
+  - Verification: after Wails-generated bindings are present, `npm --prefix frontend run check` reports 0 errors and 0 warnings.
 - [ ] Make clean-checkout verification deterministic when generated Wails artifacts are absent.
   - Evidence: `frontend/wailsjs/` and `frontend/dist/` are absent in this workspace; `go test ./...` fails at `//go:embed all:frontend/dist`; frontend type-checking fails on missing Wails binding modules.
   - Acceptance criteria: docs and/or scripts provide a single clean setup/check path that regenerates needed artifacts via Wails before running `go test ./...` and frontend checks; generated files remain unhand-edited.
