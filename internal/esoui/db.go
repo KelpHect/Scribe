@@ -1,6 +1,8 @@
 package esoui
 
 import (
+	"Scribe/internal/addon"
+	"Scribe/internal/scanner"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -74,6 +76,16 @@ type DBSearchPreset struct {
 
 func (DBSearchPreset) TableName() string { return "search_presets" }
 
+type DBScannerCache struct {
+	AddonPath   string `gorm:"primaryKey"`
+	FolderName  string `gorm:"primaryKey"`
+	Fingerprint string
+	AddonJSON   string
+	UpdatedAt   string
+}
+
+func (DBScannerCache) TableName() string { return "scanner_cache" }
+
 func OpenDB(path string) (*gorm.DB, error) {
 	dsn := fmt.Sprintf("%s?_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)", path)
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
@@ -91,10 +103,68 @@ func OpenDB(path string) (*gorm.DB, error) {
 	sqlDB.SetMaxIdleConns(4)
 	sqlDB.SetConnMaxIdleTime(10 * time.Minute)
 	sqlDB.SetConnMaxLifetime(1 * time.Hour)
-	if err := db.AutoMigrate(&DBRemoteAddon{}, &DBCategory{}, &DBCacheMeta{}, &DBSetting{}, &DBSearchPreset{}, &DBInstallRecord{}); err != nil {
+	if err := db.AutoMigrate(&DBRemoteAddon{}, &DBCategory{}, &DBCacheMeta{}, &DBSetting{}, &DBSearchPreset{}, &DBInstallRecord{}, &DBScannerCache{}); err != nil {
 		return nil, fmt.Errorf("automigrate: %w", err)
 	}
 	return db, nil
+}
+
+type ScannerCacheStore struct {
+	db *gorm.DB
+}
+
+func NewScannerCacheStore(db *gorm.DB) *ScannerCacheStore {
+	return &ScannerCacheStore{db: db}
+}
+
+func (s *ScannerCacheStore) LoadScanCache(addonPath string) (map[string]scanner.CachedAddon, error) {
+	var rows []DBScannerCache
+	if err := s.db.Where("addon_path = ?", addonPath).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	out := make(map[string]scanner.CachedAddon, len(rows))
+	for _, row := range rows {
+		var cached addon.Addon
+		if err := json.Unmarshal([]byte(row.AddonJSON), &cached); err != nil {
+			continue
+		}
+		out[row.FolderName] = scanner.CachedAddon{
+			FolderName:  row.FolderName,
+			Fingerprint: row.Fingerprint,
+			Addon:       &cached,
+		}
+	}
+	return out, nil
+}
+
+func (s *ScannerCacheStore) SaveScanCache(addonPath string, entries []scanner.CachedAddon) error {
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("addon_path = ?", addonPath).Delete(&DBScannerCache{}).Error; err != nil {
+			return err
+		}
+		now := time.Now().UTC().Format(time.RFC3339)
+		for _, entry := range entries {
+			if entry.Addon == nil {
+				continue
+			}
+			payload, err := json.Marshal(entry.Addon)
+			if err != nil {
+				continue
+			}
+			row := DBScannerCache{
+				AddonPath:   addonPath,
+				FolderName:  entry.FolderName,
+				Fingerprint: entry.Fingerprint,
+				AddonJSON:   string(payload),
+				UpdatedAt:   now,
+			}
+			if err := tx.Save(&row).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func toJSON(v any) string {

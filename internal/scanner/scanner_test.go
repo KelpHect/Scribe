@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"Scribe/internal/addon"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -69,6 +70,66 @@ func TestScanAddonDir_FallsBackToAlphabetical(t *testing.T) {
 	if addons[0].Version != "1.0" {
 		t.Errorf("Version = %q, want %q", addons[0].Version, "1.0")
 	}
+}
+
+func TestScanReusesCachedAddonForUnchangedFolder(t *testing.T) {
+	root := t.TempDir()
+	addonDir := filepath.Join(root, "CachedAddon")
+	if err := os.Mkdir(addonDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(addonDir, "CachedAddon.txt"), []byte("## Title: Parsed Title\n## Version: 1\n"), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	store := newMemoryScanCache()
+	first := New(root)
+	first.SetCacheStore(store)
+	if addons, err := first.Scan(); err != nil || len(addons) != 1 {
+		t.Fatalf("first Scan() addons=%#v err=%v, want one parsed addon", addons, err)
+	}
+
+	for folder, entry := range store.entries {
+		entry.Addon = &addon.Addon{ID: "CachedAddon", FolderName: "CachedAddon", Title: "Cached Title"}
+		store.entries[folder] = entry
+	}
+
+	second := New(root)
+	second.SetCacheStore(store)
+	addons, err := second.Scan()
+	if err != nil {
+		t.Fatalf("second Scan(): %v", err)
+	}
+	if len(addons) != 1 {
+		t.Fatalf("second Scan() returned %d addons, want 1", len(addons))
+	}
+	if addons[0].Title != "Cached Title" {
+		t.Fatalf("Title = %q, want cached addon title", addons[0].Title)
+	}
+}
+
+type memoryScanCache struct {
+	entries map[string]CachedAddon
+}
+
+func newMemoryScanCache() *memoryScanCache {
+	return &memoryScanCache{entries: make(map[string]CachedAddon)}
+}
+
+func (m *memoryScanCache) LoadScanCache(string) (map[string]CachedAddon, error) {
+	out := make(map[string]CachedAddon, len(m.entries))
+	for key, entry := range m.entries {
+		out[key] = entry
+	}
+	return out, nil
+}
+
+func (m *memoryScanCache) SaveScanCache(_ string, entries []CachedAddon) error {
+	m.entries = make(map[string]CachedAddon, len(entries))
+	for _, entry := range entries {
+		m.entries[entry.FolderName] = entry
+	}
+	return nil
 }
 
 func TestParseAddonFile_MetadataEdgeCases(t *testing.T) {

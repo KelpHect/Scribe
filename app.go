@@ -196,10 +196,12 @@ func (a *App) startup(ctx context.Context) {
 		a.setPersistenceStatus("ok", "")
 
 		a.settingsMgr = settings.NewManager(db)
+		a.configureScannerCache()
 
 		if detectedPath == "" {
 			if s, err2 := a.settingsMgr.GetSettings(); err2 == nil && s.AddonPath != "" {
 				a.scanner = scanner.New(s.AddonPath)
+				a.configureScannerCache()
 			}
 		}
 	} else {
@@ -562,6 +564,12 @@ func (a *App) getRemoteList() []esoui.RemoteAddon {
 	return out
 }
 
+func (a *App) configureScannerCache() {
+	if a.scanner != nil && a.db != nil {
+		a.scanner.SetCacheStore(esoui.NewScannerCacheStore(a.db))
+	}
+}
+
 func (a *App) beginAddonScan() bool {
 	if a.scanner == nil || a.scanner.GetAddonPath() == "" {
 		return false
@@ -643,6 +651,7 @@ func (a *App) SetAddonPath(path string) error {
 	} else {
 		a.scanner.SetAddonPath(path)
 	}
+	a.configureScannerCache()
 	if _, err := a.scanner.Scan(); err != nil {
 		return err
 	}

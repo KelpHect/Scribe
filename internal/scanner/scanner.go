@@ -1,10 +1,13 @@
 package scanner
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 
@@ -15,6 +18,18 @@ type Scanner struct {
 	mu        sync.RWMutex
 	addons    map[string]*addon.Addon
 	addonPath string
+	cache     ScanCacheStore
+}
+
+type CachedAddon struct {
+	FolderName  string
+	Fingerprint string
+	Addon       *addon.Addon
+}
+
+type ScanCacheStore interface {
+	LoadScanCache(addonPath string) (map[string]CachedAddon, error)
+	SaveScanCache(addonPath string, entries []CachedAddon) error
 }
 
 func New(addonPath string) *Scanner {
@@ -80,6 +95,7 @@ func globPaths(pattern string) []string {
 func (s *Scanner) Scan() ([]*addon.Addon, error) {
 	s.mu.RLock()
 	addonPath := s.addonPath
+	cache := s.cache
 	s.mu.RUnlock()
 
 	if addonPath == "" {
@@ -94,6 +110,13 @@ func (s *Scanner) Scan() ([]*addon.Addon, error) {
 	var wg sync.WaitGroup
 	results := make(chan *addon.Addon, len(entries))
 	errors := make(chan error, len(entries))
+	cacheEntries := make(chan CachedAddon, len(entries))
+	cached := map[string]CachedAddon{}
+	if cache != nil {
+		if loaded, err := cache.LoadScanCache(addonPath); err == nil {
+			cached = loaded
+		}
+	}
 
 	for _, entry := range entries {
 		if !entry.IsDir() {
@@ -102,13 +125,36 @@ func (s *Scanner) Scan() ([]*addon.Addon, error) {
 		wg.Add(1)
 		go func(name string) {
 			defer wg.Done()
-			a, err := s.scanAddonDir(filepath.Join(addonPath, name))
+			dir := filepath.Join(addonPath, name)
+			fingerprint := ""
+			if cache != nil {
+				var err error
+				fingerprint, err = addonDirFingerprint(dir)
+				if err != nil {
+					errors <- err
+					return
+				}
+				if cachedAddon, ok := cached[name]; ok && cachedAddon.Fingerprint == fingerprint && cachedAddon.Addon != nil {
+					results <- cachedAddon.Addon
+					cacheEntries <- cachedAddon
+					return
+				}
+			}
+
+			a, err := s.scanAddonDir(dir)
 			if err != nil {
 				errors <- err
 				return
 			}
 			if a != nil {
 				results <- a
+				if cache != nil {
+					cacheEntries <- CachedAddon{
+						FolderName:  name,
+						Fingerprint: fingerprint,
+						Addon:       a,
+					}
+				}
 			}
 		}(entry.Name())
 	}
@@ -116,6 +162,7 @@ func (s *Scanner) Scan() ([]*addon.Addon, error) {
 	wg.Wait()
 	close(results)
 	close(errors)
+	close(cacheEntries)
 
 	newAddons := make(map[string]*addon.Addon)
 	for a := range results {
@@ -130,7 +177,41 @@ func (s *Scanner) Scan() ([]*addon.Addon, error) {
 	for _, a := range newAddons {
 		list = append(list, a)
 	}
+	if cache != nil {
+		entries := make([]CachedAddon, 0, len(newAddons))
+		for entry := range cacheEntries {
+			entries = append(entries, entry)
+		}
+		_ = cache.SaveScanCache(addonPath, entries)
+	}
 	return list, nil
+}
+
+func addonDirFingerprint(dir string) (string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", err
+	}
+
+	parts := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		lower := strings.ToLower(name)
+		if strings.HasPrefix(name, ".") || (!strings.HasSuffix(lower, ".txt") && !strings.HasSuffix(lower, ".addon")) {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return "", err
+		}
+		parts = append(parts, fmt.Sprintf("%s:%d:%d", name, info.Size(), info.ModTime().UnixNano()))
+	}
+	sort.Strings(parts)
+	sum := sha256.Sum256([]byte(strings.Join(parts, "|")))
+	return hex.EncodeToString(sum[:]), nil
 }
 
 func (s *Scanner) scanAddonDir(dir string) (*addon.Addon, error) {
@@ -190,6 +271,12 @@ func (s *Scanner) SetAddonPath(path string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.addonPath = path
+}
+
+func (s *Scanner) SetCacheStore(cache ScanCacheStore) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cache = cache
 }
 
 func (s *Scanner) GetAddonPath() string {

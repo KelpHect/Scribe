@@ -1,6 +1,8 @@
 package esoui
 
 import (
+	"Scribe/internal/addon"
+	"Scribe/internal/scanner"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -121,6 +123,37 @@ func TestCacheSchemaMismatchInvalidatesPersistedRows(t *testing.T) {
 	}
 	if addonCount != 0 || categoryCount != 0 || metaCount != 0 {
 		t.Fatalf("cache rows remain after schema mismatch: addons=%d categories=%d meta=%d", addonCount, categoryCount, metaCount)
+	}
+}
+
+func TestScannerCacheStoreRoundTrip(t *testing.T) {
+	db := newCacheTestDB(t)
+	store := NewScannerCacheStore(db)
+	addonPath := filepath.Join(t.TempDir(), "AddOns")
+	entries := []scanner.CachedAddon{{
+		FolderName:  "LibFoo",
+		Fingerprint: "fingerprint",
+		Addon: &addon.Addon{
+			ID:         "LibFoo",
+			FolderName: "LibFoo",
+			Title:      "Lib Foo",
+			Version:    "1.2.3",
+		},
+	}}
+
+	if err := store.SaveScanCache(addonPath, entries); err != nil {
+		t.Fatalf("SaveScanCache: %v", err)
+	}
+	got, err := store.LoadScanCache(addonPath)
+	if err != nil {
+		t.Fatalf("LoadScanCache: %v", err)
+	}
+	entry, ok := got["LibFoo"]
+	if !ok {
+		t.Fatalf("cache keys = %#v, want LibFoo", got)
+	}
+	if entry.Fingerprint != "fingerprint" || entry.Addon == nil || entry.Addon.Title != "Lib Foo" {
+		t.Fatalf("cached entry = %+v", entry)
 	}
 }
 

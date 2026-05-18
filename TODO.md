@@ -344,9 +344,11 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
   - Acceptance criteria: app can render quickly with cached/last-known state, then refresh installed addons asynchronously; diagnostics distinguish frontend-ready, cached-state-ready, scan-start, scan-ready, and remote-ready timing.
   - Completed: startup now configures the scanner path without parsing the AddOns tree, `GetInstalledAddons` returns cached state while starting a background scan, the frontend refreshes installed/matched query state on the `installed:scan-complete` event, and diagnostics now expose cached-state-ready, scan-start, scan-ready, in-flight, and scan-error fields.
   - Verification: `startup_scan_test.go` proves `GetInstalledAddons` returns cached state immediately while the background scan later populates the scanner cache.
-- [ ] Add incremental scanner caching for unchanged addon folders.
+- [x] Add incremental scanner caching for unchanged addon folders.
   - Evidence: full rescans reparse manifests even when folder mtimes/sizes have not changed.
   - Acceptance criteria: scanner stores safe per-folder metadata in the app DB or a cache table, reparses changed folders only, invalidates correctly on folder deletion/rename, and preserves canonical-manifest preference tests.
+  - Completed: scanner now fingerprints addon manifest files per folder, reuses cached parsed addons when fingerprints match, persists the cache in the app SQLite DB through `scanner_cache`, and replaces cache rows for the active AddOns path on each successful scan.
+  - Verification: scanner tests cover reuse for unchanged folders, cache round-trip tests cover the SQLite-backed scanner cache, and existing canonical/fallback manifest tests remain in place.
 - [ ] Make remote catalog refresh more visibly background-first.
   - Evidence: stale cache handling exists, but the UI should never feel empty or blocked when a usable cached ESOUI catalog exists.
   - Acceptance criteria: cached remote data appears immediately when available, stale/background refresh status remains visible, refresh failure keeps prior results, and manual refresh does not duplicate in-flight work.
