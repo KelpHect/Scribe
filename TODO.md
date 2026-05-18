@@ -79,9 +79,9 @@ Purpose: reduce update/matching/cache/settings regressions before broader distri
 - [x] Add parser tests for ESO manifest metadata edge cases.
   - Completed: scanner parser tests now cover required/PC/optional dependency fields with version operators, ignored console dependencies, color-code stripping, fallback title, saved variables, API/addon versions, and library boolean forms.
   - Verification: `go test ./internal/scanner` passes.
-- [ ] Add matcher/version tests for update detection and remote directory selection.
-  - Evidence: `internal/esoui/matcher.go` picks the candidate with fewer `UIDirs` and compares numeric version parts; no tests prove behavior for siblings, multi-dir addons, same versions, empty versions, nonnumeric suffixes, or local-newer versions.
-  - Acceptance criteria: tests cover exact matches, local older/newer/equal, version strings with prefixes/suffixes, multi-candidate selection, and no-update false positives.
+- [x] Add matcher/version tests for update detection and remote directory selection.
+  - Completed: matcher tests now cover exact/equal versions, local older/newer, empty versions, prefixed/suffixed version strings, most-specific remote candidate selection for multi-dir addons, and unmatched locals.
+  - Verification: `go test ./internal/esoui` passes.
 - [ ] Add dependency-resolution tests for missing dependency discovery.
   - Evidence: `App.GetMissingDependencies` strips simple version operators, lowercases folder names, merges required/optional state, and maps remote dirs, but no tests cover required-vs-optional conflicts, installed deps, versioned dep tokens, or unresolvable deps.
   - Acceptance criteria: tests or extracted helper tests cover required taking precedence over optional, installed deps ignored, remote UID mapping by `UIDirs`, and unresolved deps shown as not installable.
