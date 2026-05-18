@@ -83,6 +83,20 @@ For local troubleshooting, close Scribe and rename or delete only that database 
 
 Do not reset a real ESO `AddOns` folder unless the task explicitly calls for addon install/update/uninstall behavior.
 
+## Performance checks
+
+Scribe's diagnostics panel in Settings reports startup and memory metrics. For PRs that touch startup, route loading, caching, background refresh, or long-lived stores, include a diagnostics snapshot after a fresh app launch.
+
+Capture at least:
+
+- frontend-ready time, target under 1000 ms
+- Go `Sys` memory, target at or under 150 MB
+- remote addon/category counts and cache-stale state
+- remote refresh count and last refresh duration
+- OS, app version or commit, and whether the catalog was warm or cold
+
+Threshold changes above those targets need maintainer approval in the PR or issue. Prefer measuring before optimizing; do not trade correctness or AddOns safety for a lower number.
+
 For local profiling, start the app with `SCRIBE_PPROF=1` to expose pprof on `localhost:6060`. The old `SCRIBEEGO_PPROF=1` spelling still works for compatibility.
 
 If you touch release workflows or packaging, say that clearly in the PR body.

@@ -185,9 +185,9 @@ Purpose: keep startup/memory responsive and make performance/debug data actionab
 
 ### Performance/observability
 
-- [ ] Add regression guidance or checks for startup and memory budgets.
-  - Evidence: `app.go` records startup/memory diagnostics with targets `<1s` frontend-ready and `<=150 MB` system memory, but no automated check or documented manual benchmark process exists.
-  - Acceptance criteria: docs or tests define how to capture baseline snapshots, what data to include in PRs, and what threshold changes require maintainer approval.
+- [x] Add regression guidance or checks for startup and memory budgets.
+  - Completed: README and CONTRIBUTING now document the Settings diagnostics panel as the baseline capture path, the frontend-ready `<1000 ms` and Go `Sys <=150 MB` targets, required PR snapshot fields, warm/cold catalog context, and maintainer approval for threshold changes.
+  - Verification: `git diff --check` passes.
 - [ ] Review remote refresh concurrency and duplicate background refreshes.
   - Evidence: `GetRemoteAddons` can start a background refresh whenever cache is stale and list is non-empty; there is no in-flight guard beyond `refreshWg` wait on shutdown.
   - Acceptance criteria: repeated frontend queries while stale do not spawn redundant remote refreshes; behavior is covered by a focused test or guarded implementation.
