@@ -235,9 +235,9 @@ Purpose: improve the app without replacing Wails/Svelte/Go: fewer crashes, smoot
 - [x] Add a frontend route/service error boundary with user-facing recovery actions.
   - Completed: `App.svelte` now catches mounted route component failures with Svelte boundaries, records lazy route import failures, keeps navigation mounted, and shows a recoverable error state with retry plus copyable details.
   - Verification: `frontend/src/lib/routes/recovery.test.ts` covers failed service error formatting and failed dynamic route retry; `npm --prefix frontend run test`, `npm --prefix frontend run check`, `npm --prefix frontend run build`, and `./scripts/verify.sh` pass.
-- [ ] Add a local-only redacted diagnostics export.
-  - Evidence: Settings exposes diagnostics, but users still need a one-click way to share startup/cache/download state without leaking arbitrary local paths.
-  - Acceptance criteria: export includes app version, platform, startup timings, memory, persistence status, catalog/cache status, recent task failures, and redacted paths; no telemetry or network upload is added.
+- [x] Add a local-only redacted diagnostics export.
+  - Completed: Settings now exposes a local copy-to-clipboard diagnostics export with app/build/platform data, redacted AddOns paths, startup timings, memory, persistence status, catalog/cache state, frontend cache counters, and recent failed install/update tasks.
+  - Verification: `frontend/src/lib/diagnostics/export.test.ts` covers path/error redaction and payload content; `npm --prefix frontend run test` and `npm --prefix frontend run check` pass.
 - [ ] Audit background goroutine and async task lifecycles for shutdown safety.
   - Evidence: download cancellation has regression coverage, but remote refresh, startup scans, diagnostics refresh, and future workers should have the same idempotent shutdown expectations.
   - Acceptance criteria: tests or focused harnesses prove repeated cancel/shutdown calls do not panic, leak task ownership, or update UI state after shutdown.

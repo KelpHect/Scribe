@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import { createQuery } from '@tanstack/svelte-query';
   import CheckCircle2 from 'lucide-svelte/icons/check-circle-2';
+  import Clipboard from 'lucide-svelte/icons/clipboard';
   import FolderInput from 'lucide-svelte/icons/folder-input';
   import FolderOpen from 'lucide-svelte/icons/folder-open';
   import Loader2 from 'lucide-svelte/icons/loader-2';
@@ -28,13 +29,15 @@
   } from '$lib/services/addon-service';
   import { getSettings, saveSettings } from '$lib/services/settings-service';
   import { applyTheme, type AppTheme } from '$lib/services/theme-service';
-  import { openExternalURL } from '$lib/services/runtime-service';
+  import { clipboardSetText, openExternalURL } from '$lib/services/runtime-service';
+  import { buildLocalDiagnosticsExport } from '$lib/diagnostics/export';
   import {
     addonPathQueryKey,
     installedAddonsQueryKey,
     refreshInstalledState
   } from '$lib/db/query-state';
   import { queryClient } from '$lib/db/client';
+  import { getDownloadStore } from '$lib/stores';
   import { toast } from 'svelte-sonner';
   import { createForm } from '@tanstack/svelte-form';
   import * as v from 'valibot';
@@ -56,6 +59,7 @@
   let appInfo = $state<AppInfo | null>(null);
   let showShortcuts = $state(false);
   let showLibraries = $state(false);
+  let diagnosticsExporting = $state(false);
   let frontendDiagnostics = $state<FrontendDiagnostics>({
     addonDetailQueries: 0,
     addonDetailQueriesWithData: 0,
@@ -64,7 +68,8 @@
     cachedUIDs: []
   });
 
-  const showDiagnostics = import.meta.env.DEV;
+  const downloads = getDownloadStore();
+  const showDiagnostics = true;
 
   async function applyThemeSelection(theme: AppTheme) {
     form.setFieldValue('theme', theme);
@@ -230,6 +235,34 @@
       frontendDiagnostics = collectFrontendDiagnostics();
     } finally {
       diagnosticsLoading = false;
+    }
+  }
+
+  async function exportDiagnostics() {
+    diagnosticsExporting = true;
+    try {
+      const snapshot = await fetchDiagnostics();
+      const frontendSnapshot = collectFrontendDiagnostics();
+      diagnostics = snapshot;
+      frontendDiagnostics = frontendSnapshot;
+
+      const text = buildLocalDiagnosticsExport({
+        appInfo,
+        diagnostics: snapshot,
+        frontendDiagnostics: frontendSnapshot,
+        addonPath: form.state.values.addonPath || addonPath,
+        detectedPath,
+        failedTasks: downloads.failedDownloads
+      });
+
+      await clipboardSetText(text);
+      toast.success('Diagnostics copied', {
+        description: 'The redacted local export is on your clipboard.'
+      });
+    } catch (e) {
+      toast.error('Failed to export diagnostics', { description: String(e) });
+    } finally {
+      diagnosticsExporting = false;
     }
   }
 
@@ -486,18 +519,34 @@
               <div>
                 <h3 class="text-sm font-medium">Diagnostics</h3>
                 <p class="text-muted-foreground mt-1 text-xs">
-                  Dev-only runtime metrics for startup, memory, and detail-query caching.
+                  Local runtime metrics for startup, memory, cache state, and recent failed tasks.
                 </p>
               </div>
-              <button
-                type="button"
-                onclick={loadDiagnostics}
-                disabled={diagnosticsLoading}
-                class="border-border hover:bg-accent inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
-              >
-                <RefreshCw size={14} class={diagnosticsLoading ? 'animate-spin' : ''} />
-                Refresh
-              </button>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  onclick={loadDiagnostics}
+                  disabled={diagnosticsLoading}
+                  class="border-border hover:bg-accent inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw size={14} class={diagnosticsLoading ? 'animate-spin' : ''} />
+                  Refresh
+                </button>
+                <button
+                  type="button"
+                  onclick={exportDiagnostics}
+                  disabled={diagnosticsExporting}
+                  class="border-border hover:bg-accent inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
+                >
+                  {#if diagnosticsExporting}
+                    <Loader2 size={14} class="animate-spin" />
+                    Exporting
+                  {:else}
+                    <Clipboard size={14} />
+                    Copy export
+                  {/if}
+                </button>
+              </div>
             </div>
 
             {#if diagnostics}
