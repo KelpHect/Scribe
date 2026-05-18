@@ -42,7 +42,9 @@ async function getApp(): Promise<any> {
 
 const tasks = new SvelteMap<string, TaskProgress>();
 const pendingInstallUIDs = new SvelteSet<string>();
+const pendingProgressUpdates = new Map<string, TaskProgress>();
 let listenerActive: boolean = $state(false);
+let progressFlushCancel: (() => void) | null = null;
 
 function getTaskList(): TaskProgress[] {
   return Array.from(tasks.values());
@@ -86,12 +88,12 @@ function isDownloading(): boolean {
 }
 
 function getTask(uid: string): TaskProgress | undefined {
-  return tasks.get(uid);
+  return pendingProgressUpdates.get(uid) ?? tasks.get(uid);
 }
 
 export function isInstallActive(uid: string): boolean {
   if (pendingInstallUIDs.has(uid)) return true;
-  const task = tasks.get(uid);
+  const task = getTask(uid);
   return (
     task?.state === 'queued' ||
     task?.state === 'downloading' ||
@@ -141,6 +143,96 @@ function scheduleInvalidate() {
   }, 500);
 }
 
+function getEffectiveTask(uid: string): TaskProgress | undefined {
+  return pendingProgressUpdates.get(uid) ?? tasks.get(uid);
+}
+
+export function shouldApplyDownloadProgressImmediately(
+  data: TaskProgress,
+  previous: TaskProgress | undefined
+): boolean {
+  if (!previous) return true;
+  if (data.state !== previous.state) return true;
+  return data.state === 'complete' || data.state === 'failed' || data.state === 'cancelled';
+}
+
+function recordProgressEvent(data: TaskProgress, dropped = false) {
+  recordDownloadProgressEvent({
+    uid: data.uid,
+    state: data.state,
+    taskCount: tasks.size,
+    activeCount: getActiveCount(),
+    error: data.error,
+    dropped
+  });
+}
+
+function applyProgressUpdate(data: TaskProgress, dropped = false) {
+  const prev = tasks.get(data.uid);
+  tasks.set(data.uid, data);
+  recordProgressEvent(data, dropped);
+
+  const prevState = prev?.state;
+  if (data.state !== prevState) {
+    if (data.state === 'complete') {
+      toast.success(`${data.name || data.uid} installed successfully`);
+      scheduleInvalidate();
+
+      scheduleMissingDepCheck();
+    } else if (data.state === 'failed') {
+      toast.error(`${data.name || data.uid} failed`, {
+        description: data.error || 'Unknown error'
+      });
+    }
+  }
+}
+
+function flushProgressUpdates() {
+  progressFlushCancel = null;
+  if (pendingProgressUpdates.size === 0) return;
+
+  const updates = Array.from(pendingProgressUpdates.values());
+  pendingProgressUpdates.clear();
+  for (const update of updates) {
+    applyProgressUpdate(update);
+  }
+}
+
+function scheduleProgressFlush() {
+  if (progressFlushCancel) return;
+
+  if (typeof globalThis.requestAnimationFrame === 'function') {
+    const frame = globalThis.requestAnimationFrame(flushProgressUpdates);
+    progressFlushCancel = () => globalThis.cancelAnimationFrame?.(frame);
+    return;
+  }
+
+  const timer = setTimeout(flushProgressUpdates, 16);
+  progressFlushCancel = () => clearTimeout(timer);
+}
+
+function clearProgressFlush() {
+  if (progressFlushCancel) {
+    progressFlushCancel();
+    progressFlushCancel = null;
+  }
+  pendingProgressUpdates.clear();
+}
+
+function handleProgressUpdate(data: TaskProgress) {
+  const previous = getEffectiveTask(data.uid);
+  if (shouldApplyDownloadProgressImmediately(data, previous)) {
+    const replacedPending = pendingProgressUpdates.delete(data.uid);
+    applyProgressUpdate(data, replacedPending);
+    return;
+  }
+
+  const dropped = pendingProgressUpdates.has(data.uid);
+  pendingProgressUpdates.set(data.uid, data);
+  recordProgressEvent(data, dropped);
+  scheduleProgressFlush();
+}
+
 async function runMissingDepCheck() {
   const missing = await fetchMissingDependencies();
   const installable = missing.filter((d) => d.canInstall && !d.optional);
@@ -172,29 +264,7 @@ export async function startListening(): Promise<void> {
   if (!runtime?.EventsOn) return;
 
   const unsubscribe = runtime.EventsOn('download:progress', (data: TaskProgress) => {
-    const prev = tasks.get(data.uid);
-    tasks.set(data.uid, data);
-    recordDownloadProgressEvent({
-      uid: data.uid,
-      state: data.state,
-      taskCount: tasks.size,
-      activeCount: getActiveCount(),
-      error: data.error
-    });
-
-    const prevState = prev?.state;
-    if (data.state !== prevState) {
-      if (data.state === 'complete') {
-        toast.success(`${data.name || data.uid} installed successfully`);
-        scheduleInvalidate();
-
-        scheduleMissingDepCheck();
-      } else if (data.state === 'failed') {
-        toast.error(`${data.name || data.uid} failed`, {
-          description: data.error || 'Unknown error'
-        });
-      }
-    }
+    handleProgressUpdate(data);
   });
 
   listenerActive = true;
@@ -208,6 +278,7 @@ export async function startListening(): Promise<void> {
 
 export function stopListening(): void {
   if (cleanupFn) cleanupFn();
+  clearProgressFlush();
   clearDepCheckTimer();
   clearInvalidateTimer();
 }
@@ -315,6 +386,11 @@ export async function fetchDownloadQueue(): Promise<TaskProgress[]> {
 }
 
 export function clearFinished(): void {
+  for (const [uid, t] of pendingProgressUpdates) {
+    if (t.state === 'complete' || t.state === 'failed' || t.state === 'cancelled') {
+      pendingProgressUpdates.delete(uid);
+    }
+  }
   for (const [uid, t] of tasks) {
     if (t.state === 'complete' || t.state === 'failed' || t.state === 'cancelled') {
       tasks.delete(uid);
@@ -323,6 +399,7 @@ export function clearFinished(): void {
 }
 
 export function clearTask(uid: string): void {
+  pendingProgressUpdates.delete(uid);
   tasks.delete(uid);
 }
 

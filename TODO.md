@@ -380,9 +380,11 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
 
 ### Install, update, and task-center smoothness
 
-- [ ] Coalesce download progress events before reactive store writes.
+- [x] Coalesce download progress events before reactive store writes.
   - Evidence: backend emits progress every 100 ms per active task, and the frontend currently writes each event into a reactive map.
   - Acceptance criteria: state transitions remain immediate, byte/progress updates are batched with `requestAnimationFrame` or a measured throttle, task center remains responsive during concurrent downloads, and cancel/retry behavior is unchanged.
+  - Completed: download progress handling now applies first events, state transitions, and terminal states immediately while coalescing same-state byte/file progress updates through `requestAnimationFrame` with a 16 ms fallback; task lookup/cancel/retry behavior still sees active pending work, and diagnostics count overwritten pending updates as dropped/coalesced events.
+  - Verification: `downloads.svelte.test.ts` covers immediate-vs-batched progress classification, and frontend diagnostics tests still cover progress event accounting.
 - [ ] Make backend progress interval adaptive.
   - Evidence: byte-level progress does not need the same frequency as state changes, especially with multiple downloads.
   - Acceptance criteria: planning/downloading/extracting/complete/failed/cancelled transitions emit immediately; byte progress is throttled to a measured interval such as 200-250 ms unless a benchmark proves otherwise.
