@@ -426,9 +426,11 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
 
 ### Desktop shell and frontend framework evaluation
 
-- [ ] Document a Wails vs Tauri vs Electron vs SolidJS evaluation matrix.
+- [x] Document a Wails vs Tauri vs Electron vs SolidJS evaluation matrix.
   - Evidence: the user is open to Electron or other desktop shells if they improve stability and experience, but Electron is not automatically lighter and framework swaps do not fix backend/cache/install issues.
   - Acceptance criteria: matrix compares startup, memory, package size, Linux/Fedora dependencies, Windows behavior, webview/runtime ownership, packaging complexity, native API access, Wails bridge replacement cost, and regression risk.
+  - Completed: `docs/desktop-stack-evaluation.md` compares Wails/Svelte, Wails/SolidJS, Tauri, Electron, and Avalonia/native across startup, memory, package size, Linux/Fedora dependencies, Windows behavior, runtime ownership, native API access, bridge replacement cost, regression risk, and fit for Scribe; it also defines required spike measurements and decision rules.
+  - Verification: official Wails, Tauri, Electron, and SolidJS docs were checked before documenting the matrix.
 - [ ] Run a SolidJS frontend spike only after Svelte hot paths have baselines.
   - Evidence: Solid has fine-grained reactivity, but current Svelte 5 code already uses runes, lazy chunks, TanStack Query, and virtualization.
   - Acceptance criteria: isolated spike ports the shell plus Find More catalog list against the existing Go/Wails service shape or mocked services; compare bundle size, search latency, scroll smoothness, memory, and migration cost before deciding.
