@@ -88,6 +88,21 @@
     }
   }
 
+  async function saveCurrentSettings(addonPath: string) {
+    await saveSettings({
+      ...form.state.values,
+      addonPath
+    });
+    window.dispatchEvent(
+      new CustomEvent('scribe:settings-updated', {
+        detail: {
+          memoryLimitMb: form.state.values.memoryLimitMb,
+          theme: form.state.values.theme
+        }
+      })
+    );
+  }
+
   const installedQuery = createQuery(() => ({
     queryKey: installedAddonsQueryKey,
     queryFn: async (): Promise<Addon[]> => fetchInstalledAddons()
@@ -211,6 +226,7 @@
     try {
       form.setFieldValue('addonPath', detectedPath);
       await updateAddonPath(detectedPath);
+      await saveCurrentSettings(detectedPath);
       await refreshInstalledState();
       toast.success('AddOns folder updated', { description: detectedPath });
     } catch (e) {
@@ -226,6 +242,10 @@
       const path = await browseForFolder('Select ESO AddOns folder');
       if (path) {
         form.setFieldValue('addonPath', path);
+        await updateAddonPath(path);
+        await saveCurrentSettings(path);
+        await refreshInstalledState();
+        toast.success('AddOns folder updated', { description: path });
       }
     } catch (e) {
       toast.error('Failed to browse folder', { description: String(e) });

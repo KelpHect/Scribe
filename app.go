@@ -482,11 +482,22 @@ func (a *App) GetAddonPath() string {
 func (a *App) SetAddonPath(path string) error {
 	if a.scanner == nil {
 		a.scanner = scanner.New(path)
+	} else {
+		a.scanner.SetAddonPath(path)
+	}
+	if _, err := a.scanner.Scan(); err != nil {
+		return err
+	}
+	if a.settingsMgr == nil {
 		return nil
 	}
-	a.scanner.SetAddonPath(path)
-	_, err := a.scanner.Scan()
-	return err
+
+	s, err := a.settingsMgr.GetSettings()
+	if err != nil {
+		s = settings.AppSettings{MemoryLimitMB: 150, Theme: "scribe"}
+	}
+	s.AddonPath = path
+	return a.settingsMgr.SaveSettings(s)
 }
 
 func (a *App) DetectAddonPath() string {

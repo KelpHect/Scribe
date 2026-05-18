@@ -42,9 +42,9 @@ Purpose: fix gaps users or contributors hit in normal settings, install, update,
 
 ### Correctness/persistence
 
-- [ ] Make AddOns path updates persistent from every Settings path-change action.
-  - Evidence: `SettingsPage.svelte` “Use this path” calls `updateAddonPath()` (`App.SetAddonPath`) and refreshes installed state, while persistence is only through `SaveSettings`; selecting a detected path can diverge in-memory state from saved settings until the user also saves.
-  - Acceptance criteria: choosing a detected/browsed path and applying it through any Settings action saves the same path through `settings.Manager`, refreshes installed state, and survives app restart.
+- [x] Make AddOns path updates persistent from every Settings path-change action.
+  - Completed: `App.SetAddonPath` persists successful path changes, and Settings detected/browse actions save the same path immediately before refreshing installed state.
+  - Verification: `npm --prefix frontend run check`, `npm --prefix frontend run build`, `go test ./...`, and Linux Wails build pass.
 - [ ] Resolve the Auto Update preference mismatch.
   - Evidence: `settings.AppSettings.AutoUpdate` is persisted and Settings says “Automatically update addons when updates are available,” but no backend or frontend worker consumes `autoUpdate` to perform updates.
   - Acceptance criteria: either implement a safe opt-in auto-update flow with clear limits/confirmation and tests, or relabel/disable/remove the setting so the UI no longer claims unimplemented behavior.
