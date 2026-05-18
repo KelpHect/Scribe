@@ -13,6 +13,7 @@ Want to help with Scribe? Nice. Keep it practical.
 - small focused diffs
 - clear commit messages
 - no drive-by refactors unless they are required for the fix
+- no plugin API or architecture rewrite work without a separate accepted design plan
 - no comment spam. prefer better names and smaller functions
 - if you add a comment, explain the constraint or trade-off, not the syntax
 

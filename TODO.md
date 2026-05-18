@@ -217,9 +217,10 @@ Purpose: record explicitly deferred ideas so they are not confused with current 
   - Closed as not implementable under current product constraints: telemetry would require explicit opt-in UX, a privacy design, event schema, retention policy, endpoint ownership, and maintainer approval.
   - Evidence: no telemetry code exists; README now states Scribe has no telemetry/analytics and limits network behavior to MMOUI/ESOUI catalog/downloads plus user-triggered external links.
   - Decision: keep Scribe telemetry-free unless a future approved privacy plan defines exactly what is collected, where it goes, how users opt in/out, and how data is retained/deleted.
-- [ ] Plugin APIs or broad architecture rewrites.
-  - Evidence: AGENTS and docs scope Scribe as a small Wails/Svelte desktop app without plugin APIs.
-  - Acceptance criteria: only reconsider through a separate design plan.
+- [x] Plugin APIs or broad architecture rewrites.
+  - Closed as not implementable under current product constraints: plugin APIs and broad rewrites conflict with the small focused Wails app boundary unless a separate design plan justifies the surface, lifecycle, compatibility, and security model.
+  - Evidence: AGENTS and docs scope Scribe as a small Wails/Svelte desktop app without plugin APIs; CONTRIBUTING now rejects plugin API or architecture rewrite work without an accepted design plan.
+  - Decision: keep the current Wails/app.go/internal package boundary and require a separate accepted design before reconsidering plugin APIs or large architecture changes.
 - [ ] Strong distribution signing/notarization.
   - Evidence: README documents unsigned Windows builds and ad-hoc/non-notarized macOS builds; release workflow performs ad-hoc macOS signing only.
   - Acceptance criteria: requires maintainer credentials/certificates and explicit release-scope approval.
