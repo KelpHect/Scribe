@@ -76,9 +76,9 @@ Purpose: reduce update/matching/cache/settings regressions before broader distri
 
 ### Parser/scanner/matcher tests
 
-- [ ] Add parser tests for ESO manifest metadata edge cases.
-  - Evidence: `internal/scanner/parser.go` parses `DependsOn`, `PCDependsOn`, `OptionalDependsOn`, color codes, `SavedVariables`, `AddOnVersion`, `IsLibrary`, and missing titles, but only scanner manifest selection is tested.
-  - Acceptance criteria: table tests cover dependency fields including version operators, `PCDependsOn`, ignored `ConsoleDependsOn`, color-code stripping, fallback title, saved variables, API/addon versions, and library boolean forms.
+- [x] Add parser tests for ESO manifest metadata edge cases.
+  - Completed: scanner parser tests now cover required/PC/optional dependency fields with version operators, ignored console dependencies, color-code stripping, fallback title, saved variables, API/addon versions, and library boolean forms.
+  - Verification: `go test ./internal/scanner` passes.
 - [ ] Add matcher/version tests for update detection and remote directory selection.
   - Evidence: `internal/esoui/matcher.go` picks the candidate with fewer `UIDirs` and compares numeric version parts; no tests prove behavior for siblings, multi-dir addons, same versions, empty versions, nonnumeric suffixes, or local-newer versions.
   - Acceptance criteria: tests cover exact matches, local older/newer/equal, version strings with prefixes/suffixes, multi-candidate selection, and no-update false positives.
