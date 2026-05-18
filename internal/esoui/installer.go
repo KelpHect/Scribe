@@ -114,6 +114,39 @@ func ExtractWithProgress(ctx context.Context, zipPath, destDir string, fn Extrac
 	return nil
 }
 
+func InstallArchiveWithProgress(ctx context.Context, zipPath, destDir string, expectedDirs []string, fn ExtractionProgressFn) ([]InstallPlanEntry, error) {
+	plan, err := PlanInstallArchive(zipPath, destDir, expectedDirs)
+	if err != nil {
+		return nil, err
+	}
+	if err := installPlannedArchiveWithProgress(ctx, zipPath, destDir, plan, fn); err != nil {
+		return plan, err
+	}
+	return plan, nil
+}
+
+func installPlannedArchiveWithProgress(ctx context.Context, zipPath, destDir string, plan []InstallPlanEntry, fn ExtractionProgressFn) error {
+	stagingDir, err := os.MkdirTemp(filepath.Clean(destDir), ".scribe-staging-*")
+	if err != nil {
+		return fmt.Errorf("create staging directory: %w", err)
+	}
+	defer os.RemoveAll(stagingDir)
+
+	if err := ExtractWithProgress(ctx, zipPath, stagingDir, fn); err != nil {
+		return err
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	if err := commitStagedInstall(stagingDir, destDir, plan); err != nil {
+		return err
+	}
+	return nil
+}
+
 func PlanInstallArchive(zipPath, destDir string, expectedDirs []string) ([]InstallPlanEntry, error) {
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
@@ -206,7 +239,72 @@ func PlanInstallArchive(zipPath, destDir string, expectedDirs []string) ([]Insta
 }
 
 func extractZip(zipPath, destDir string) error {
-	return ExtractWithProgress(context.Background(), zipPath, destDir, nil)
+	_, err := InstallArchiveWithProgress(context.Background(), zipPath, destDir, nil, nil)
+	return err
+}
+
+func commitStagedInstall(stagingDir, destDir string, plan []InstallPlanEntry) error {
+	cleanDest := filepath.Clean(destDir)
+	backupDir, err := os.MkdirTemp(cleanDest, ".scribe-backup-*")
+	if err != nil {
+		return fmt.Errorf("create backup directory: %w", err)
+	}
+	keepBackup := false
+	defer func() {
+		if !keepBackup {
+			_ = os.RemoveAll(backupDir)
+		}
+	}()
+
+	type movedFolder struct {
+		name      string
+		action    string
+		dst       string
+		backup    string
+		installed bool
+	}
+	moved := make([]movedFolder, 0, len(plan))
+
+	rollback := func() {
+		for i := len(moved) - 1; i >= 0; i-- {
+			item := moved[i]
+			if item.installed {
+				_ = os.RemoveAll(item.dst)
+			}
+			if item.action == "replace" && item.backup != "" {
+				_ = os.Rename(item.backup, item.dst)
+			}
+		}
+	}
+
+	for _, item := range plan {
+		src := filepath.Join(stagingDir, item.FolderName)
+		dst := filepath.Join(cleanDest, item.FolderName)
+		if _, err := os.Stat(src); err != nil {
+			rollback()
+			return fmt.Errorf("staged addon folder missing %s: %w", item.FolderName, err)
+		}
+
+		movedItem := movedFolder{name: item.FolderName, action: item.Action, dst: dst}
+		if item.Action == "replace" {
+			backup := filepath.Join(backupDir, item.FolderName)
+			if err := os.Rename(dst, backup); err != nil {
+				rollback()
+				return fmt.Errorf("backup existing addon folder %s: %w", item.FolderName, err)
+			}
+			movedItem.backup = backup
+		}
+
+		if err := os.Rename(src, dst); err != nil {
+			moved = append(moved, movedItem)
+			rollback()
+			return fmt.Errorf("install addon folder %s: %w", item.FolderName, err)
+		}
+		movedItem.installed = true
+		moved = append(moved, movedItem)
+	}
+
+	return nil
 }
 
 func safeZipEntryDestination(cleanDest, entryName string) (string, error) {

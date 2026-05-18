@@ -247,9 +247,9 @@ Purpose: improve the app without replacing Wails/Svelte/Go: fewer crashes, smoot
 - [x] Add install/update archive preflight planning before mutating AddOns.
   - Completed: downloaded archives are preflighted before extraction, validating safe addon folder names, canonical manifests, destination boundaries, and ESOUI `UIDirs`; task progress now emits a `planning` state with add/replace folder actions shown in the download queue.
   - Verification: `internal/esoui/installer_test.go` covers add/replace plans plus root-file, missing-manifest, unexpected-folder, and traversal rejection; `go test . ./internal/esoui`, `npm --prefix frontend run check`, and frontend smoke tests pass.
-- [ ] Make install/update extraction atomic or rollback-safe.
-  - Evidence: failed extraction should not leave partially replaced addon folders or broken dependencies.
-  - Acceptance criteria: installs/updates stage into a temp location, preserve or restore the previous installed folder on failure/cancel, clean temp files, and tests cover cancel, invalid archive, disk/write failure simulation, and successful replacement.
+- [x] Make install/update extraction atomic or rollback-safe.
+  - Completed: installs and updates now extract into a temporary staging directory under AddOns, then commit planned folders with backups for replacements and rollback on commit failure; cancellation and invalid archives return before touching existing addon folders and temp staging/backup dirs are cleaned.
+  - Verification: `internal/esoui/installer_test.go` covers successful replacement/add, cancellation, invalid archive, and simulated commit failure rollback; `internal/esoui/download_manager_test.go` confirms cancelled extraction leaves no partial addon folder.
 - [ ] Improve update detection states for ESOUI version and MD5 edge cases.
   - Evidence: ESOUI metadata can be inconsistent; users need clearer states than a single update badge when version, MD5, local-newer, unknown, or unchanged cases disagree.
   - Acceptance criteria: matching classifies up-to-date, remote-newer, local-newer, MD5-only changed, unknown-version, and unmatched states; tests cover each state; UI labels explain why an update is or is not offered.

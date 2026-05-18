@@ -282,7 +282,7 @@ func (dm *DownloadManager) runTask(task *downloadTask) error {
 		InstallPlan: plan,
 	})
 
-	return ExtractWithProgress(task.ctx, tmpPath, task.destDir, func(extracted, total int) {
+	return installPlannedArchiveWithProgress(task.ctx, tmpPath, task.destDir, plan, func(extracted, total int) {
 		pct := float64(0)
 		if total > 0 {
 			pct = float64(extracted) / float64(total) * 100

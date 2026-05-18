@@ -87,9 +87,8 @@ func TestDownloadManagerCancelDuringExtractionReportsCancelled(t *testing.T) {
 	waitForTaskState(t, dm, "extract-cancel", StateCancelled)
 	shutdownWithin(t, dm)
 
-	assertFileContent(t, filepath.Join(dest, "Addon", "01-first.txt"), "first")
-	if _, err := os.Stat(filepath.Join(dest, "Addon", "02-second.txt")); !os.IsNotExist(err) {
-		t.Fatalf("second file was extracted after task cancellation or stat failed unexpectedly: %v", err)
+	if _, err := os.Stat(filepath.Join(dest, "Addon")); !os.IsNotExist(err) {
+		t.Fatalf("cancelled install left addon folder behind or stat failed unexpectedly: %v", err)
 	}
 }
 

@@ -234,6 +234,127 @@ func TestPlanInstallArchiveRejectsAmbiguousUnsafeArchives(t *testing.T) {
 	}
 }
 
+func TestInstallArchiveWithProgressStagesAndReplacesAtomically(t *testing.T) {
+	dest := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dest, "ExistingAddon"), 0o755); err != nil {
+		t.Fatalf("mkdir existing addon: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dest, "ExistingAddon", "old.lua"), []byte("old"), 0o644); err != nil {
+		t.Fatalf("write old addon: %v", err)
+	}
+	zipPath := createTestZip(t, map[string]string{
+		"ExistingAddon/ExistingAddon.txt": "## Title: Existing\n",
+		"ExistingAddon/new.lua":           "new",
+		"NewAddon/NewAddon.txt":           "## Title: New\n",
+		"NewAddon/new.lua":                "new",
+	})
+
+	plan, err := InstallArchiveWithProgress(context.Background(), zipPath, dest, []string{"ExistingAddon", "NewAddon"}, nil)
+	if err != nil {
+		t.Fatalf("InstallArchiveWithProgress: %v", err)
+	}
+	if len(plan) != 2 {
+		t.Fatalf("plan length = %d, want 2", len(plan))
+	}
+
+	assertFileContent(t, filepath.Join(dest, "ExistingAddon", "new.lua"), "new")
+	assertFileContent(t, filepath.Join(dest, "NewAddon", "new.lua"), "new")
+	if _, err := os.Stat(filepath.Join(dest, "ExistingAddon", "old.lua")); !os.IsNotExist(err) {
+		t.Fatalf("old file still exists or stat failed unexpectedly: %v", err)
+	}
+	assertNoTempInstallDirs(t, dest)
+}
+
+func TestInstallArchiveWithProgressCancellationDoesNotTouchDestination(t *testing.T) {
+	dest := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dest, "ExistingAddon"), 0o755); err != nil {
+		t.Fatalf("mkdir existing addon: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dest, "ExistingAddon", "old.lua"), []byte("old"), 0o644); err != nil {
+		t.Fatalf("write old addon: %v", err)
+	}
+	zipPath := createTestZip(t, map[string]string{
+		"ExistingAddon/01-new.lua":        "new",
+		"ExistingAddon/ExistingAddon.txt": "## Title: Existing\n",
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+
+	_, err := InstallArchiveWithProgress(ctx, zipPath, dest, []string{"ExistingAddon"}, func(extracted, total int) {
+		if extracted == 1 {
+			cancel()
+		}
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("InstallArchiveWithProgress error = %v, want context.Canceled", err)
+	}
+
+	assertFileContent(t, filepath.Join(dest, "ExistingAddon", "old.lua"), "old")
+	if _, err := os.Stat(filepath.Join(dest, "ExistingAddon", "01-new.lua")); !os.IsNotExist(err) {
+		t.Fatalf("cancelled install wrote new file or stat failed unexpectedly: %v", err)
+	}
+	assertNoTempInstallDirs(t, dest)
+}
+
+func TestInstallArchiveWithProgressInvalidArchiveDoesNotTouchDestination(t *testing.T) {
+	dest := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dest, "ExistingAddon"), 0o755); err != nil {
+		t.Fatalf("mkdir existing addon: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dest, "ExistingAddon", "old.lua"), []byte("old"), 0o644); err != nil {
+		t.Fatalf("write old addon: %v", err)
+	}
+	zipPath := createTestZip(t, map[string]string{
+		"ExistingAddon/new.lua": "new",
+	})
+
+	if _, err := InstallArchiveWithProgress(context.Background(), zipPath, dest, []string{"ExistingAddon"}, nil); err == nil {
+		t.Fatal("InstallArchiveWithProgress returned nil error for invalid archive")
+	}
+
+	assertFileContent(t, filepath.Join(dest, "ExistingAddon", "old.lua"), "old")
+	if _, err := os.Stat(filepath.Join(dest, "ExistingAddon", "new.lua")); !os.IsNotExist(err) {
+		t.Fatalf("invalid archive wrote new file or stat failed unexpectedly: %v", err)
+	}
+	assertNoTempInstallDirs(t, dest)
+}
+
+func TestInstallArchiveWithProgressRollsBackCommitFailure(t *testing.T) {
+	dest := t.TempDir()
+	for _, folder := range []string{"ExistingAddon", "NewAddon"} {
+		if err := os.MkdirAll(filepath.Join(dest, folder), 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", folder, err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dest, "ExistingAddon", "old.lua"), []byte("old"), 0o644); err != nil {
+		t.Fatalf("write old addon: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dest, "NewAddon", "old.lua"), []byte("old-new"), 0o644); err != nil {
+		t.Fatalf("write old new addon: %v", err)
+	}
+	zipPath := createTestZip(t, map[string]string{
+		"ExistingAddon/ExistingAddon.txt": "## Title: Existing\n",
+		"ExistingAddon/new.lua":           "new",
+		"NewAddon/NewAddon.txt":           "## Title: New\n",
+		"NewAddon/new.lua":                "new",
+	})
+	plan := []InstallPlanEntry{
+		{FolderName: "ExistingAddon", Action: "replace"},
+		{FolderName: "NewAddon", Action: "add"},
+	}
+
+	err := installPlannedArchiveWithProgress(context.Background(), zipPath, dest, plan, nil)
+	if err == nil {
+		t.Fatal("installPlannedArchiveWithProgress returned nil error")
+	}
+
+	assertFileContent(t, filepath.Join(dest, "ExistingAddon", "old.lua"), "old")
+	assertFileContent(t, filepath.Join(dest, "NewAddon", "old.lua"), "old-new")
+	if _, err := os.Stat(filepath.Join(dest, "ExistingAddon", "new.lua")); !os.IsNotExist(err) {
+		t.Fatalf("rollback left new existing addon file or stat failed unexpectedly: %v", err)
+	}
+	assertNoTempInstallDirs(t, dest)
+}
+
 func TestRemoveAddonFolderRejectsUnsafeFolderNames(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -272,6 +393,19 @@ func TestRemoveAddonFolderRejectsUnsafeFolderNames(t *testing.T) {
 			assertDirExists(t, filepath.Join(addonPath, "SiblingAddon"))
 			assertDirExists(t, filepath.Join(base, "OutsideAddon"))
 		})
+	}
+}
+
+func assertNoTempInstallDirs(t *testing.T, dest string) {
+	t.Helper()
+	entries, err := os.ReadDir(dest)
+	if err != nil {
+		t.Fatalf("read dest: %v", err)
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), ".scribe-staging-") || strings.HasPrefix(entry.Name(), ".scribe-backup-") {
+			t.Fatalf("temporary install directory was not cleaned up: %s", entry.Name())
+		}
 	}
 }
 
