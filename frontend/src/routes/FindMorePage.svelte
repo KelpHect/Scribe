@@ -33,7 +33,11 @@
     compareVersionStrings,
     getUpdatedState
   } from '$lib/utils';
-  import { getLatestCompatibility } from '$lib/perf/remote-list';
+  import {
+    getLatestCompatibility,
+    isLibraryLikeRemoteAddon,
+    remoteAddonSearchScore
+  } from '$lib/perf/remote-list';
   import {
     fetchCategories,
     fetchMatchedAddons,
@@ -70,6 +74,7 @@
     authorLower: string;
     category: Category | null;
     categoryName: string;
+    libraryLike: boolean;
     listIconUrl?: string;
     listIconIsThumbnail: boolean;
     compatibilityVersions: string[];
@@ -94,6 +99,7 @@
 
   let scrollEl = $state<HTMLDivElement | undefined>();
   let versionFilter = $state('');
+  let contentFilter = $state<'all' | 'libraries'>('all');
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   onMount(() => {
@@ -164,6 +170,7 @@
         authorLower: addon.uiAuthorName.toLowerCase(),
         category,
         categoryName: category?.name ?? '',
+        libraryLike: isLibraryLikeRemoteAddon(addon, category?.name ?? ''),
         listIconUrl: thumb,
         listIconIsThumbnail: !!(addon.uiIMGThumbs?.[0] || addon.uiIMGs?.[0]),
         compatibilityVersions: (addon.compatabilities ?? []).map((cv) => cv.version),
@@ -224,6 +231,10 @@
     { value: 'favorites', label: 'Sort By: Favorites' },
     { value: 'date', label: 'Sort By: Date' }
   ];
+  const contentOptions = [
+    { value: 'all', label: 'All Addons' },
+    { value: 'libraries', label: 'Libraries & Dependencies' }
+  ];
 
   const filterResult = $derived.by(() => {
     const q = remote.searchQuery.toLowerCase().trim();
@@ -236,9 +247,11 @@
 
     for (const prepared of preparedRemoteAddons) {
       const r = prepared.addon;
-      if (q && !prepared.nameLower.includes(q) && !prepared.authorLower.includes(q)) {
+      const searchScore = remoteAddonSearchScore(r, q);
+      if (q && !Number.isFinite(searchScore)) {
         continue;
       }
+      if (contentFilter === 'libraries' && !prepared.libraryLike) continue;
       if (remote.hideInstalled && installedUIDs.has(r.uid)) {
         continue;
       }
@@ -249,6 +262,10 @@
     }
 
     list.sort((a: PreparedRemoteAddon, b: PreparedRemoteAddon) => {
+      if (q) {
+        const score = remoteAddonSearchScore(a.addon, q) - remoteAddonSearchScore(b.addon, q);
+        if (score !== 0) return score;
+      }
       const result =
         sortKey === 'downloads'
           ? (a.addon.uiDownloadTotal ?? 0) - (b.addon.uiDownloadTotal ?? 0)
@@ -490,7 +507,17 @@
 
       <Select
         dark
-        class="w-[180px] shrink-0"
+        class="w-[175px] shrink-0"
+        value={contentFilter}
+        options={contentOptions}
+        onchange={(v) => (contentFilter = v as 'all' | 'libraries')}
+        placeholder="Content"
+        aria-label="Filter addon content"
+      />
+
+      <Select
+        dark
+        class="w-[170px] shrink-0"
         value={versionFilter}
         options={versionOptions}
         onchange={(v) => (versionFilter = v)}
@@ -557,7 +584,7 @@
               {#if searchValue || remote.categoryFilter.length > 0 || versionFilter}
                 <h3 class="text-lg font-medium">No results</h3>
                 <p class="text-muted-foreground max-w-sm text-sm">
-                  Try a different search term, category, or version filter.
+                  Try a different search term, category, version, or content filter.
                 </p>
               {:else}
                 {#if isError || (hasRemoteCatalogStatus && !remoteStatus?.hasData)}
