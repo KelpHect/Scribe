@@ -408,9 +408,11 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
   - Acceptance criteria: duplicate remote folder candidates prefer the canonical/single-folder addon entry, then the newest catalog date/version before queueing; dependency version constraints remain visible but do not pin the download to an older release.
   - Completed: dependency resolution and addon matching now share deterministic best-remote selection, and the install path fetches addon details for the selected UID so the queued download comes from that addon page's latest details.
   - Verification: `missing_dependencies_test.go` covers old bundled vs latest canonical dependency resolution; `internal/esoui/matcher_test.go` covers best remote selection.
-- [ ] Improve missing dependency UX for required vs optional libraries.
+- [x] Improve missing dependency UX for required vs optional libraries.
   - Evidence: dependency planning exists, but install affordances should be clearer and less noisy.
   - Acceptance criteria: required dependencies are prioritized, optional dependencies are grouped separately, version constraints are visible, unresolved dependencies explain why no install action exists, and batch install dedupes already active tasks.
+  - Completed: Installed now shows required and optional dependency banners separately even when some dependencies are unresolved, each banner summarizes required/optional/installable/unresolved counts, shows version constraints and required-by context, explains unresolved plan reasons, and installs only installable latest-canonical ESOUI matches through the existing deduped batch queue.
+  - Verification: frontend checks pass, install-queue tests continue to cover deduping active/duplicate install UIDs, and health tests still distinguish required vs optional dependency impact.
 - [ ] Add update explanation details everywhere update actions appear.
   - Evidence: update-state reasons now exist, but rows, detail views, and task flows should consistently explain remote-newer, local-newer, MD5-only changed, unknown-version, and unmatched states.
   - Acceptance criteria: Installed, Updates, addon detail, and task planning surfaces share one tested formatter for update reason text and safe action eligibility.

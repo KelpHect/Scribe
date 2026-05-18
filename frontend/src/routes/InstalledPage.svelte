@@ -126,8 +126,8 @@
     }
   }
 
-  const installableRequiredDeps = $derived(missingDeps.filter((d) => d.canInstall && !d.optional));
-  const installableOptionalDeps = $derived(missingDeps.filter((d) => d.canInstall && d.optional));
+  const missingRequiredDeps = $derived(missingDeps.filter((d) => !d.optional));
+  const missingOptionalDeps = $derived(missingDeps.filter((d) => d.optional));
 
   onMount(() => {
     void checkMissingDeps();
@@ -639,10 +639,10 @@
   </PageToolbar>
 
   <div class="flex min-h-0 flex-1 flex-col gap-2 px-4 pt-2.5 pb-3">
-    {#if !dismissedRequiredDeps && installableRequiredDeps.length > 0}
+    {#if !dismissedRequiredDeps && missingRequiredDeps.length > 0}
       <MissingDepsBanner
-        deps={installableRequiredDeps}
-        title={`${installableRequiredDeps.length} missing ${installableRequiredDeps.length === 1 ? 'required dependency' : 'required dependencies'} detected`}
+        deps={missingRequiredDeps}
+        title={`${missingRequiredDeps.length} missing ${missingRequiredDeps.length === 1 ? 'required dependency' : 'required dependencies'} detected`}
         actionLabel="Install required"
         {batchInstalling}
         oninstall={() => installMissingDeps(false)}
@@ -650,10 +650,10 @@
       />
     {/if}
 
-    {#if !dismissedOptionalDeps && installableOptionalDeps.length > 0}
+    {#if !dismissedOptionalDeps && missingOptionalDeps.length > 0}
       <MissingDepsBanner
-        deps={installableOptionalDeps}
-        title={`${installableOptionalDeps.length} missing ${installableOptionalDeps.length === 1 ? 'optional dependency' : 'optional dependencies'} detected`}
+        deps={missingOptionalDeps}
+        title={`${missingOptionalDeps.length} missing ${missingOptionalDeps.length === 1 ? 'optional dependency' : 'optional dependencies'} detected`}
         actionLabel="Install optional"
         {batchInstalling}
         oninstall={() => installMissingDeps(true)}
