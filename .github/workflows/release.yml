@@ -18,9 +18,39 @@ env:
   RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag || github.ref_name }}
 
 jobs:
+  validate:
+    name: Validate Release Tag
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Validate tag matches package version
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./frontend/package.json').version")
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid frontend/package.json version: $VERSION"
+            exit 1
+          fi
+
+          EXPECTED_TAG="v$VERSION"
+          if [ "$RELEASE_TAG" != "$EXPECTED_TAG" ]; then
+            echo "Release tag $RELEASE_TAG does not match frontend/package.json version $VERSION (expected $EXPECTED_TAG)"
+            exit 1
+          fi
+
   build:
     name: Build (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
+    needs: validate
     strategy:
       fail-fast: false
       matrix:

@@ -160,9 +160,9 @@ Purpose: harden the path from version to user-installable artifacts after the ap
 
 ### CI/release
 
-- [ ] Add release workflow validation for version/tag consistency.
-  - Evidence: `tag-release.yml` derives `vX.Y.Z` from `frontend/package.json`; `release.yml` builds any `v*` tag or dispatched tag without checking it matches package version.
-  - Acceptance criteria: release jobs fail early if `RELEASE_TAG` does not equal `v$(frontend/package.json version)` or if the version is not strict `X.Y.Z`.
+- [x] Add release workflow validation for version/tag consistency.
+  - Completed: `release.yml` now has a pre-build validation job that checks `frontend/package.json` is strict `X.Y.Z` and fails before matrix builds unless `RELEASE_TAG` equals `v<package version>`.
+  - Verification: `git diff --check` passes.
 - [ ] Decide whether automatic tag creation on every push to `main` is intended.
   - Evidence: `.github/workflows/tag-release.yml` runs on every `main` push and creates/dispatches a release when the package version tag does not exist.
   - Acceptance criteria: workflow trigger is either documented as intentional release policy or changed to a manual/controlled trigger; no release is published accidentally from routine merges.
