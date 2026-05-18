@@ -280,7 +280,7 @@ Purpose: improve the app without replacing Wails/Svelte/Go: fewer crashes, smoot
 - [x] Improve offline-first catalog search ranking and filters.
   - Completed: cached catalog search now ranks exact title/folder matches above prefix, loose title/folder, and author matches; Find More adds a libraries/dependencies content filter alongside existing category/version filters and keeps stale cached results visible when refresh fails.
   - Verification: `frontend/src/lib/perf/remote-list.test.ts` covers search ranking and library-like detection; `npm --prefix frontend run test` and `npm --prefix frontend run check` pass.
-- [ ] Improve addon detail pages for update/install decisions.
+- [x] Improve addon detail pages for update/install decisions.
   - Evidence: users need enough context to decide whether to install, update, or add optional dependencies without opening the browser for every addon.
   - Acceptance criteria: detail views clearly show installed/remote versions, update reason, dependency status, optional dependency affordances, ESOUI link, cached freshness, and safe install/update actions.
 - [ ] Add local-only addon health insights.

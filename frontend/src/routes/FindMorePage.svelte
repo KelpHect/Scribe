@@ -430,6 +430,8 @@
     selectedAddon ? (matchedByUID.get(selectedAddon.uid)?.folderName ?? null) : null
   );
 
+  const selectedMatch = $derived(selectedAddon ? (matchedByUID.get(selectedAddon.uid) ?? null) : null);
+
   const selectedCategory = $derived(
     selectedAddon ? (categoryMap.get(selectedAddon.categoryId) ?? null) : null
   );
@@ -812,5 +814,9 @@
   onclose={() => (detailOpen = false)}
   installedFolderName={selectedInstalledFolderName}
   category={selectedCategory}
+  updateAvailable={selectedMatch?.updateAvailable ?? false}
+  localVersion={selectedMatch?.localVersion ?? ''}
+  updateState={selectedMatch?.updateState ?? ''}
+  updateReason={selectedMatch?.updateReason ?? ''}
   oninstalled={() => refreshInstalledState()}
 />

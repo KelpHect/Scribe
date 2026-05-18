@@ -15,6 +15,7 @@
   import Loader2 from 'lucide-svelte/icons/loader-2';
   import Package from 'lucide-svelte/icons/package';
   import User from 'lucide-svelte/icons/user';
+  import { describeAddonDecision, type AddonDecisionTone } from '$lib/addons/decision';
   import { openExternalURL } from '$lib/services/runtime-service';
   import { getRemoteStore, getDownloadStore } from '$lib/stores';
   import { formatCompact, parseAddonChangelog, parseAddonDescription } from '$lib/utils';
@@ -27,6 +28,9 @@
     installedFolderName?: string | null;
     category?: Category | null;
     updateAvailable?: boolean;
+    localVersion?: string;
+    updateState?: string;
+    updateReason?: string;
     oninstalled?: () => void;
   }
 
@@ -37,6 +41,9 @@
     installedFolderName = null,
     category = null,
     updateAvailable = false,
+    localVersion = '',
+    updateState = '',
+    updateReason = '',
     oninstalled
   }: Props = $props();
 
@@ -81,6 +88,7 @@
   const isInQueue = $derived(
     downloadTask?.state === 'queued' ||
       downloadTask?.state === 'downloading' ||
+      downloadTask?.state === 'planning' ||
       downloadTask?.state === 'extracting'
   );
   const isActionDisabled = $derived(isInstalling || isInQueue);
@@ -91,6 +99,8 @@
         return 'Queued';
       case 'downloading':
         return downloadTask.percent > 0 ? `${Math.round(downloadTask.percent)}%` : 'Downloading...';
+      case 'planning':
+        return 'Planning...';
       case 'extracting':
         return 'Extracting...';
       default:
@@ -121,6 +131,20 @@
   const latestCompat = $derived(
     addon && addon.compatabilities && addon.compatabilities.length > 0
       ? addon.compatabilities[addon.compatabilities.length - 1]
+      : null
+  );
+
+  const decision = $derived(
+    addon
+      ? describeAddonDecision({
+          installed: isInstalled,
+          updateAvailable,
+          updateState,
+          updateReason,
+          localVersion,
+          remoteVersion: addon.uiVersion,
+          folderName: installedFolderName ?? ''
+        })
       : null
   );
 
@@ -161,6 +185,13 @@
     if (!href) return;
     e.preventDefault();
     await openExternalURL(href);
+  }
+
+  function badgeVariant(tone: AddonDecisionTone): 'outline' | 'success' | 'warning' | 'destructive' {
+    if (tone === 'success') return 'success';
+    if (tone === 'warning') return 'warning';
+    if (tone === 'destructive') return 'destructive';
+    return 'outline';
   }
 </script>
 
@@ -269,6 +300,32 @@
       {#if localInstallError || downloadTask?.error}
         <div class="border-destructive/50 bg-destructive/10 rounded-md p-3">
           <p class="text-destructive text-xs">{localInstallError || downloadTask?.error}</p>
+        </div>
+      {/if}
+
+      {#if decision}
+        <div class="bg-muted/20 border-border rounded-xl border p-4">
+          <div class="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p class="text-foreground text-sm font-semibold">Install decision</p>
+              <p class="text-muted-foreground mt-1 text-xs">{decision.reason}</p>
+            </div>
+            <Badge variant={badgeVariant(decision.tone)} class="shrink-0 text-xs">{decision.label}</Badge>
+          </div>
+          <div class="mt-3 grid gap-2 text-xs sm:grid-cols-3">
+            <div>
+              <p class="text-muted-foreground">Local version</p>
+              <p class="text-foreground font-mono">{decision.localVersion || (isInstalled ? 'Unknown' : 'Not installed')}</p>
+            </div>
+            <div>
+              <p class="text-muted-foreground">ESOUI version</p>
+              <p class="text-foreground font-mono">{decision.remoteVersion || 'Unknown'}</p>
+            </div>
+            <div>
+              <p class="text-muted-foreground">Target folder</p>
+              <p class="text-foreground truncate font-mono">{decision.folderName || addon.uiDirs?.[0] || 'From archive'}</p>
+            </div>
+          </div>
         </div>
       {/if}
 

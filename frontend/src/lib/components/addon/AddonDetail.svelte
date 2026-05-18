@@ -13,6 +13,7 @@
   import Loader2 from 'lucide-svelte/icons/loader-2';
   import Package from 'lucide-svelte/icons/package';
   import Trash2 from 'lucide-svelte/icons/trash-2';
+  import { describeAddonDecision, type AddonDecisionTone } from '$lib/addons/decision';
   import type { Addon } from '$lib/services/addon-service';
   import type { Category, MatchedAddon } from '$lib/services/esoui-service';
   import { getRemoteStore, navigation } from '$lib/stores';
@@ -44,6 +45,20 @@
   const remote = getRemoteStore();
 
   const iconUrl = $derived(matched?.remote?.uiIMGs?.[0] ?? category?.iconUrl ?? null);
+
+  const decision = $derived(
+    addon
+      ? describeAddonDecision({
+          installed: true,
+          updateAvailable: matched?.updateAvailable ?? false,
+          updateState: matched?.updateState ?? (matched?.remote ? '' : 'unmatched'),
+          updateReason: matched?.updateReason ?? '',
+          localVersion: matched?.localVersion || addon.version,
+          remoteVersion: matched?.remoteVersion || matched?.remote?.uiVersion,
+          folderName: addon.folderName
+        })
+      : null
+  );
 
   const isInstalling = $derived(
     matched?.remote?.uid ? remote.isInstallingUID(matched.remote.uid) : false
@@ -149,6 +164,13 @@
     onclose();
     navigation.navigate('find-more', name);
   }
+
+  function badgeVariant(tone: AddonDecisionTone): 'outline' | 'success' | 'warning' | 'destructive' {
+    if (tone === 'success') return 'success';
+    if (tone === 'warning') return 'warning';
+    if (tone === 'destructive') return 'destructive';
+    return 'outline';
+  }
 </script>
 
 <Dialog {open} {onclose} title={addon?.title ?? 'Addon Details'}>
@@ -244,6 +266,32 @@
       {#if installError}
         <div class="border-destructive/50 bg-destructive/10 rounded-md p-3">
           <p class="text-destructive text-xs">{installError}</p>
+        </div>
+      {/if}
+
+      {#if decision}
+        <div class="bg-muted/25 border-border rounded-lg border p-3">
+          <div class="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p class="text-foreground text-sm font-semibold">Install decision</p>
+              <p class="text-muted-foreground mt-1 text-xs">{decision.reason}</p>
+            </div>
+            <Badge variant={badgeVariant(decision.tone)} class="shrink-0 text-xs">{decision.label}</Badge>
+          </div>
+          <div class="mt-3 grid gap-2 text-xs sm:grid-cols-3">
+            <div>
+              <p class="text-muted-foreground">Local version</p>
+              <p class="text-foreground font-mono">{decision.localVersion || 'Unknown'}</p>
+            </div>
+            <div>
+              <p class="text-muted-foreground">ESOUI version</p>
+              <p class="text-foreground font-mono">{decision.remoteVersion || 'Not matched'}</p>
+            </div>
+            <div>
+              <p class="text-muted-foreground">Folder</p>
+              <p class="text-foreground truncate font-mono">{decision.folderName}</p>
+            </div>
+          </div>
         </div>
       {/if}
 
