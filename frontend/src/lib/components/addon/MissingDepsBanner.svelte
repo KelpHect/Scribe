@@ -5,6 +5,7 @@
   import Download from 'lucide-svelte/icons/download';
   import Loader2 from 'lucide-svelte/icons/loader-2';
   import type { MissingDepInfo } from '$lib/services/esoui-service';
+  import { buildMissingDependencyDisplayPlan } from '$lib/addons/missing-dependencies';
 
   interface Props {
     deps: MissingDepInfo[];
@@ -17,21 +18,7 @@
 
   const { deps, title, actionLabel, batchInstalling, oninstall, ondismiss }: Props = $props();
 
-  const installableDeps = $derived(deps.filter((d) => d.canInstall));
-  const unresolvedDeps = $derived(deps.filter((d) => !d.canInstall));
-  const requiredCount = $derived(deps.filter((d) => !d.optional).length);
-  const optionalCount = $derived(deps.filter((d) => d.optional).length);
-
-  function depName(dep: MissingDepInfo): string {
-    return dep.remoteName || dep.depFolderName;
-  }
-
-  function requiredByLabel(dep: MissingDepInfo): string {
-    if (dep.requiredBy.length === 0) return '';
-    return `Used by ${dep.requiredBy.slice(0, 2).join(', ')}${
-      dep.requiredBy.length > 2 ? ` +${dep.requiredBy.length - 2} more` : ''
-    }`;
-  }
+  const display = $derived(buildMissingDependencyDisplayPlan(deps));
 </script>
 
 <div
@@ -42,60 +29,52 @@
     <p class="text-foreground text-sm font-semibold">{title}</p>
     <div class="text-muted-foreground mt-1 space-y-1 text-xs">
       <p>
-        {requiredCount} required · {optionalCount} optional · {installableDeps.length} installable · {unresolvedDeps.length} unresolved
+        {display.requiredCount} required · {display.optionalCount} optional · {display.installable.length} installable · {display.unresolved.length} unresolved
       </p>
-      {#if installableDeps.length > 0}
+      {#if display.installable.length > 0}
         <p>
           Installable:
-          {installableDeps
-            .map((d) => depName(d))
-            .slice(0, 4)
-            .join(', ')}{installableDeps.length > 4 ? ` +${installableDeps.length - 4} more` : ''}
+          {display.installablePreview}
         </p>
       {/if}
-      {#if unresolvedDeps.length > 0}
+      {#if display.unresolved.length > 0}
         <p>
           Unresolved:
-          {unresolvedDeps
-            .map((d) => d.depFolderName)
-            .slice(0, 3)
-            .join(', ')}{unresolvedDeps.length > 3 ? ` +${unresolvedDeps.length - 3} more` : ''}
+          {display.unresolvedPreview}
         </p>
       {/if}
       <div class="mt-2 grid gap-1.5">
-        {#each deps.slice(0, 5) as dep (dep.depFolderName)}
+        {#each display.rows as row (row.dep.depFolderName)}
           <div class="rounded-md border border-[var(--color-border)] bg-background/60 px-2 py-1.5">
             <div class="flex items-center justify-between gap-2">
-              <span class="min-w-0 truncate text-foreground font-mono">{dep.depFolderName}</span>
+              <span class="min-w-0 truncate text-foreground font-mono">{row.dep.depFolderName}</span>
               <span
-                class={dep.canInstall
+                class={row.dep.canInstall
                   ? 'shrink-0 rounded border border-success/40 bg-success/10 px-1.5 py-0.5 text-[10px] text-success'
                   : 'shrink-0 rounded border px-1.5 py-0.5 text-[10px]'}
               >
-                {dep.canInstall ? 'Installable' : 'Unresolved'}
+                {row.statusLabel}
               </span>
             </div>
             <p class="mt-1 line-clamp-2">
-              <span class="font-medium">{dep.optional ? 'Optional' : 'Required'}</span>
-              {#if dep.remoteName}
-                · latest ESOUI match: {dep.remoteName}
+              <span class="font-medium">{row.requiredLabel}</span>
+              {#if row.dep.remoteName}
+                · latest ESOUI match: {row.dep.remoteName}
               {/if}
-              {#if dep.versionConstraints.length > 0}
-                · requested {dep.versionConstraints.join(', ')}
+              {#if row.dep.versionConstraints.length > 0}
+                · requested {row.dep.versionConstraints.join(', ')}
               {/if}
-              {#if requiredByLabel(dep)}
-                · {requiredByLabel(dep)}
+              {#if row.requiredByLabel}
+                · {row.requiredByLabel}
               {/if}
             </p>
             <p class="mt-0.5 line-clamp-2">
-              {dep.canInstall
-                ? 'Scribe will install the latest canonical ESOUI addon page for this dependency.'
-                : dep.planReason}
+              {row.planText}
             </p>
           </div>
         {/each}
-        {#if deps.length > 5}
-          <p>+{deps.length - 5} more dependencies not shown</p>
+        {#if display.hiddenCount > 0}
+          <p>+{display.hiddenCount} more dependencies not shown</p>
         {/if}
       </div>
     </div>
@@ -104,13 +83,13 @@
     <button
       type="button"
       onclick={oninstall}
-      disabled={batchInstalling || installableDeps.length === 0}
+      disabled={batchInstalling || display.installable.length === 0}
       class="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
     >
       {#if batchInstalling}
         <Loader2 size={11} class="animate-spin" />Installing...
       {:else}
-        <Download size={11} />{actionLabel} ({installableDeps.length})
+        <Download size={11} />{actionLabel} ({display.installable.length})
       {/if}
     </button>
     <button

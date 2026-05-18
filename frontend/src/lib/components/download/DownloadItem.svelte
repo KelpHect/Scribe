@@ -7,13 +7,13 @@
   import Loader2 from 'lucide-svelte/icons/loader-2';
   import X from 'lucide-svelte/icons/x';
   import type { TaskProgress } from '$lib/stores/downloads.svelte';
-  import { formatBytes } from '$lib/utils';
   import {
     formatInstallPlanSummary,
     getInstallPlanCounts,
     getInstallPlanSafetyNote
   } from '$lib/install/preflight';
   import { getInstallRecoveryGuidance } from '$lib/install/recovery';
+  import { summarizeTaskProgress } from '$lib/install/task-summary';
 
   type Props = {
     task: TaskProgress;
@@ -23,58 +23,11 @@
 
   const { task, oncancel, ondismiss }: Props = $props();
 
-  const stateLabel = $derived.by(() => {
-    switch (task.state) {
-      case 'queued':
-        return 'Queued';
-      case 'planning':
-        return 'Planning install';
-      case 'downloading':
-        return 'Downloading';
-      case 'extracting':
-        return 'Extracting';
-      case 'complete':
-        return 'Complete';
-      case 'failed':
-        return 'Failed';
-      case 'cancelled':
-        return 'Cancelled';
-      default:
-        return '';
-    }
-  });
-
-  const speedLabel = $derived(
-    task.state === 'downloading' && task.speed > 0 ? `${formatBytes(task.speed)}/s` : ''
-  );
-
-  const sizeLabel = $derived.by(() => {
-    if (task.state !== 'downloading') return '';
-    if (task.totalBytes > 0) {
-      return `${formatBytes(task.bytesDownloaded)} / ${formatBytes(task.totalBytes)}`;
-    }
-    if (task.bytesDownloaded > 0) {
-      return formatBytes(task.bytesDownloaded);
-    }
-    return '';
-  });
-
-  const isActive = $derived(
-    task.state === 'queued' ||
-      task.state === 'downloading' ||
-      task.state === 'planning' ||
-      task.state === 'extracting'
-  );
-  const isTerminal = $derived(
-    task.state === 'complete' || task.state === 'failed' || task.state === 'cancelled'
-  );
-
-  const progressPercent = $derived(Math.min(100, Math.max(0, task.percent)));
+  const summary = $derived(summarizeTaskProgress(task));
   const installPlan = $derived(task.installPlan ?? []);
   const planCounts = $derived(getInstallPlanCounts(installPlan));
   const planSummary = $derived(formatInstallPlanSummary(installPlan));
   const safetyNote = $derived(getInstallPlanSafetyNote(installPlan));
-  const expectedSizeLabel = $derived(task.totalBytes > 0 ? formatBytes(task.totalBytes) : '');
   const recovery = $derived(getInstallRecoveryGuidance(task));
 </script>
 
@@ -95,20 +48,20 @@
     <div class="min-w-0 flex-1">
       <p class="truncate text-sm font-medium">{task.name || task.uid}</p>
       <div class="text-muted-foreground flex items-center gap-2 text-xs">
-        <span>{stateLabel}</span>
-        {#if sizeLabel}
-          <span>{sizeLabel}</span>
+        <span>{summary.stateLabel}</span>
+        {#if summary.sizeLabel}
+          <span>{summary.sizeLabel}</span>
         {/if}
-        {#if speedLabel}
-          <span>{speedLabel}</span>
+        {#if summary.speedLabel}
+          <span>{summary.speedLabel}</span>
         {/if}
-        {#if task.state === 'extracting' && task.totalFiles > 0}
-          <span>{task.filesExtracted}/{task.totalFiles} files</span>
+        {#if summary.extractionLabel}
+          <span>{summary.extractionLabel}</span>
         {/if}
       </div>
     </div>
 
-    {#if isActive && oncancel}
+    {#if summary.isActive && oncancel}
       <button
         onclick={() => oncancel(task.uid)}
         class="hover:bg-accent flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded"
@@ -116,7 +69,7 @@
       >
         <X size={12} />
       </button>
-    {:else if isTerminal && ondismiss}
+    {:else if summary.isTerminal && ondismiss}
       <button
         onclick={() => ondismiss(task.uid)}
         class="hover:bg-accent flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded"
@@ -131,7 +84,7 @@
     <div class="bg-secondary h-1.5 w-full overflow-hidden rounded-full">
       <div
         class="bg-primary h-full rounded-full transition-all duration-150 ease-out"
-        style="width: {progressPercent}%"
+        style="width: {summary.progressPercent}%"
       ></div>
     </div>
   {/if}
@@ -143,8 +96,8 @@
           <p class="text-foreground text-[11px] font-semibold">Preflight passed</p>
           <p class="text-muted-foreground text-[11px]">
             {planSummary}
-            {#if expectedSizeLabel}
-              · {expectedSizeLabel}
+            {#if summary.expectedSizeLabel}
+              · {summary.expectedSizeLabel}
             {/if}
           </p>
         </div>
