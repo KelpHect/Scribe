@@ -321,9 +321,11 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
 
 ### Measurement and baselines
 
-- [ ] Record a clean performance baseline before more optimization.
+- [x] Record a clean performance baseline before more optimization.
   - Evidence: existing diagnostics and benchmark scripts exist, but future work needs current cold/warm startup, memory, catalog, search, scroll, and install-progress numbers to avoid guesswork.
   - Acceptance criteria: run or document `./scripts/verify.sh`, `./scripts/benchmarks.sh`, frontend catalog benchmarks, cold/warm diagnostics exports, and a short manual Find More scroll/search profile; record baseline numbers or a redacted summary in this ledger or dedicated docs.
+  - Completed: `docs/performance-baseline.md` records the current scanner, matcher, cached catalog, backend remote search, frontend catalog benchmark, and generated bundle-report baseline; it also documents the cold/warm diagnostics and manual Find More profile capture procedure for real desktop sessions.
+  - Verification: `./scripts/benchmarks.sh` captured fixture-backed Go and frontend benchmark values without live ESOUI or real AddOns directories.
 - [ ] Add frontend interaction timing probes for Find More search/filter/sort and task-center updates.
   - Evidence: Find More does catalog preparation, search scoring, category counting, sorting, and virtual-list updates; task progress writes frequent bridge events into reactive state.
   - Acceptance criteria: local diagnostics can capture search/filter duration, visible list size, result count, progress event rate, and dropped/error states without telemetry or network upload.
