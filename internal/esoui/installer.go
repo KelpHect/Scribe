@@ -14,6 +14,7 @@ import (
 )
 
 const downloadTimeout = 5 * time.Minute
+const staleInstallArtifactAge = 1 * time.Hour
 
 type ExtractionProgressFn func(extracted, total int)
 
@@ -21,6 +22,85 @@ type InstallPlanEntry struct {
 	FolderName string `json:"folderName"`
 	Action     string `json:"action"`
 	Reason     string `json:"reason"`
+}
+
+type TempArtifactCleanupReport struct {
+	Removed  []string
+	Retained []string
+	Errors   []string
+}
+
+func (r TempArtifactCleanupReport) RemovedCount() int {
+	return len(r.Removed)
+}
+
+func (r TempArtifactCleanupReport) RetainedCount() int {
+	return len(r.Retained)
+}
+
+func (r TempArtifactCleanupReport) Error() string {
+	if len(r.Errors) == 0 {
+		return ""
+	}
+	return strings.Join(r.Errors, "; ")
+}
+
+func CleanStaleInstallArtifacts(addonPath string, olderThan time.Duration) TempArtifactCleanupReport {
+	if olderThan <= 0 {
+		olderThan = staleInstallArtifactAge
+	}
+
+	var report TempArtifactCleanupReport
+	cleanDest := filepath.Clean(addonPath)
+	entries, err := os.ReadDir(cleanDest)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			report.Errors = append(report.Errors, fmt.Sprintf("read AddOns directory: %v", err))
+		}
+		return report
+	}
+
+	now := time.Now()
+	for _, entry := range entries {
+		name := entry.Name()
+		if !isScribeInstallArtifactName(name) {
+			continue
+		}
+		if !entry.IsDir() {
+			report.Retained = append(report.Retained, name)
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			report.Errors = append(report.Errors, fmt.Sprintf("stat %s: %v", name, err))
+			continue
+		}
+		if age := now.Sub(info.ModTime()); age < olderThan {
+			report.Retained = append(report.Retained, name)
+			continue
+		}
+
+		target := filepath.Join(cleanDest, name)
+		if !pathInsideDir(cleanDest, target) {
+			report.Errors = append(report.Errors, fmt.Sprintf("refusing cleanup outside AddOns: %s", name))
+			continue
+		}
+		if err := os.RemoveAll(target); err != nil {
+			report.Errors = append(report.Errors, fmt.Sprintf("remove %s: %v", name, err))
+			continue
+		}
+		report.Removed = append(report.Removed, name)
+	}
+
+	sort.Strings(report.Removed)
+	sort.Strings(report.Retained)
+	sort.Strings(report.Errors)
+	return report
+}
+
+func isScribeInstallArtifactName(name string) bool {
+	return strings.HasPrefix(name, ".scribe-staging-") || strings.HasPrefix(name, ".scribe-backup-")
 }
 
 func DownloadAndInstall(downloadURL, destDir string) error {
@@ -319,6 +399,11 @@ func safeZipEntryDestination(cleanDest, entryName string) (string, error) {
 		return "", fmt.Errorf("zip entry escapes destination: %s", entryName)
 	}
 	return destPath, nil
+}
+
+func pathInsideDir(cleanDir, target string) bool {
+	cleanTarget := filepath.Clean(target)
+	return strings.HasPrefix(cleanTarget, cleanDir+string(filepath.Separator)) || cleanTarget == cleanDir
 }
 
 func isSafeAddonFolderName(folderName string) bool {

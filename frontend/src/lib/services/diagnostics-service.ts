@@ -38,6 +38,9 @@ export interface DiagnosticsSnapshot {
   scanReadyMs?: number;
   scanInFlight?: boolean;
   lastScanError?: string;
+  tempCleanupRemoved?: number;
+  tempCleanupRetained?: number;
+  tempCleanupError?: string;
 }
 
 export async function fetchDiagnostics(): Promise<DiagnosticsSnapshot> {

@@ -588,6 +588,8 @@
 	                    <p>Scan started: <span class="text-foreground font-mono">{diagnostics.scanStartedMs ?? 0} ms</span></p>
 	                    <p>Scan ready: <span class="text-foreground font-mono">{diagnostics.scanReadyMs ?? 0} ms</span></p>
 	                    <p>Scan running: <span class="text-foreground font-mono">{diagnostics.scanInFlight ? 'yes' : 'no'}</span></p>
+                    <p>Temp artifacts removed: <span class="text-foreground font-mono">{diagnostics.tempCleanupRemoved ?? 0}</span></p>
+                    <p>Temp artifacts retained: <span class="text-foreground font-mono">{diagnostics.tempCleanupRetained ?? 0}</span></p>
                     <p>Cache stale: <span class="text-foreground font-mono">{diagnostics.remoteCacheStale ? 'yes' : 'no'}</span></p>
                     <p>
                       Persistence:
@@ -600,6 +602,9 @@
                     {/if}
                     {#if diagnostics.lastScanError}
                       <p class="text-warning md:col-span-2">{diagnostics.lastScanError}</p>
+                    {/if}
+                    {#if diagnostics.tempCleanupError}
+                      <p class="text-warning md:col-span-2">{diagnostics.tempCleanupError}</p>
                     {/if}
                   </div>
                 </div>

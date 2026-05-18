@@ -108,7 +108,10 @@ describe('diagnostics export redaction', () => {
         scanStartedMs: 30,
         scanReadyMs: 60,
         scanInFlight: false,
-        lastScanError: ''
+        lastScanError: '',
+        tempCleanupRemoved: 2,
+        tempCleanupRetained: 1,
+        tempCleanupError: ''
       },
       failedTasks: [
         {
@@ -134,6 +137,7 @@ describe('diagnostics export redaction', () => {
 	    expect(payload.persistence.status).toBe('ok');
 	    expect(payload.catalog.remoteAddons).toBe(5000);
 	    expect(payload.catalog.scanReadyMs).toBe(60);
+	    expect(payload.catalog.tempCleanupRemoved).toBe(2);
 	    expect(payload.frontendCache.addonDetailMaxQueries).toBe(24);
 	    expect(payload.frontendCache.addonDetailScreenshotUrls).toBe(4);
 	    expect(payload.frontendCache.performance.timings[0].name).toBe('findMore.filterSort');

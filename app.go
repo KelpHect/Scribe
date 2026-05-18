@@ -75,6 +75,11 @@ type App struct {
 
 	settingsMgr *settings.Manager
 
+	tempCleanupMu       sync.RWMutex
+	tempCleanupRemoved  int
+	tempCleanupRetained int
+	tempCleanupError    string
+
 	shutdownCtx    context.Context
 	shutdownCancel context.CancelFunc
 	initWg         sync.WaitGroup
@@ -129,6 +134,9 @@ type DiagnosticsSnapshot struct {
 	ScanReadyMS         int64              `json:"scanReadyMs"`
 	ScanInFlight        bool               `json:"scanInFlight"`
 	LastScanError       string             `json:"lastScanError"`
+	TempCleanupRemoved  int                `json:"tempCleanupRemoved"`
+	TempCleanupRetained int                `json:"tempCleanupRetained"`
+	TempCleanupError    string             `json:"tempCleanupError"`
 }
 
 type RemoteCatalogStatus struct {
@@ -215,9 +223,37 @@ func (a *App) startup(ctx context.Context) {
 	a.markCachedStateReady()
 	a.shutdownCtx, a.shutdownCancel = context.WithCancel(context.Background())
 	maybeStartPprof(a.shutdownCtx)
+	a.cleanStaleInstallArtifacts()
 	a.startBackgroundAddonScan("startup")
 	a.initWg.Add(1)
 	go a.initESOUI()
+}
+
+func (a *App) cleanStaleInstallArtifacts() {
+	if a.scanner == nil {
+		return
+	}
+	addonPath := a.scanner.GetAddonPath()
+	if addonPath == "" {
+		return
+	}
+
+	report := esoui.CleanStaleInstallArtifacts(addonPath, time.Hour)
+	a.tempCleanupMu.Lock()
+	a.tempCleanupRemoved = report.RemovedCount()
+	a.tempCleanupRetained = report.RetainedCount()
+	a.tempCleanupError = privacySafeInstallCleanupError(report.Error())
+	a.tempCleanupMu.Unlock()
+
+	if report.RemovedCount() > 0 || report.RetainedCount() > 0 || report.Error() != "" {
+		wailsRuntime.LogInfof(
+			a.ctx,
+			"[install-cleanup] removed=%d retained=%d errors=%d",
+			report.RemovedCount(),
+			report.RetainedCount(),
+			len(report.Errors),
+		)
+	}
 }
 
 func (a *App) initESOUI() {
@@ -344,6 +380,13 @@ func privacySafePersistenceError(err error) string {
 	return "settings and cache persistence are unavailable; check user config directory permissions and disk space"
 }
 
+func privacySafeInstallCleanupError(message string) string {
+	if message == "" {
+		return ""
+	}
+	return "some Scribe-owned temporary install artifacts could not be cleaned; check AddOns directory permissions"
+}
+
 func (a *App) logPerformanceSnapshot(label string) {
 	if a.ctx == nil {
 		return
@@ -457,6 +500,11 @@ func (a *App) getDiagnosticsSnapshot() DiagnosticsSnapshot {
 	scanInFlight := a.scanInFlight
 	lastScanErr := a.lastScanErr
 	a.scanMu.RUnlock()
+	a.tempCleanupMu.RLock()
+	tempCleanupRemoved := a.tempCleanupRemoved
+	tempCleanupRetained := a.tempCleanupRetained
+	tempCleanupError := a.tempCleanupError
+	a.tempCleanupMu.RUnlock()
 
 	return DiagnosticsSnapshot{
 		StartupMS:           elapsedMS(startedAt, time.Now()),
@@ -491,6 +539,9 @@ func (a *App) getDiagnosticsSnapshot() DiagnosticsSnapshot {
 		ScanReadyMS:         elapsedMS(startedAt, scanReadyAt),
 		ScanInFlight:        scanInFlight,
 		LastScanError:       lastScanErr,
+		TempCleanupRemoved:  tempCleanupRemoved,
+		TempCleanupRetained: tempCleanupRetained,
+		TempCleanupError:    tempCleanupError,
 	}
 }
 

@@ -90,6 +90,7 @@
 - Download progress store updates intentionally apply state transitions immediately but batch same-state byte/file progress through animation-frame flushing; preserve this split when changing task-center behavior.
 - Backend download/extraction progress is intentionally throttled separately from task state changes; queued/planning/downloading/extracting/complete/failed/cancelled transitions should stay immediate while byte/file counters use the adaptive progress interval.
 - Install preflight UI should use the shared helpers in `frontend/src/lib/install/preflight.ts` so task center, update rows, and addon detail dialogs explain add/replace folders and rollback behavior consistently.
+- Startup cleanup may remove only stale Scribe-owned `.scribe-staging-*` and `.scribe-backup-*` directories under the configured AddOns folder; never broaden this to ordinary addon folders or arbitrary temp paths.
 - Keep search/filter/sort work indexed or memoized for large catalogs; do not repeatedly lowercase, parse versions, score search, or sort compatibility data inside hot render paths.
 - Keep Find More catalog indexing/filtering in the tested pure helpers under `frontend/src/lib/perf`; route components should pass state into those helpers instead of rebuilding search/sort logic inline.
 - Prefer native desktop-feeling utility UI over marketing layouts, decorative effects, or large animation-heavy surfaces.

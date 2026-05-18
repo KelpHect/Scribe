@@ -395,9 +395,11 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
   - Acceptance criteria: install/update confirmation shows folders to add/replace, dependency impact, expected download size when known, rollback behavior, and any warning that blocks install before mutation.
   - Completed: task center, update rows, and remote addon detail dialogs now present the backend preflight plan with add/replace folder counts, affected folder names, item reasons, expected download size when known, and staging/rollback language before extraction/commit finishes; preflight errors still surface as task failures before AddOns mutation.
   - Verification: `preflight.test.ts` covers add/replace summaries and rollback/staging helper text.
-- [ ] Clean stale temporary install/update artifacts on startup.
+- [x] Clean stale temporary install/update artifacts on startup.
   - Evidence: rollback-safe staging and backups exist; crashes or forced exits can still leave temporary folders.
   - Acceptance criteria: startup detects Scribe-owned stale staging/backup folders under AddOns, presents or safely cleans only app-owned temp artifacts, never deletes user addon folders, and logs privacy-safe diagnostics.
+  - Completed: startup now scans the configured AddOns folder for stale Scribe-owned `.scribe-staging-*` and `.scribe-backup-*` directories older than one hour, removes only those app-owned directories, retains fresh/non-directory artifacts, logs privacy-safe cleanup counts, and exposes removed/retained/error counts in diagnostics and local exports.
+  - Verification: installer tests cover cleanup removing only old Scribe temp directories while preserving fresh temp directories and ordinary addon folders.
 
 ### Dependency and update experience
 

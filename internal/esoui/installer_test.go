@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestExtractWithProgressRejectsEscapingEntries(t *testing.T) {
@@ -409,6 +410,37 @@ func assertNoTempInstallDirs(t *testing.T, dest string) {
 	}
 }
 
+func TestCleanStaleInstallArtifactsRemovesOnlyOldScribeTempDirs(t *testing.T) {
+	addonPath := t.TempDir()
+	oldStaging := filepath.Join(addonPath, ".scribe-staging-old")
+	oldBackup := filepath.Join(addonPath, ".scribe-backup-old")
+	freshStaging := filepath.Join(addonPath, ".scribe-staging-fresh")
+	normalAddon := filepath.Join(addonPath, "NormalAddon")
+
+	for _, dir := range []string{oldStaging, oldBackup, freshStaging, normalAddon} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", dir, err)
+		}
+	}
+	old := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(oldStaging, old, old); err != nil {
+		t.Fatalf("chtimes old staging: %v", err)
+	}
+	if err := os.Chtimes(oldBackup, old, old); err != nil {
+		t.Fatalf("chtimes old backup: %v", err)
+	}
+
+	report := CleanStaleInstallArtifacts(addonPath, time.Hour)
+
+	if report.RemovedCount() != 2 || report.RetainedCount() != 1 || report.Error() != "" {
+		t.Fatalf("cleanup report = %+v", report)
+	}
+	assertDirMissing(t, oldStaging)
+	assertDirMissing(t, oldBackup)
+	assertDirExists(t, freshStaging)
+	assertDirExists(t, normalAddon)
+}
+
 func TestRemoveAddonFolderMissingFolderLeavesAddOnsUntouched(t *testing.T) {
 	base := t.TempDir()
 	addonPath := filepath.Join(base, "AddOns")
@@ -512,6 +544,14 @@ func assertDirExists(t *testing.T, path string) {
 	}
 	if !info.IsDir() {
 		t.Fatalf("%s is not a directory", path)
+	}
+}
+
+func assertDirMissing(t *testing.T, path string) {
+	t.Helper()
+
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("expected %s to be missing, stat err = %v", path, err)
 	}
 }
 

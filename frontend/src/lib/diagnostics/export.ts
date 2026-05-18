@@ -72,7 +72,10 @@ export function buildLocalDiagnosticsExport(input: BuildDiagnosticsExportInput):
 	      scanStartedMs: input.diagnostics.scanStartedMs ?? null,
 	      scanReadyMs: input.diagnostics.scanReadyMs ?? null,
 	      scanInFlight: input.diagnostics.scanInFlight ?? null,
-	      lastScanError: redactLocalPathText(input.diagnostics.lastScanError ?? '')
+	      lastScanError: redactLocalPathText(input.diagnostics.lastScanError ?? ''),
+	      tempCleanupRemoved: input.diagnostics.tempCleanupRemoved ?? null,
+	      tempCleanupRetained: input.diagnostics.tempCleanupRetained ?? null,
+	      tempCleanupError: redactLocalPathText(input.diagnostics.tempCleanupError ?? '')
 	    },
     detailFetches: {
       totalBackendCalls: input.diagnostics.detailRequests,
