@@ -339,9 +339,11 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
 
 ### Startup and cache responsiveness
 
-- [ ] Move initial AddOns scan off the startup critical path.
+- [x] Move initial AddOns scan off the startup critical path.
   - Evidence: `startup()` currently detects and scans AddOns before database setup and async ESOUI initialization, which can delay first useful UI on large folders.
   - Acceptance criteria: app can render quickly with cached/last-known state, then refresh installed addons asynchronously; diagnostics distinguish frontend-ready, cached-state-ready, scan-start, scan-ready, and remote-ready timing.
+  - Completed: startup now configures the scanner path without parsing the AddOns tree, `GetInstalledAddons` returns cached state while starting a background scan, the frontend refreshes installed/matched query state on the `installed:scan-complete` event, and diagnostics now expose cached-state-ready, scan-start, scan-ready, in-flight, and scan-error fields.
+  - Verification: `startup_scan_test.go` proves `GetInstalledAddons` returns cached state immediately while the background scan later populates the scanner cache.
 - [ ] Add incremental scanner caching for unchanged addon folders.
   - Evidence: full rescans reparse manifests even when folder mtimes/sizes have not changed.
   - Acceptance criteria: scanner stores safe per-folder metadata in the app DB or a cache table, reparses changed folders only, invalidates correctly on folder deletion/rename, and preserves canonical-manifest preference tests.

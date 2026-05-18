@@ -78,11 +78,15 @@ func globPaths(pattern string) []string {
 }
 
 func (s *Scanner) Scan() ([]*addon.Addon, error) {
-	if s.addonPath == "" {
+	s.mu.RLock()
+	addonPath := s.addonPath
+	s.mu.RUnlock()
+
+	if addonPath == "" {
 		return nil, fmt.Errorf("addon path not configured")
 	}
 
-	entries, err := os.ReadDir(s.addonPath)
+	entries, err := os.ReadDir(addonPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read addon directory: %w", err)
 	}
@@ -98,7 +102,7 @@ func (s *Scanner) Scan() ([]*addon.Addon, error) {
 		wg.Add(1)
 		go func(name string) {
 			defer wg.Done()
-			a, err := s.scanAddonDir(filepath.Join(s.addonPath, name))
+			a, err := s.scanAddonDir(filepath.Join(addonPath, name))
 			if err != nil {
 				errors <- err
 				return

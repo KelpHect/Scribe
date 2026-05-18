@@ -20,12 +20,14 @@
     clipboardGetText,
     clipboardSetText,
     emitRuntimeEvent,
+    getRuntime,
     openExternalURL
   } from '$lib/services/runtime-service';
   import { applyTheme } from '$lib/services/theme-service';
   import { getSettings } from '$lib/services/settings-service';
   import { navigation, getDownloadStore } from '$lib/stores';
   import { queryClient } from '$lib/db/client';
+  import { refreshInstalledState } from '$lib/db/query-state';
   import {
     createLazyRouteState,
     loadLazyRoute,
@@ -267,6 +269,15 @@
     };
 
     const closeMenu = () => closeContextMenu();
+    let scanCompleteOff: (() => void) | null = null;
+    void getRuntime()
+      .then((runtime) => {
+        scanCompleteOff =
+          runtime.EventsOn?.('installed:scan-complete', () => {
+            void refreshInstalledState().catch(() => undefined);
+          }) ?? null;
+      })
+      .catch(() => undefined);
 
     window.addEventListener('keydown', handleGlobalKeydown);
     window.addEventListener('contextmenu', handleContextMenu);
@@ -296,6 +307,7 @@
       window.cancelAnimationFrame(readyFrame2);
       window.clearTimeout(idleTimer);
       window.clearInterval(memoryTimer);
+      scanCompleteOff?.();
       window.removeEventListener('keydown', handleGlobalKeydown);
       window.removeEventListener('contextmenu', handleContextMenu);
       window.removeEventListener('scribe:open-context-menu', handleCustomContextMenu as EventListener);

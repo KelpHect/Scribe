@@ -100,7 +100,12 @@ describe('diagnostics export redaction', () => {
         memoryBudgetOk: true,
         startupBudgetOk: true,
         persistenceStatus: 'ok',
-        persistenceError: ''
+        persistenceError: '',
+        cachedStateReadyMs: 20,
+        scanStartedMs: 30,
+        scanReadyMs: 60,
+        scanInFlight: false,
+        lastScanError: ''
       },
       failedTasks: [
         {
@@ -125,6 +130,7 @@ describe('diagnostics export redaction', () => {
     expect(payload.memory.sysMb).toBe(80);
 	    expect(payload.persistence.status).toBe('ok');
 	    expect(payload.catalog.remoteAddons).toBe(5000);
+	    expect(payload.catalog.scanReadyMs).toBe(60);
 	    expect(payload.frontendCache.performance.timings[0].name).toBe('findMore.filterSort');
 	    expect(payload.frontendCache.performance.progressEvents.totalEvents).toBe(4);
 	    expect(payload.recentTaskFailures[0].error).toBe('failed to write [redacted-path]');

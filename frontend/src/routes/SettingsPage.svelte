@@ -591,12 +591,16 @@
                   </div>
                 </div>
 
-                <div class="bg-muted/40 rounded-md border p-3">
-                  <p class="mb-2 text-xs font-medium">Dataset</p>
-                  <div class="text-muted-foreground space-y-1 text-xs">
+	                <div class="bg-muted/40 rounded-md border p-3">
+	                  <p class="mb-2 text-xs font-medium">Dataset</p>
+	                  <div class="text-muted-foreground space-y-1 text-xs">
                     <p>Remote addons: <span class="text-foreground font-mono">{diagnostics.remoteAddons}</span></p>
                     <p>Remote categories: <span class="text-foreground font-mono">{diagnostics.remoteCategories}</span></p>
                     <p>Installed addons: <span class="text-foreground font-mono">{diagnostics.installedAddons}</span></p>
+	                    <p>Cached state ready: <span class="text-foreground font-mono">{diagnostics.cachedStateReadyMs ?? 0} ms</span></p>
+	                    <p>Scan started: <span class="text-foreground font-mono">{diagnostics.scanStartedMs ?? 0} ms</span></p>
+	                    <p>Scan ready: <span class="text-foreground font-mono">{diagnostics.scanReadyMs ?? 0} ms</span></p>
+	                    <p>Scan running: <span class="text-foreground font-mono">{diagnostics.scanInFlight ? 'yes' : 'no'}</span></p>
                     <p>Cache stale: <span class="text-foreground font-mono">{diagnostics.remoteCacheStale ? 'yes' : 'no'}</span></p>
                     <p>
                       Persistence:
@@ -606,6 +610,9 @@
                     </p>
                     {#if diagnostics.persistenceError}
                       <p class="text-warning">{diagnostics.persistenceError}</p>
+                    {/if}
+                    {#if diagnostics.lastScanError}
+                      <p class="text-warning md:col-span-2">{diagnostics.lastScanError}</p>
                     {/if}
                   </div>
                 </div>

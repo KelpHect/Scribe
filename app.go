@@ -48,6 +48,13 @@ type App struct {
 	lastRefreshErr  string
 	refreshInFlight bool
 
+	scanMu             sync.RWMutex
+	cachedStateReadyAt time.Time
+	scanStartedAt      time.Time
+	scanReadyAt        time.Time
+	scanInFlight       bool
+	lastScanErr        string
+
 	frontendReadyOff func()
 	perfCaptureOff   func()
 
@@ -116,6 +123,11 @@ type DiagnosticsSnapshot struct {
 	StartupBudgetOK     bool               `json:"startupBudgetOk"`
 	PersistenceStatus   string             `json:"persistenceStatus"`
 	PersistenceError    string             `json:"persistenceError"`
+	CachedStateReadyMS  int64              `json:"cachedStateReadyMs"`
+	ScanStartedMS       int64              `json:"scanStartedMs"`
+	ScanReadyMS         int64              `json:"scanReadyMs"`
+	ScanInFlight        bool               `json:"scanInFlight"`
+	LastScanError       string             `json:"lastScanError"`
 }
 
 type RemoteCatalogStatus struct {
@@ -179,10 +191,6 @@ func (a *App) startup(ctx context.Context) {
 	detectedPath := scanner.DetectAddonPath()
 	a.scanner = scanner.New(detectedPath)
 
-	if detectedPath != "" {
-		_, _ = a.scanner.Scan()
-	}
-
 	if db, err := esoui.OpenAppDB(); err == nil {
 		a.db = db
 		a.setPersistenceStatus("ok", "")
@@ -192,7 +200,6 @@ func (a *App) startup(ctx context.Context) {
 		if detectedPath == "" {
 			if s, err2 := a.settingsMgr.GetSettings(); err2 == nil && s.AddonPath != "" {
 				a.scanner = scanner.New(s.AddonPath)
-				_, _ = a.scanner.Scan()
 			}
 		}
 	} else {
@@ -200,8 +207,10 @@ func (a *App) startup(ctx context.Context) {
 		wailsRuntime.LogErrorf(a.ctx, "[db] settings/cache database unavailable: %s", a.getPersistenceError())
 	}
 
+	a.markCachedStateReady()
 	a.shutdownCtx, a.shutdownCancel = context.WithCancel(context.Background())
 	maybeStartPprof(a.shutdownCtx)
+	a.startBackgroundAddonScan("startup")
 	a.initWg.Add(1)
 	go a.initESOUI()
 }
@@ -291,6 +300,14 @@ func (a *App) markRemoteReady() {
 	a.remoteReadyAt = time.Now()
 	a.perfMu.Unlock()
 	a.logPerformanceSnapshot("remote-ready")
+}
+
+func (a *App) markCachedStateReady() {
+	a.scanMu.Lock()
+	if a.cachedStateReadyAt.IsZero() {
+		a.cachedStateReadyAt = time.Now()
+	}
+	a.scanMu.Unlock()
 }
 
 func (a *App) setPersistenceStatus(status, message string) {
@@ -428,6 +445,13 @@ func (a *App) getDiagnosticsSnapshot() DiagnosticsSnapshot {
 		cacheStale = a.esoCache.IsStale()
 	}
 	persistenceStatus, persistenceError := a.getPersistenceStatus()
+	a.scanMu.RLock()
+	cachedStateReadyAt := a.cachedStateReadyAt
+	scanStartedAt := a.scanStartedAt
+	scanReadyAt := a.scanReadyAt
+	scanInFlight := a.scanInFlight
+	lastScanErr := a.lastScanErr
+	a.scanMu.RUnlock()
 
 	return DiagnosticsSnapshot{
 		StartupMS:           elapsedMS(startedAt, time.Now()),
@@ -457,6 +481,11 @@ func (a *App) getDiagnosticsSnapshot() DiagnosticsSnapshot {
 		StartupBudgetOK:     elapsedMS(startedAt, frontendReadyAt) <= 1000 || frontendReadyAt.IsZero(),
 		PersistenceStatus:   persistenceStatus,
 		PersistenceError:    persistenceError,
+		CachedStateReadyMS:  elapsedMS(startedAt, cachedStateReadyAt),
+		ScanStartedMS:       elapsedMS(startedAt, scanStartedAt),
+		ScanReadyMS:         elapsedMS(startedAt, scanReadyAt),
+		ScanInFlight:        scanInFlight,
+		LastScanError:       lastScanErr,
 	}
 }
 
@@ -533,11 +562,72 @@ func (a *App) getRemoteList() []esoui.RemoteAddon {
 	return out
 }
 
+func (a *App) beginAddonScan() bool {
+	if a.scanner == nil || a.scanner.GetAddonPath() == "" {
+		return false
+	}
+
+	a.scanMu.Lock()
+	defer a.scanMu.Unlock()
+	if a.scanInFlight {
+		return false
+	}
+	a.scanInFlight = true
+	a.scanStartedAt = time.Now()
+	a.scanReadyAt = time.Time{}
+	a.lastScanErr = ""
+	return true
+}
+
+func (a *App) finishAddonScan(count int, err error) string {
+	safeErr := ""
+	if err != nil {
+		safeErr = privacySafePersistenceError(err)
+	}
+
+	a.scanMu.Lock()
+	a.scanInFlight = false
+	a.scanReadyAt = time.Now()
+	a.lastScanErr = safeErr
+	a.scanMu.Unlock()
+
+	if a.ctx != nil && !a.shutdownRequested() {
+		payload := map[string]any{
+			"count": count,
+		}
+		if err != nil {
+			payload["error"] = a.lastScanErr
+		}
+		wailsRuntime.EventsEmit(a.ctx, "installed:scan-complete", payload)
+	}
+	return safeErr
+}
+
+func (a *App) startBackgroundAddonScan(reason string) bool {
+	if !a.beginAddonScan() {
+		return false
+	}
+
+	go func() {
+		addons, err := a.scanner.Scan()
+		if a.shutdownRequested() {
+			return
+		}
+		safeErr := a.finishAddonScan(len(addons), err)
+		if err != nil && a.ctx != nil {
+			wailsRuntime.LogErrorf(a.ctx, "[scanner] background scan %s failed: %s", reason, safeErr)
+		}
+	}()
+	return true
+}
+
 func (a *App) GetInstalledAddons() ([]*addon.Addon, error) {
 	if a.scanner == nil {
 		return []*addon.Addon{}, nil
 	}
-	return a.scanner.Scan()
+	cached := a.scanner.GetAddons()
+	a.startBackgroundAddonScan("get-installed")
+	return cached, nil
 }
 
 func (a *App) GetAddonPath() string {

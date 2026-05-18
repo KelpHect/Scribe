@@ -33,6 +33,11 @@ export interface DiagnosticsSnapshot {
   startupBudgetOk?: boolean;
   persistenceStatus?: string;
   persistenceError?: string;
+  cachedStateReadyMs?: number;
+  scanStartedMs?: number;
+  scanReadyMs?: number;
+  scanInFlight?: boolean;
+  lastScanError?: string;
 }
 
 export async function fetchDiagnostics(): Promise<DiagnosticsSnapshot> {
