@@ -28,6 +28,26 @@ wails build
 
 Release builds end up in `build/bin/`.
 
+### Linux build packages
+
+Linux Wails builds need GTK, WebKitGTK, a C/C++ compiler, `pkg-config`, and npm. Scribe builds Linux with Wails' `webkit2_41` tag.
+
+Debian/Ubuntu:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential pkg-config npm libgtk-3-dev libwebkit2gtk-4.1-dev
+wails build -tags webkit2_41
+```
+
+Fedora:
+
+```bash
+sudo dnf upgrade
+sudo dnf install -y gcc-c++ pkgconf-pkg-config npm gtk3-devel webkit2gtk4.1-devel
+wails build -tags webkit2_41
+```
+
 ## Releases
 
 - `Scribe-windows-amd64.exe`
@@ -79,7 +99,8 @@ wails dev
 
 ### stack
 
-- Go 1.23
+- Go 1.26.3
+- Node.js 24 + npm 11
 - Wails v2
 - Svelte 5 + TypeScript
 - Tailwind CSS v4

@@ -20,7 +20,7 @@
 - Avoid `npm --prefix frontend run lint` unless intentionally applying eslint autofixes, because the script runs `eslint . --fix`.
 - Clean-checkout caveat: root `go test ./...` fails if `frontend/dist` is absent because `main.go` embeds `all:frontend/dist`; run Wails/build first.
 - Clean-checkout caveat: frontend type checks fail if `frontend/wailsjs` is absent/stale; regenerate via `wails dev`/`wails build`, never by authoring generated bindings.
-- Current baseline caveat from TODO: `npm --prefix frontend run check` may also expose existing TS issues after bindings are regenerated; do not claim it passes unless rerun successfully in this workspace.
+- `npm --prefix frontend run check` is expected to pass after bindings are regenerated; rerun it before claiming frontend package or type-check changes are clean.
 - For docs-only AGENTS/TODO audits, at minimum run `git diff --check`; do not run heavyweight app builds unless code/config behavior changed.
 
 ## Priorities
@@ -31,12 +31,12 @@
 5. Prefer smallest correct changes over broad refactors.
 
 ## Stack
-- Go 1.23, Wails v2.12, Svelte 5 runes, TypeScript, Vite 8, Tailwind CSS v4.
+- Go 1.26.3, Wails v2.12, Node.js 24/npm 11, Svelte 5 runes, TypeScript 6, Vite 8, Tailwind CSS v4.
 - SQLite uses GORM with `glebarez/sqlite`; app settings/cache live under the user config dir in `Scribe/esoui_cache.db`.
 - Echo is only an indirect Wails dependency; the app has no application HTTP server except opt-in pprof.
 - Wails binds methods on `App` in `app.go`; frontend calls them through thin service wrappers and dynamic imports.
 - This is not SvelteKit: no SSR, file router, server endpoints, load functions, or SvelteKit APIs.
-- Linux Wails builds require `webkit2_41` tags plus GTK/WebKit system dependencies (`libgtk-3-dev`, `libwebkit2gtk-4.1-dev`).
+- Linux Wails builds require `webkit2_41` tags plus GTK/WebKit system dependencies. Debian/Ubuntu use `build-essential pkg-config npm libgtk-3-dev libwebkit2gtk-4.1-dev`; Fedora uses `gcc-c++ pkgconf-pkg-config npm gtk3-devel webkit2gtk4.1-devel`.
 
 ## Documentation paths
 - Keep `README.md`, `CONTRIBUTING.md`, and `frontend/README.md` synchronized with setup, checks, generated-file recovery, packaging, and release-process changes.

@@ -23,9 +23,9 @@ Purpose: prevent corruption, deletion outside the configured AddOns directory, p
 - [x] Add regression tests for archive extraction boundaries.
   - Completed: `ExtractWithProgress` now rejects parent traversal, absolute slash paths, Windows drive-style paths, backslash separator variants, and destination-prefix sibling escapes before extraction.
   - Verification: `internal/esoui/installer_test.go` uses temp dirs and generated zip files to prove escaping entries fail and valid nested addon files extract only under the configured destination.
-- [ ] Add regression tests for uninstall folder-name validation.
-  - Evidence: `RemoveAddonFolder` rejects empty, dot, slashes, backslashes, and traversal-like names, but no tests prove invalid names cannot delete outside the AddOns directory or that a valid addon folder still uninstalls.
-  - Acceptance criteria: tests cover empty, `.`, `..`, slash/backslash, traversal, absolute-looking names, missing folders, and a valid folder removal without touching sibling/outside directories.
+- [x] Add regression tests for uninstall folder-name validation.
+  - Completed: `RemoveAddonFolder` is covered for empty, `.`, `..`, slash/backslash, traversal, absolute-looking names, missing folders, and valid folder removal.
+  - Verification: `internal/esoui/installer_test.go` uses temp AddOns directories to prove invalid and missing folder names leave sibling/outside directories intact, while a valid named addon folder is removed.
 - [ ] Add explicit confirmation for list/context/bulk uninstall flows or otherwise require a deliberate destructive step.
   - Evidence: `AddonDetail.svelte` has an uninstall-confirm state, but `InstalledPage.svelte` row uninstall, context-menu uninstall, and `Uninstall Selected` call `uninstallRemoteAddon(s)` directly; backend deletion is irreversible `os.RemoveAll` of the named folder.
   - Acceptance criteria: every frontend uninstall entry point requires an intentional confirmation that names the affected addon(s), while preserving backend folder-name validation.
@@ -175,9 +175,9 @@ Purpose: harden the path from version to user-installable artifacts after the ap
 - [ ] Add platform-specific path detection tests or fixtures.
   - Evidence: `scanner.DetectAddonPath` hardcodes Windows/OneDrive/macOS/Linux Steam candidates and globs, but tests do not cover path precedence or live/liveeu behavior.
   - Acceptance criteria: path detection logic is made testable with injected home/GOOS/filesystem checks, and tests cover documented candidates without requiring real user directories.
-- [ ] Document or test Linux build dependency requirements against current Wails/WebKit tags.
-  - Evidence: CI uses Linux tag `webkit2_41` and installs `libwebkit2gtk-4.1-dev`; contributor docs mention Wails build but not full local Linux prerequisites.
-  - Acceptance criteria: docs and CI comments identify required packages/tags for Ubuntu-like systems and how to pass tags locally.
+- [x] Document or test Linux build dependency requirements against current Wails/WebKit tags.
+  - Completed: README and CONTRIBUTING document Linux Wails packages for Debian/Ubuntu and Fedora, including the `webkit2_41` local build tag.
+  - Verification: CI and release workflows install the same full Ubuntu native toolchain set before Linux Wails builds.
 
 ## P6 — Performance, observability, and maintainability improvements
 

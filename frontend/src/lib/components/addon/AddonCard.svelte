@@ -34,12 +34,19 @@
     onuninstall,
     uninstalling = false
   }: Props = $props();
+
+  function handleKeydown(event: KeyboardEvent) {
+    if (!onclick || (event.key !== 'Enter' && event.key !== ' ')) return;
+    event.preventDefault();
+    onclick();
+  }
 </script>
 
 <div
   role="button"
   tabindex="-1"
   onclick={onclick}
+  onkeydown={handleKeydown}
   class={cn(
     'flex w-full cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors focus:outline-none',
     selected

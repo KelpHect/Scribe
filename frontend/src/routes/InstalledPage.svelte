@@ -98,8 +98,6 @@
 
   const installableRequiredDeps = $derived(missingDeps.filter((d) => d.canInstall && !d.optional));
   const installableOptionalDeps = $derived(missingDeps.filter((d) => d.canInstall && d.optional));
-  const selectedAddons = $derived(addons.filter((addon) => selectedFolders.has(addon.folderName)));
-  const selectedCount = $derived(selectedAddons.length);
 
   onMount(() => {
     void checkMissingDeps();
@@ -138,6 +136,8 @@
   }));
 
   const addons = $derived((installedQuery.data as Addon[]) ?? []);
+  const selectedAddons = $derived(addons.filter((addon) => selectedFolders.has(addon.folderName)));
+  const selectedCount = $derived(selectedAddons.length);
   const matchedAddons = $derived((matchedQuery.data as MatchedAddon[]) ?? []);
   const categories = $derived((categoriesQuery.data as Category[]) ?? []);
   const remoteAddons = $derived((remoteAddonsQuery.data as RemoteAddon[]) ?? []);

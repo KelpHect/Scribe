@@ -275,31 +275,34 @@ export function parseAddonDescription(input: string): ParsedAddonDescription {
     /this addon requires(?: the use of)?(?: the following libraries?)?[:\s]+([^.!?\n]+?)(?:\.\s|!\s|\?\s|$)/gi
   );
 
-  cleaned = cleaned.replace(/(?:^|\n)([^\n]*(?:required libraries?|dependencies|requires[^\n]*libraries|libraries separately)[^\n]*\n+)?\[list(?:=[^\]]+)?\]([\s\S]*?)\[\/list\]/gi, (match, heading = '', items) => {
-    const context = stripBbcodeTags(`${heading} ${items}`).toLowerCase();
-    const parsed = Array.from(items.matchAll(/\[\*\]([\s\S]*?)(?=\[\*\]|$)/gi))
-      .map((entry) => parseDependencyItem(entry[1]))
-      .filter((entry): entry is ParsedDependencyLink => entry !== null);
+  cleaned = cleaned.replace(
+    /(?:^|\n)([^\n]*(?:required libraries?|dependencies|requires[^\n]*libraries|libraries separately)[^\n]*\n+)?\[list(?:=[^\]]+)?\]([\s\S]*?)\[\/list\]/gi,
+    (match: string, heading = '', items: string) => {
+      const context = stripBbcodeTags(`${heading} ${items}`).toLowerCase();
+      const parsed = Array.from(items.matchAll(/\[\*\]([\s\S]*?)(?=\[\*\]|$)/gi))
+        .map((entry) => parseDependencyItem(entry[1]))
+        .filter((entry): entry is ParsedDependencyLink => entry !== null);
 
-    if (parsed.length === 0) return match;
+      if (parsed.length === 0) return match;
 
-    if (context.includes('optional')) {
-      optionalLibraries.push(...parsed);
-      return '\n';
+      if (context.includes('optional')) {
+        optionalLibraries.push(...parsed);
+        return '\n';
+      }
+
+      if (
+        context.includes('required') ||
+        context.includes('dependenc') ||
+        context.includes('requires') ||
+        context.includes('libraries separately')
+      ) {
+        requiredLibraries.push(...parsed);
+        return '\n';
+      }
+
+      return match;
     }
-
-    if (
-      context.includes('required') ||
-      context.includes('dependenc') ||
-      context.includes('requires') ||
-      context.includes('libraries separately')
-    ) {
-      requiredLibraries.push(...parsed);
-      return '\n';
-    }
-
-    return match;
-  });
+  );
 
   cleaned = extractPlainDependencySections(cleaned, requiredLibraries, optionalLibraries);
 

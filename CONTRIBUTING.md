@@ -24,10 +24,28 @@ npm --prefix frontend install
 wails dev
 ```
 
+Linux builds also need native Wails dependencies. Install the distro packages before `wails dev` or `wails build`.
+
+Debian/Ubuntu:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential pkg-config npm libgtk-3-dev libwebkit2gtk-4.1-dev
+```
+
+Fedora:
+
+```bash
+sudo dnf upgrade
+sudo dnf install -y gcc-c++ pkgconf-pkg-config npm gtk3-devel webkit2gtk4.1-devel
+```
+
 ## Before you submit
 
 ```bash
-wails build
+wails build -tags webkit2_41     # Linux
+wails build                      # Windows/macOS
+npm --prefix frontend run check  # frontend changes
 go test ./...
 ```
 

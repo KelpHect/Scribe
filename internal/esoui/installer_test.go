@@ -120,6 +120,91 @@ func TestExtractWithProgressExtractsValidNestedFilesUnderDestination(t *testing.
 	}
 }
 
+func TestRemoveAddonFolderRejectsUnsafeFolderNames(t *testing.T) {
+	tests := []struct {
+		name       string
+		folderName string
+	}{
+		{name: "empty", folderName: ""},
+		{name: "dot", folderName: "."},
+		{name: "dot dot", folderName: ".."},
+		{name: "slash", folderName: "Nested/Addon"},
+		{name: "backslash", folderName: `Nested\Addon`},
+		{name: "parent traversal", folderName: "../OutsideAddon"},
+		{name: "windows parent traversal", folderName: `..\OutsideAddon`},
+		{name: "absolute slash path", folderName: "/tmp/OutsideAddon"},
+		{name: "windows absolute backslash path", folderName: `C:\OutsideAddon`},
+		{name: "windows absolute slash path", folderName: "C:/OutsideAddon"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			base := t.TempDir()
+			addonPath := filepath.Join(base, "AddOns")
+			mustMkdir(t, filepath.Join(addonPath, "SafeAddon"))
+			mustMkdir(t, filepath.Join(addonPath, "SiblingAddon"))
+			mustMkdir(t, filepath.Join(base, "OutsideAddon"))
+
+			err := RemoveAddonFolder(addonPath, tt.folderName)
+			if err == nil {
+				t.Fatal("expected invalid folder name error")
+			}
+			if !strings.Contains(err.Error(), "invalid folder name") {
+				t.Fatalf("expected invalid folder name error, got %v", err)
+			}
+
+			assertDirExists(t, addonPath)
+			assertDirExists(t, filepath.Join(addonPath, "SafeAddon"))
+			assertDirExists(t, filepath.Join(addonPath, "SiblingAddon"))
+			assertDirExists(t, filepath.Join(base, "OutsideAddon"))
+		})
+	}
+}
+
+func TestRemoveAddonFolderMissingFolderLeavesAddOnsUntouched(t *testing.T) {
+	base := t.TempDir()
+	addonPath := filepath.Join(base, "AddOns")
+	mustMkdir(t, filepath.Join(addonPath, "SiblingAddon"))
+	mustMkdir(t, filepath.Join(base, "OutsideAddon"))
+
+	err := RemoveAddonFolder(addonPath, "MissingAddon")
+	if err == nil {
+		t.Fatal("expected missing folder error")
+	}
+	if !strings.Contains(err.Error(), "addon folder not found") {
+		t.Fatalf("expected missing folder error, got %v", err)
+	}
+
+	assertDirExists(t, addonPath)
+	assertDirExists(t, filepath.Join(addonPath, "SiblingAddon"))
+	assertDirExists(t, filepath.Join(base, "OutsideAddon"))
+}
+
+func TestRemoveAddonFolderRemovesOnlyNamedAddonFolder(t *testing.T) {
+	base := t.TempDir()
+	addonPath := filepath.Join(base, "AddOns")
+	target := filepath.Join(addonPath, "ValidAddon")
+	sibling := filepath.Join(addonPath, "SiblingAddon")
+	outside := filepath.Join(base, "OutsideAddon")
+	mustMkdir(t, filepath.Join(target, "nested"))
+	mustMkdir(t, sibling)
+	mustMkdir(t, outside)
+	if err := os.WriteFile(filepath.Join(target, "ValidAddon.txt"), []byte("manifest"), 0o644); err != nil {
+		t.Fatalf("write target manifest: %v", err)
+	}
+
+	if err := RemoveAddonFolder(addonPath, "ValidAddon"); err != nil {
+		t.Fatalf("RemoveAddonFolder valid folder: %v", err)
+	}
+
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Fatalf("target folder still exists or stat failed unexpectedly: %v", err)
+	}
+	assertDirExists(t, addonPath)
+	assertDirExists(t, sibling)
+	assertDirExists(t, outside)
+}
+
 func createTestZip(t *testing.T, entries map[string]string) string {
 	t.Helper()
 
@@ -153,6 +238,26 @@ func createTestZip(t *testing.T, entries map[string]string) string {
 	}
 
 	return zipFile.Name()
+}
+
+func mustMkdir(t *testing.T, path string) {
+	t.Helper()
+
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", path, err)
+	}
+}
+
+func assertDirExists(t *testing.T, path string) {
+	t.Helper()
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat %s: %v", path, err)
+	}
+	if !info.IsDir() {
+		t.Fatalf("%s is not a directory", path)
+	}
 }
 
 func assertFileContent(t *testing.T, path, want string) {
