@@ -12,6 +12,7 @@
   import ContextMenu from '$lib/components/ui/ContextMenu.svelte';
   import TitleBar from '$lib/components/layout/TitleBar.svelte';
   import Sidebar from '$lib/components/layout/Sidebar.svelte';
+  import RecoverableError from '$lib/components/layout/RecoverableError.svelte';
   import { DownloadQueue } from '$lib/components/download';
   import type { ContextMenuEntry } from '$lib/services/context-menu-service';
   import { fetchDiagnostics, performMemoryCleanup } from '$lib/services/diagnostics-service';
@@ -25,35 +26,40 @@
   import { getSettings } from '$lib/services/settings-service';
   import { navigation, getDownloadStore } from '$lib/stores';
   import { queryClient } from '$lib/db/client';
+  import {
+    createLazyRouteState,
+    loadLazyRoute,
+    normalizeRecoverableError,
+    resetLazyRoute,
+    type LazyRouteState
+  } from '$lib/routes/recovery';
   import type { Page } from '$lib/stores/navigation.svelte';
 
   import InstalledPage from './routes/InstalledPage.svelte';
 
-  let FindMorePage = $state<any>(null);
-  let UpdatesPage = $state<any>(null);
-  let SettingsPage = $state<any>(null);
+  type RouteComponent = any;
+
+  let findMoreRoute = $state<LazyRouteState<RouteComponent>>(createLazyRouteState());
+  let updatesRoute = $state<LazyRouteState<RouteComponent>>(createLazyRouteState());
+  let settingsRoute = $state<LazyRouteState<RouteComponent>>(createLazyRouteState());
 
   async function preloadPage(page: Page) {
     switch (page) {
       case 'find-more':
-        if (!FindMorePage) {
-          const mod = await import('./routes/FindMorePage.svelte');
-          FindMorePage = mod.default;
-        }
+        await loadLazyRoute(findMoreRoute, () => import('./routes/FindMorePage.svelte'), 'Failed to load Find More.');
         break;
       case 'updates':
-        if (!UpdatesPage) {
-          const mod = await import('./routes/UpdatesPage.svelte');
-          UpdatesPage = mod.default;
-        }
+        await loadLazyRoute(updatesRoute, () => import('./routes/UpdatesPage.svelte'), 'Failed to load Updates.');
         break;
       case 'settings':
-        if (!SettingsPage) {
-          const mod = await import('./routes/SettingsPage.svelte');
-          SettingsPage = mod.default;
-        }
+        await loadLazyRoute(settingsRoute, () => import('./routes/SettingsPage.svelte'), 'Failed to load Settings.');
         break;
     }
+  }
+
+  function retryRoute(page: Page, state: LazyRouteState<RouteComponent>) {
+    resetLazyRoute(state);
+    void preloadPage(page);
   }
 
   $effect(() => {
@@ -310,22 +316,80 @@
     <Sidebar />
     <main class="flex-1 overflow-hidden">
       <div class="h-full" class:hidden={navigation.current !== 'installed'}>
-        <InstalledPage />
+        <svelte:boundary>
+          <InstalledPage />
+
+          {#snippet failed(error, reset)}
+            <RecoverableError
+              title="Installed page failed"
+              error={normalizeRecoverableError(error, 'Installed page failed.')}
+              onretry={reset}
+            />
+          {/snippet}
+        </svelte:boundary>
       </div>
-      {#if FindMorePage}
+      {#if findMoreRoute.component}
         <div class="h-full" class:hidden={navigation.current !== 'find-more'}>
-          <FindMorePage />
+          <svelte:boundary>
+            <findMoreRoute.component />
+
+            {#snippet failed(error, reset)}
+              <RecoverableError
+                title="Find More failed"
+                error={normalizeRecoverableError(error, 'Find More failed.')}
+                onretry={reset}
+              />
+            {/snippet}
+          </svelte:boundary>
         </div>
+      {:else if navigation.current === 'find-more' && findMoreRoute.error}
+        <RecoverableError
+          title="Find More failed to load"
+          error={findMoreRoute.error}
+          onretry={() => retryRoute('find-more', findMoreRoute)}
+        />
       {/if}
-      {#if UpdatesPage}
+      {#if updatesRoute.component}
         <div class="h-full" class:hidden={navigation.current !== 'updates'}>
-          <UpdatesPage />
+          <svelte:boundary>
+            <updatesRoute.component />
+
+            {#snippet failed(error, reset)}
+              <RecoverableError
+                title="Updates failed"
+                error={normalizeRecoverableError(error, 'Updates failed.')}
+                onretry={reset}
+              />
+            {/snippet}
+          </svelte:boundary>
         </div>
+      {:else if navigation.current === 'updates' && updatesRoute.error}
+        <RecoverableError
+          title="Updates failed to load"
+          error={updatesRoute.error}
+          onretry={() => retryRoute('updates', updatesRoute)}
+        />
       {/if}
-      {#if SettingsPage}
+      {#if settingsRoute.component}
         <div class="h-full" class:hidden={navigation.current !== 'settings'}>
-          <SettingsPage />
+          <svelte:boundary>
+            <settingsRoute.component />
+
+            {#snippet failed(error, reset)}
+              <RecoverableError
+                title="Settings failed"
+                error={normalizeRecoverableError(error, 'Settings failed.')}
+                onretry={reset}
+              />
+            {/snippet}
+          </svelte:boundary>
         </div>
+      {:else if navigation.current === 'settings' && settingsRoute.error}
+        <RecoverableError
+          title="Settings failed to load"
+          error={settingsRoute.error}
+          onretry={() => retryRoute('settings', settingsRoute)}
+        />
       {/if}
     </main>
   </div>

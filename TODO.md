@@ -232,9 +232,9 @@ Purpose: improve the app without replacing Wails/Svelte/Go: fewer crashes, smoot
 
 ### Crash resistance and recovery
 
-- [ ] Add a frontend route/service error boundary with user-facing recovery actions.
-  - Evidence: dynamic route imports, Wails service wrappers, and async stores can fail today; failures should not leave a blank or frozen app surface.
-  - Acceptance criteria: route/component failures show a recoverable error state with retry, navigation remains usable, error details can be copied, and frontend tests cover at least one failed service and one failed dynamic route path.
+- [x] Add a frontend route/service error boundary with user-facing recovery actions.
+  - Completed: `App.svelte` now catches mounted route component failures with Svelte boundaries, records lazy route import failures, keeps navigation mounted, and shows a recoverable error state with retry plus copyable details.
+  - Verification: `frontend/src/lib/routes/recovery.test.ts` covers failed service error formatting and failed dynamic route retry; `npm --prefix frontend run test`, `npm --prefix frontend run check`, `npm --prefix frontend run build`, and `./scripts/verify.sh` pass.
 - [ ] Add a local-only redacted diagnostics export.
   - Evidence: Settings exposes diagnostics, but users still need a one-click way to share startup/cache/download state without leaking arbitrary local paths.
   - Acceptance criteria: export includes app version, platform, startup timings, memory, persistence status, catalog/cache status, recent task failures, and redacted paths; no telemetry or network upload is added.
