@@ -3,9 +3,9 @@
 <script lang="ts">
   import { Badge } from '$lib/components/ui';
   import { cn } from '$lib/utils';
-  import Package from 'lucide-svelte/icons/package';
   import Trash2 from 'lucide-svelte/icons/trash-2';
   import type { Addon } from '$lib/services/addon-service';
+  import FixedAddonImage from './FixedAddonImage.svelte';
 
   interface Props {
     addon: Addon;
@@ -83,24 +83,11 @@
     </button>
   {/if}
 
-  <div
-    class={cn(
-      'flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md',
-      categoryIconUrl ? 'bg-secondary/60' : addon.isLibrary ? 'bg-info/10' : 'bg-secondary'
-    )}
-  >
-    {#if categoryIconUrl}
-      <img
-        src={categoryIconUrl}
-        alt=""
-        aria-hidden="true"
-        class={isThumbnail ? 'h-full w-full object-cover' : 'h-6 w-6 object-contain'}
-        loading="lazy"
-      />
-    {:else}
-      <Package size={20} class="text-muted-foreground" />
-    {/if}
-  </div>
+  <FixedAddonImage
+    src={categoryIconUrl}
+    thumbnail={isThumbnail}
+    class={cn(categoryIconUrl ? 'bg-secondary/60' : addon.isLibrary ? 'bg-info/10' : 'bg-secondary')}
+  />
 
   <div class="min-w-0 flex-1">
     <div class="flex items-center gap-2">

@@ -367,9 +367,11 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
   - Acceptance criteria: timeboxed Web Worker or worker-like spike processes fixture catalog search/filter/sort off the UI thread and is kept only if it measurably improves responsiveness without complicating state flow.
   - Completed: the spike was closed without keeping a worker because the indexed main-thread fixture path is already below frame budget (`remote catalog indexed filter and sort` mean: 0.5720 ms for the 7k-addon benchmark). A worker would add catalog serialization, lifecycle, and fallback complexity without a measured responsiveness win at the current bottleneck.
   - Verification: `npm --prefix frontend run bench -- --run` reports the indexed path faster than the older large-catalog score and metadata-prep benchmarks.
-- [ ] Tighten virtual-list and image behavior.
+- [x] Tighten virtual-list and image behavior.
   - Evidence: virtualized lists exist, but image load, item measurement, overscan, and details preloading can still cause scroll hitching.
   - Acceptance criteria: list rows keep stable dimensions, lazy images have fixed boxes and fallbacks, overscan is bounded, image/detail prefetch is limited, and scroll remains smooth on large installed and remote lists.
+  - Completed: Installed and Find More virtual lists now use named bounded overscan constants, Find More and installed addon rows share fixed-size artwork boxes with lazy loading, async decoding, referrer-safe fetches, and fallback icons, and update/category row images now declare stable intrinsic dimensions and async decoding.
+  - Verification: frontend checks and tests cover the Svelte route/component changes; no detail prefetch was added, so detail loading remains click/open driven.
 - [ ] Bound addon detail and screenshot cache memory.
   - Evidence: details and screenshots are useful but can accumulate memory across browsing sessions.
   - Acceptance criteria: detail queries/images use an explicit bounded cache or eviction policy, memory cleanup has deterministic behavior, and diagnostics expose detail cache size/count.

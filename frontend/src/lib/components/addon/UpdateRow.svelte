@@ -56,8 +56,13 @@
           src={iconUrl}
           alt=""
           aria-hidden="true"
+          width="40"
+          height="40"
           class={isThumbnail ? 'h-10 w-10 rounded-md object-cover' : 'h-6 w-6 object-contain'}
           loading="lazy"
+          decoding="async"
+          draggable="false"
+          referrerpolicy="no-referrer"
         />
       {:else}
         <ArrowUpCircle size={20} class="text-destructive" />

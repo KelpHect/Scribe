@@ -498,6 +498,7 @@
 
   const HEADER_HEIGHT = 40;
   const ADDON_HEIGHT = 80;
+  const LIST_OVERSCAN = 6;
 
   const flatRows = $derived.by((): FlatRow[] => {
     const rows: FlatRow[] = [];
@@ -518,7 +519,7 @@
     count: 0,
     getScrollElement: () => scrollEl ?? null,
     estimateSize: () => ADDON_HEIGHT,
-    overscan: 8
+    overscan: LIST_OVERSCAN
   });
 
   $effect(() => {
@@ -531,7 +532,7 @@
         const row = rows[index];
         return row?.type === 'header' ? HEADER_HEIGHT : ADDON_HEIGHT;
       },
-      overscan: 8,
+      overscan: LIST_OVERSCAN,
       getItemKey: (index: number) => {
         const row = rows[index];
         if (!row) return index;

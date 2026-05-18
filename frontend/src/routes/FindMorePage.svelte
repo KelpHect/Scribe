@@ -17,6 +17,7 @@
   import { Badge, Button, CategorySelect, Select, Skeleton } from '$lib/components/ui';
   import { PageToolbar } from '$lib/components/layout';
   import RemoteAddonDetail from '$lib/components/addon/RemoteAddonDetail.svelte';
+  import FixedAddonImage from '$lib/components/addon/FixedAddonImage.svelte';
   import {
     openContextMenu,
     openContextMenuAt,
@@ -266,12 +267,13 @@
   });
 
   const ITEM_HEIGHT = 62;
+  const LIST_OVERSCAN = 6;
 
   const virtualizerStore = createVirtualizer({
     count: 0,
     getScrollElement: () => scrollEl ?? null,
     estimateSize: () => ITEM_HEIGHT,
-    overscan: 10
+    overscan: LIST_OVERSCAN
   });
 
   $effect(() => {
@@ -281,7 +283,7 @@
       count: list.length,
       getScrollElement: () => el ?? null,
       estimateSize: () => ITEM_HEIGHT,
-      overscan: 10,
+      overscan: LIST_OVERSCAN,
       getItemKey: (index: number) => list[index]?.addon.uid ?? index
     });
   });
@@ -645,23 +647,7 @@
                       tabindex="0"
                       aria-label={`View details for ${addon.uiName}`}
                     >
-                      <div
-                        class="bg-secondary flex h-10 w-10 shrink-0 items-center justify-center rounded-md"
-                      >
-                        {#if iconUrl}
-                          <img
-                            src={iconUrl}
-                            alt=""
-                            aria-hidden="true"
-                            class={isThumbnail
-                              ? 'h-10 w-10 rounded-md object-cover'
-                              : 'h-6 w-6 object-contain'}
-                            loading="lazy"
-                          />
-                        {:else}
-                          <Package size={20} class="text-muted-foreground" />
-                        {/if}
-                      </div>
+                      <FixedAddonImage src={iconUrl} thumbnail={isThumbnail} />
 
                       <div class="min-w-0 flex-1">
                         <div class="flex items-center gap-2">
@@ -709,8 +695,13 @@
                                   src={category.iconUrl}
                                   alt=""
                                   aria-hidden="true"
+                                  width="14"
+                                  height="14"
                                   class="h-3.5 w-3.5 shrink-0 object-contain"
                                   loading="lazy"
+                                  decoding="async"
+                                  draggable="false"
+                                  referrerpolicy="no-referrer"
                                 />
                               {/if}
                               <span class="truncate">{category.name}</span>

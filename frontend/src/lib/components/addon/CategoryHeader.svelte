@@ -30,8 +30,13 @@
         src={iconUrl}
         alt=""
         aria-hidden="true"
+        width="16"
+        height="16"
         class="h-4 w-4 shrink-0 object-contain"
         loading="lazy"
+        decoding="async"
+        draggable="false"
+        referrerpolicy="no-referrer"
       />
     {:else}
       <Package size={16} class="text-muted-foreground shrink-0" />
