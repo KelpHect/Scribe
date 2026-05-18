@@ -44,6 +44,12 @@ export interface MatchedAddon {
   remoteVersion: string;
 }
 
+export interface RemoteCatalogStatus {
+  hasData: boolean;
+  cacheStale: boolean;
+  lastRefreshError: string;
+}
+
 function normalizeMatchedAddon(match: WailsEsoui.MatchedAddon): MatchedAddon {
   return {
     ...match,
@@ -55,6 +61,16 @@ function normalizeMatchedAddon(match: WailsEsoui.MatchedAddon): MatchedAddon {
 
 export async function fetchRemoteAddons(): Promise<RemoteAddon[]> {
   return (await callWails('GetRemoteAddons')) ?? [];
+}
+
+export async function fetchRemoteCatalogStatus(): Promise<RemoteCatalogStatus> {
+  return (
+    (await callWails('GetRemoteCatalogStatus')) ?? {
+      hasData: false,
+      cacheStale: false,
+      lastRefreshError: ''
+    }
+  );
 }
 
 export async function refreshRemoteAddons(): Promise<RemoteAddon[]> {

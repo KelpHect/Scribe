@@ -44,6 +44,7 @@ type App struct {
 	remoteRefreshes int
 	lastRefreshAt   time.Time
 	lastRefreshMS   int64
+	lastRefreshErr  string
 
 	frontendReadyOff func()
 	perfCaptureOff   func()
@@ -107,6 +108,12 @@ type DiagnosticsSnapshot struct {
 	TotalAllocMB        uint64             `json:"totalAllocMb"`
 	MemoryBudgetOK      bool               `json:"memoryBudgetOk"`
 	StartupBudgetOK     bool               `json:"startupBudgetOk"`
+}
+
+type RemoteCatalogStatus struct {
+	HasData          bool   `json:"hasData"`
+	CacheStale       bool   `json:"cacheStale"`
+	LastRefreshError string `json:"lastRefreshError"`
 }
 
 func (a *App) shutdown(ctx context.Context) {
@@ -224,6 +231,7 @@ func (a *App) initESOUI() {
 			a.remoteMu.Lock()
 			a.remoteList = addons
 			a.remoteCategories = cats
+			a.lastRefreshErr = ""
 			a.remoteMu.Unlock()
 			a.markRemoteReady()
 			return
@@ -453,6 +461,7 @@ func (a *App) refreshRemoteList() error {
 	a.remoteMu.Lock()
 	a.remoteList = addons
 	a.remoteCategories = cats
+	a.lastRefreshErr = ""
 	a.remoteMu.Unlock()
 	return nil
 }
@@ -551,10 +560,30 @@ func (a *App) GetRemoteAddons() ([]esoui.RemoteAddon, error) {
 			if a.shutdownCtx.Err() != nil {
 				return
 			}
-			_ = a.refreshRemoteList()
+			if err := a.refreshRemoteList(); err != nil {
+				a.remoteMu.Lock()
+				a.lastRefreshErr = err.Error()
+				a.remoteMu.Unlock()
+				wailsRuntime.LogInfof(a.ctx, "[esoui] background refresh failed: %v", err)
+			}
 		}()
 	}
 	return list, nil
+}
+
+func (a *App) GetRemoteCatalogStatus() RemoteCatalogStatus {
+	<-a.initDone
+
+	a.remoteMu.RLock()
+	hasData := len(a.remoteList) > 0
+	lastErr := a.lastRefreshErr
+	a.remoteMu.RUnlock()
+
+	return RemoteCatalogStatus{
+		HasData:          hasData,
+		CacheStale:       a.esoCache != nil && a.esoCache.IsStale(),
+		LastRefreshError: lastErr,
+	}
 }
 
 func (a *App) RefreshRemoteAddons() ([]esoui.RemoteAddon, error) {

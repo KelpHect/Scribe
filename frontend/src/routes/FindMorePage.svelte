@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import { get } from 'svelte/store';
   import ArrowUpDown from 'lucide-svelte/icons/arrow-up-down';
+  import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
   import Calendar from 'lucide-svelte/icons/calendar';
   import Cpu from 'lucide-svelte/icons/cpu';
   import Download from 'lucide-svelte/icons/download';
@@ -34,9 +35,11 @@
     fetchCategories,
     fetchMatchedAddons,
     fetchRemoteAddons,
+    fetchRemoteCatalogStatus,
     type RemoteAddon,
     type MatchedAddon,
-    type Category
+    type Category,
+    type RemoteCatalogStatus
   } from '$lib/services/esoui-service';
   import { createQuery } from '@tanstack/svelte-query';
   import { createVirtualizer } from '@tanstack/svelte-virtual';
@@ -121,12 +124,28 @@
     queryKey: categoriesQueryKey,
     queryFn: async (): Promise<Category[]> => fetchCategories()
   }));
+  const remoteStatusQuery = createQuery(() => ({
+    queryKey: ['remote-catalog-status'] as const,
+    queryFn: async (): Promise<RemoteCatalogStatus> => fetchRemoteCatalogStatus(),
+    refetchInterval: 5000
+  }));
 
   const remoteAddons = $derived((remoteAddonsQuery.data as RemoteAddon[]) ?? []);
   const matchedAddons = $derived((matchedQuery.data as MatchedAddon[]) ?? []);
   const categories = $derived((categoriesQuery.data as Category[]) ?? []);
+  const remoteStatus = $derived((remoteStatusQuery.data as RemoteCatalogStatus | undefined) ?? null);
   const isLoading = $derived(remoteAddonsQuery.isLoading && remoteAddons.length === 0);
   const isError = $derived(remoteAddonsQuery.isError);
+  const hasRemoteCatalogStatus = $derived(remoteStatusQuery.isSuccess && remoteStatus !== null);
+  const staleRefreshFailed = $derived(
+    remoteAddons.length > 0 && !!remoteStatus?.cacheStale && !!remoteStatus.lastRefreshError
+  );
+  const showingStaleCache = $derived(
+    remoteAddons.length > 0 &&
+      hasRemoteCatalogStatus &&
+      !!remoteStatus?.cacheStale &&
+      !remoteStatus.lastRefreshError
+  );
 
   const categoryMap = $derived(new Map(categories.map((c: Category) => [c.id, c])));
   const selectedCategorySet = $derived(new Set(remote.categoryFilter));
@@ -500,11 +519,18 @@
                   Try a different search term, category, or version filter.
                 </p>
               {:else}
-                <h3 class="text-lg font-medium">No addons loaded</h3>
-                <p class="text-muted-foreground max-w-sm text-sm">
-                  Could not load the addon list from ESOUI. Check your internet connection and try
-                  refreshing.
-                </p>
+                {#if isError || (hasRemoteCatalogStatus && !remoteStatus?.hasData)}
+                  <h3 class="text-lg font-medium">No cached addon data available</h3>
+                  <p class="text-muted-foreground max-w-sm text-sm">
+                    Scribe could not load ESOUI and has no saved catalog to show. Check your
+                    internet connection and try refreshing.
+                  </p>
+                {:else}
+                  <h3 class="text-lg font-medium">No addons loaded</h3>
+                  <p class="text-muted-foreground max-w-sm text-sm">
+                    Scribe has not loaded any ESOUI catalog data yet. Try refreshing the addon list.
+                  </p>
+                {/if}
                 <Button variant="outline" onclick={() => remote.forceRefresh()}>
                   <RefreshCw size={14} />
                   Try Again
@@ -514,6 +540,38 @@
           </div>
         </div>
       {:else}
+        {#if staleRefreshFailed}
+          <div
+            class="border-amber-500/40 bg-amber-500/10 flex items-center justify-between gap-3 rounded-lg border p-3"
+          >
+            <div class="flex min-w-0 items-start gap-2">
+              <AlertTriangle size={16} class="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-amber-900 dark:text-amber-100">
+                  Showing cached ESOUI data
+                </p>
+                <p class="text-xs text-amber-800 dark:text-amber-200">
+                  Background refresh failed. Check your connection or try refreshing.
+                </p>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onclick={() => remote.forceRefresh()}>
+              <RefreshCw size={13} />
+              Retry
+            </Button>
+          </div>
+        {:else if showingStaleCache}
+          <div
+            class="border-border bg-muted/40 text-muted-foreground flex items-center justify-between gap-3 rounded-lg border p-3 text-sm"
+          >
+            <span>Showing cached ESOUI data while Scribe refreshes in the background.</span>
+            <Button variant="ghost" size="sm" onclick={() => remote.forceRefresh()}>
+              <RefreshCw size={13} />
+              Refresh
+            </Button>
+          </div>
+        {/if}
+
         <p class="text-muted-foreground px-1 text-[11px]">
           {filteredRemote.length.toLocaleString()} results
         </p>

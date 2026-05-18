@@ -110,9 +110,9 @@ Purpose: improve user trust, accessibility, and clarity once critical correctnes
 
 ### Frontend/UX
 
-- [ ] Improve feedback when remote refresh fails but stale cache exists.
-  - Evidence: backend serves cached remote lists and refreshes stale data in the background, while `FindMorePage.svelte` shows a generic “Failed to load addons from ESOUI”/“No addons loaded” state without distinguishing cached data from no data.
-  - Acceptance criteria: users can tell when they are viewing cached data, when a background refresh failed, and when no data is available, without adding telemetry or alternate sources.
+- [x] Improve feedback when remote refresh fails but stale cache exists.
+  - Completed: backend now exposes remote catalog status, including cached-data presence, staleness, and the last background refresh error; `FindMorePage.svelte` distinguishes stale cached data, failed background refreshes, and no saved catalog data.
+  - Verification: Linux Wails build, `npm --prefix frontend run check`, `go test ./...`, and `git diff --check` pass.
 - [ ] Review `OpenPath` for least-surprise behavior.
   - Evidence: `App.OpenPath` opens any frontend-provided path with OS shell helpers; current UI passes addon folder paths, but the bound backend method is broad.
   - Acceptance criteria: either constrain backend calls to configured AddOns descendants for folder-opening operations or document why broader shell opening is intentionally supported.
