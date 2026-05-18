@@ -16,6 +16,7 @@ type TaskState string
 
 const (
 	StateQueued      TaskState = "queued"
+	StatePlanning    TaskState = "planning"
 	StateDownloading TaskState = "downloading"
 	StateExtracting  TaskState = "extracting"
 	StateComplete    TaskState = "complete"
@@ -24,30 +25,32 @@ const (
 )
 
 type TaskProgress struct {
-	UID             string    `json:"uid"`
-	Name            string    `json:"name"`
-	State           TaskState `json:"state"`
-	Percent         float64   `json:"percent"`
-	BytesDownloaded int64     `json:"bytesDownloaded"`
-	TotalBytes      int64     `json:"totalBytes"`
-	Speed           float64   `json:"speed"`
-	Error           string    `json:"error,omitempty"`
-	FilesExtracted  int       `json:"filesExtracted"`
-	TotalFiles      int       `json:"totalFiles"`
-	QueuePosition   int       `json:"queuePosition"`
+	UID             string             `json:"uid"`
+	Name            string             `json:"name"`
+	State           TaskState          `json:"state"`
+	Percent         float64            `json:"percent"`
+	BytesDownloaded int64              `json:"bytesDownloaded"`
+	TotalBytes      int64              `json:"totalBytes"`
+	Speed           float64            `json:"speed"`
+	Error           string             `json:"error,omitempty"`
+	FilesExtracted  int                `json:"filesExtracted"`
+	TotalFiles      int                `json:"totalFiles"`
+	QueuePosition   int                `json:"queuePosition"`
+	InstallPlan     []InstallPlanEntry `json:"installPlan,omitempty"`
 }
 
 type ProgressEmitter func(eventName string, data any)
 
 type downloadTask struct {
-	uid       string
-	name      string
-	url       string
-	md5       string
-	destDir   string
-	cancel    context.CancelFunc
-	ctx       context.Context
-	startedAt time.Time
+	uid          string
+	name         string
+	url          string
+	md5          string
+	destDir      string
+	expectedDirs []string
+	cancel       context.CancelFunc
+	ctx          context.Context
+	startedAt    time.Time
 }
 
 const (
@@ -85,15 +88,20 @@ func NewDownloadManager(concurrency int, emit ProgressEmitter) *DownloadManager 
 }
 
 func (dm *DownloadManager) Enqueue(uid, name, url, md5Hash, destDir string) {
+	dm.EnqueueWithExpectedDirs(uid, name, url, md5Hash, destDir, nil)
+}
+
+func (dm *DownloadManager) EnqueueWithExpectedDirs(uid, name, url, md5Hash, destDir string, expectedDirs []string) {
 	ctx, cancel := context.WithTimeout(context.Background(), queuedTaskTimeout)
 	task := &downloadTask{
-		uid:     uid,
-		name:    name,
-		url:     url,
-		md5:     md5Hash,
-		destDir: destDir,
-		cancel:  cancel,
-		ctx:     ctx,
+		uid:          uid,
+		name:         name,
+		url:          url,
+		md5:          md5Hash,
+		destDir:      destDir,
+		expectedDirs: append([]string(nil), expectedDirs...),
+		cancel:       cancel,
+		ctx:          ctx,
 	}
 
 	dm.mu.Lock()
@@ -254,11 +262,24 @@ func (dm *DownloadManager) runTask(task *downloadTask) error {
 		}
 	}
 
+	plan, err := PlanInstallArchive(tmpPath, task.destDir, task.expectedDirs)
+	if err != nil {
+		return err
+	}
+
 	dm.emitStatusLocked(task.uid, &TaskProgress{
-		UID:     task.uid,
-		Name:    task.name,
-		State:   StateExtracting,
-		Percent: 0,
+		UID:         task.uid,
+		Name:        task.name,
+		State:       StatePlanning,
+		InstallPlan: plan,
+	})
+
+	dm.emitStatusLocked(task.uid, &TaskProgress{
+		UID:         task.uid,
+		Name:        task.name,
+		State:       StateExtracting,
+		Percent:     0,
+		InstallPlan: plan,
 	})
 
 	return ExtractWithProgress(task.ctx, tmpPath, task.destDir, func(extracted, total int) {
@@ -273,6 +294,7 @@ func (dm *DownloadManager) runTask(task *downloadTask) error {
 			Percent:        pct,
 			FilesExtracted: extracted,
 			TotalFiles:     total,
+			InstallPlan:    plan,
 		})
 	})
 }

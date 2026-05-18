@@ -62,6 +62,7 @@ func TestDownloadManagerShutdownWithQueuedTasksDoesNotPanicOrHang(t *testing.T) 
 
 func TestDownloadManagerCancelDuringExtractionReportsCancelled(t *testing.T) {
 	zipPath := createTestZip(t, map[string]string{
+		"Addon/Addon.txt":     "## Title: Addon\n",
 		"Addon/01-first.txt":  "first",
 		"Addon/02-second.txt": "second",
 	})

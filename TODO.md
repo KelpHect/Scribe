@@ -244,9 +244,9 @@ Purpose: improve the app without replacing Wails/Svelte/Go: fewer crashes, smoot
 
 ### Install, update, and dependency reliability
 
-- [ ] Add install/update archive preflight planning before mutating AddOns.
-  - Evidence: extraction boundaries are tested, but users do not see a clear plan of which folders will be added, replaced, skipped, or rejected before install/update work starts.
-  - Acceptance criteria: backend computes a preflight plan from the downloaded archive, validates manifest/folder expectations, rejects ambiguous unsafe archives, and the UI can show the planned folder changes before extraction.
+- [x] Add install/update archive preflight planning before mutating AddOns.
+  - Completed: downloaded archives are preflighted before extraction, validating safe addon folder names, canonical manifests, destination boundaries, and ESOUI `UIDirs`; task progress now emits a `planning` state with add/replace folder actions shown in the download queue.
+  - Verification: `internal/esoui/installer_test.go` covers add/replace plans plus root-file, missing-manifest, unexpected-folder, and traversal rejection; `go test . ./internal/esoui`, `npm --prefix frontend run check`, and frontend smoke tests pass.
 - [ ] Make install/update extraction atomic or rollback-safe.
   - Evidence: failed extraction should not leave partially replaced addon folders or broken dependencies.
   - Acceptance criteria: installs/updates stage into a temp location, preserve or restore the previous installed folder on failure/cancel, clean temp files, and tests cover cancel, invalid archive, disk/write failure simulation, and successful replacement.

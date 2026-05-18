@@ -7,11 +7,18 @@ import { filterNewInstallUIDs } from '$lib/stores/install-queue';
 
 export type TaskState =
   | 'queued'
+  | 'planning'
   | 'downloading'
   | 'extracting'
   | 'complete'
   | 'failed'
   | 'cancelled';
+
+export interface InstallPlanEntry {
+  folderName: string;
+  action: 'add' | 'replace';
+  reason: string;
+}
 
 export interface TaskProgress {
   uid: string;
@@ -25,6 +32,7 @@ export interface TaskProgress {
   filesExtracted: number;
   totalFiles: number;
   queuePosition: number;
+  installPlan?: InstallPlanEntry[];
 }
 
 async function getApp(): Promise<any> {
@@ -41,7 +49,11 @@ function getTaskList(): TaskProgress[] {
 
 function getActiveDownloads(): TaskProgress[] {
   return getTaskList().filter(
-    (t) => t.state === 'downloading' || t.state === 'extracting' || t.state === 'queued'
+    (t) =>
+      t.state === 'downloading' ||
+      t.state === 'planning' ||
+      t.state === 'extracting' ||
+      t.state === 'queued'
   );
 }
 
@@ -68,7 +80,12 @@ function getTask(uid: string): TaskProgress | undefined {
 export function isInstallActive(uid: string): boolean {
   if (pendingInstallUIDs.has(uid)) return true;
   const task = tasks.get(uid);
-  return task?.state === 'queued' || task?.state === 'downloading' || task?.state === 'extracting';
+  return (
+    task?.state === 'queued' ||
+    task?.state === 'downloading' ||
+    task?.state === 'planning' ||
+    task?.state === 'extracting'
+  );
 }
 
 function uniquePendingUIDs(uids: string[]): string[] {

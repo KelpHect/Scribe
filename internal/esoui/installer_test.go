@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -150,6 +151,86 @@ func TestExtractWithProgressStopsAfterContextCancellation(t *testing.T) {
 	assertFileContent(t, filepath.Join(dest, "Addon", "01-first.txt"), "first")
 	if _, err := os.Stat(filepath.Join(dest, "Addon", "02-second.txt")); !os.IsNotExist(err) {
 		t.Fatalf("second file was extracted after cancellation or stat failed unexpectedly: %v", err)
+	}
+}
+
+func TestPlanInstallArchiveClassifiesAddAndReplaceFolders(t *testing.T) {
+	dest := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dest, "ExistingAddon"), 0o755); err != nil {
+		t.Fatalf("mkdir existing addon: %v", err)
+	}
+	zipPath := createTestZip(t, map[string]string{
+		"ExistingAddon/ExistingAddon.txt": "## Title: Existing\n",
+		"ExistingAddon/file.lua":          "existing",
+		"NewAddon/NewAddon.addon":         "## Title: New\n",
+		"NewAddon/file.lua":               "new",
+	})
+
+	plan, err := PlanInstallArchive(zipPath, dest, []string{"ExistingAddon", "NewAddon"})
+	if err != nil {
+		t.Fatalf("PlanInstallArchive: %v", err)
+	}
+
+	want := []InstallPlanEntry{
+		{FolderName: "ExistingAddon", Action: "replace", Reason: "folder already exists"},
+		{FolderName: "NewAddon", Action: "add", Reason: "folder is not installed"},
+	}
+	if !reflect.DeepEqual(plan, want) {
+		t.Fatalf("plan = %#v, want %#v", plan, want)
+	}
+
+	if _, err := os.Stat(filepath.Join(dest, "NewAddon")); !os.IsNotExist(err) {
+		t.Fatalf("preflight created NewAddon or stat failed unexpectedly: %v", err)
+	}
+}
+
+func TestPlanInstallArchiveRejectsAmbiguousUnsafeArchives(t *testing.T) {
+	tests := []struct {
+		name    string
+		entries map[string]string
+		wantErr string
+	}{
+		{
+			name: "root file",
+			entries: map[string]string{
+				"README.txt": "root",
+			},
+			wantErr: "root file",
+		},
+		{
+			name: "missing canonical manifest",
+			entries: map[string]string{
+				"Addon/file.lua": "content",
+			},
+			wantErr: "no canonical manifest",
+		},
+		{
+			name: "unexpected folder",
+			entries: map[string]string{
+				"OtherAddon/OtherAddon.txt": "## Title: Other\n",
+			},
+			wantErr: "not listed by ESOUI metadata",
+		},
+		{
+			name: "escaping path",
+			entries: map[string]string{
+				"../Escape/Escape.txt": "bad",
+			},
+			wantErr: "escapes destination",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			zipPath := createTestZip(t, tt.entries)
+			_, err := PlanInstallArchive(zipPath, t.TempDir(), []string{"Addon"})
+			if err == nil {
+				t.Fatal("PlanInstallArchive returned nil error")
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("PlanInstallArchive error = %q, want substring %q", err, tt.wantErr)
+			}
+		})
 	}
 }
 

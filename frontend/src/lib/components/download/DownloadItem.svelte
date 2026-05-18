@@ -21,6 +21,8 @@
     switch (task.state) {
       case 'queued':
         return 'Queued';
+      case 'planning':
+        return 'Planning install';
       case 'downloading':
         return 'Downloading';
       case 'extracting':
@@ -52,7 +54,10 @@
   });
 
   const isActive = $derived(
-    task.state === 'queued' || task.state === 'downloading' || task.state === 'extracting'
+    task.state === 'queued' ||
+      task.state === 'downloading' ||
+      task.state === 'planning' ||
+      task.state === 'extracting'
   );
   const isTerminal = $derived(
     task.state === 'complete' || task.state === 'failed' || task.state === 'cancelled'
@@ -65,7 +70,7 @@
   <div class="flex items-center gap-2">
     {#if task.state === 'queued'}
       <Clock size={14} class="text-muted-foreground shrink-0" />
-    {:else if task.state === 'downloading' || task.state === 'extracting'}
+    {:else if task.state === 'downloading' || task.state === 'planning' || task.state === 'extracting'}
       <Loader2 size={14} class="text-primary shrink-0 animate-spin" />
     {:else if task.state === 'complete'}
       <CheckCircle2 size={14} class="shrink-0 text-green-500" />
@@ -116,6 +121,20 @@
         class="bg-primary h-full rounded-full transition-all duration-150 ease-out"
         style="width: {progressPercent}%"
       ></div>
+    </div>
+  {/if}
+
+  {#if task.installPlan && task.installPlan.length > 0}
+    <div class="border-border/70 bg-muted/30 rounded-md border px-2 py-1.5">
+      <p class="text-muted-foreground mb-1 text-[11px] font-medium">Install plan</p>
+      <div class="space-y-1">
+        {#each task.installPlan as item (item.folderName)}
+          <p class="text-muted-foreground flex items-center justify-between gap-2 text-[11px]">
+            <span class="text-foreground truncate font-mono">{item.folderName}</span>
+            <span class="shrink-0">{item.action === 'replace' ? 'Replace' : 'Add'}</span>
+          </p>
+        {/each}
+      </div>
     </div>
   {/if}
 

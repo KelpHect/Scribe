@@ -948,7 +948,7 @@ func (a *App) InstallAddon(uid string) error {
 		return fmt.Errorf("no download URL for UID %s", uid)
 	}
 
-	a.downloads.Enqueue(uid, d.UIName, d.UIDownload, d.UIMD5, addonPath)
+	a.downloads.EnqueueWithExpectedDirs(uid, d.UIName, d.UIDownload, d.UIMD5, addonPath, d.UIDirs)
 	return nil
 }
 
@@ -976,7 +976,7 @@ func (a *App) BatchInstall(uids []string) (int, error) {
 		if d.UIDownload == "" {
 			continue
 		}
-		a.downloads.Enqueue(d.UID, d.UIName, d.UIDownload, d.UIMD5, addonPath)
+		a.downloads.EnqueueWithExpectedDirs(d.UID, d.UIName, d.UIDownload, d.UIMD5, addonPath, d.UIDirs)
 		queued++
 	}
 	return queued, nil

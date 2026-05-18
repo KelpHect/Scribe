@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -15,6 +16,12 @@ import (
 const downloadTimeout = 5 * time.Minute
 
 type ExtractionProgressFn func(extracted, total int)
+
+type InstallPlanEntry struct {
+	FolderName string `json:"folderName"`
+	Action     string `json:"action"`
+	Reason     string `json:"reason"`
+}
 
 func DownloadAndInstall(downloadURL, destDir string) error {
 	tmp, err := os.CreateTemp("", "scribeeso_*.zip")
@@ -107,6 +114,97 @@ func ExtractWithProgress(ctx context.Context, zipPath, destDir string, fn Extrac
 	return nil
 }
 
+func PlanInstallArchive(zipPath, destDir string, expectedDirs []string) ([]InstallPlanEntry, error) {
+	r, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return nil, fmt.Errorf("open zip: %w", err)
+	}
+	defer r.Close()
+
+	cleanDest := filepath.Clean(destDir)
+	expected := make(map[string]struct{}, len(expectedDirs))
+	for _, dir := range expectedDirs {
+		name := strings.TrimSpace(dir)
+		if name != "" {
+			expected[strings.ToLower(name)] = struct{}{}
+		}
+	}
+
+	type folderInfo struct {
+		hasManifest bool
+	}
+	folders := make(map[string]*folderInfo)
+
+	for _, f := range r.File {
+		if _, err := safeZipEntryDestination(cleanDest, f.Name); err != nil {
+			return nil, err
+		}
+		normalized := filepath.FromSlash(f.Name)
+		parts := strings.Split(normalized, string(filepath.Separator))
+		if len(parts) == 0 || strings.TrimSpace(parts[0]) == "" {
+			continue
+		}
+		if len(parts) == 1 && !f.FileInfo().IsDir() {
+			return nil, fmt.Errorf("archive contains root file outside addon folder: %s", f.Name)
+		}
+
+		folder := parts[0]
+		if !isSafeAddonFolderName(folder) {
+			return nil, fmt.Errorf("archive contains invalid addon folder name: %s", folder)
+		}
+		info := folders[folder]
+		if info == nil {
+			info = &folderInfo{}
+			folders[folder] = info
+		}
+
+		if len(parts) == 2 {
+			entryName := strings.ToLower(parts[1])
+			folderLower := strings.ToLower(folder)
+			if entryName == folderLower+".txt" || entryName == folderLower+".addon" {
+				info.hasManifest = true
+			}
+		}
+	}
+
+	if len(folders) == 0 {
+		return nil, fmt.Errorf("archive contains no addon folders")
+	}
+
+	plan := make([]InstallPlanEntry, 0, len(folders))
+	for folder, info := range folders {
+		if !info.hasManifest {
+			return nil, fmt.Errorf("addon folder %s has no canonical manifest", folder)
+		}
+		if len(expected) > 0 {
+			if _, ok := expected[strings.ToLower(folder)]; !ok {
+				return nil, fmt.Errorf("archive folder %s is not listed by ESOUI metadata", folder)
+			}
+		}
+
+		action := "add"
+		reason := "folder is not installed"
+		if stat, err := os.Stat(filepath.Join(cleanDest, folder)); err == nil && stat.IsDir() {
+			action = "replace"
+			reason = "folder already exists"
+		} else if err != nil && !os.IsNotExist(err) {
+			return nil, fmt.Errorf("stat addon folder %s: %w", folder, err)
+		}
+
+		plan = append(plan, InstallPlanEntry{
+			FolderName: folder,
+			Action:     action,
+			Reason:     reason,
+		})
+	}
+
+	sort.Slice(plan, func(i, j int) bool {
+		return strings.ToLower(plan[i].FolderName) < strings.ToLower(plan[j].FolderName)
+	})
+
+	return plan, nil
+}
+
 func extractZip(zipPath, destDir string) error {
 	return ExtractWithProgress(context.Background(), zipPath, destDir, nil)
 }
@@ -123,6 +221,14 @@ func safeZipEntryDestination(cleanDest, entryName string) (string, error) {
 		return "", fmt.Errorf("zip entry escapes destination: %s", entryName)
 	}
 	return destPath, nil
+}
+
+func isSafeAddonFolderName(folderName string) bool {
+	return folderName != "" &&
+		folderName != "." &&
+		folderName != ".." &&
+		!strings.ContainsAny(folderName, `/\`) &&
+		!hasWindowsVolumePrefix(folderName)
 }
 
 func hasWindowsVolumePrefix(name string) bool {
@@ -149,7 +255,7 @@ func extractZipEntry(f *zip.File, destPath string) error {
 }
 
 func RemoveAddonFolder(addonPath, folderName string) error {
-	if strings.ContainsAny(folderName, `/\`) || folderName == ".." || folderName == "." || folderName == "" {
+	if !isSafeAddonFolderName(folderName) {
 		return fmt.Errorf("invalid folder name: %q", folderName)
 	}
 
