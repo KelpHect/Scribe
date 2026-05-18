@@ -172,9 +172,9 @@ Purpose: harden the path from version to user-installable artifacts after the ap
 
 ### Compatibility/operations
 
-- [ ] Add platform-specific path detection tests or fixtures.
-  - Evidence: `scanner.DetectAddonPath` hardcodes Windows/OneDrive/macOS/Linux Steam candidates and globs, but tests do not cover path precedence or live/liveeu behavior.
-  - Acceptance criteria: path detection logic is made testable with injected home/GOOS/filesystem checks, and tests cover documented candidates without requiring real user directories.
+- [x] Add platform-specific path detection tests or fixtures.
+  - Completed: `scanner.DetectAddonPath` now delegates to an injected helper for home/GOOS/filesystem/glob behavior; tests cover Windows live/liveeu precedence and OneDrive glob matches, macOS Documents live, Linux Steam compatdata precedence/fallback, and unsupported or missing paths without using real user directories.
+  - Verification: `go test ./internal/scanner` and `./scripts/verify.sh` pass.
 - [x] Document or test Linux build dependency requirements against current Wails/WebKit tags.
   - Completed: README and CONTRIBUTING document Linux Wails packages for Debian/Ubuntu and Fedora, including the `webkit2_41` local build tag.
   - Verification: CI and release workflows install the same full Ubuntu native toolchain set before Linux Wails builds.

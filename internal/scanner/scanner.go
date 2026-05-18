@@ -30,8 +30,12 @@ func DetectAddonPath() string {
 		return ""
 	}
 
+	return detectAddonPath(home, runtime.GOOS, dirExists, globPaths)
+}
+
+func detectAddonPath(home, goos string, exists func(string) bool, glob func(string) []string) string {
 	var candidates []string
-	switch runtime.GOOS {
+	switch goos {
 	case "windows":
 		candidates = []string{
 			filepath.Join(home, "Documents", "Elder Scrolls Online", "live", "AddOns"),
@@ -39,10 +43,8 @@ func DetectAddonPath() string {
 			filepath.Join(home, "OneDrive", "Documents", "Elder Scrolls Online", "live", "AddOns"),
 			filepath.Join(home, "OneDrive", "Documents", "Elder Scrolls Online", "liveeu", "AddOns"),
 		}
-		oneDriveMatches, _ := filepath.Glob(filepath.Join(home, "OneDrive*", "Documents", "Elder Scrolls Online", "live", "AddOns"))
-		candidates = append(candidates, oneDriveMatches...)
-		oneDriveMatchesEU, _ := filepath.Glob(filepath.Join(home, "OneDrive*", "Documents", "Elder Scrolls Online", "liveeu", "AddOns"))
-		candidates = append(candidates, oneDriveMatchesEU...)
+		candidates = append(candidates, glob(filepath.Join(home, "OneDrive*", "Documents", "Elder Scrolls Online", "live", "AddOns"))...)
+		candidates = append(candidates, glob(filepath.Join(home, "OneDrive*", "Documents", "Elder Scrolls Online", "liveeu", "AddOns"))...)
 	case "darwin":
 		candidates = []string{
 			filepath.Join(home, "Documents", "Elder Scrolls Online", "live", "AddOns"),
@@ -58,11 +60,21 @@ func DetectAddonPath() string {
 	}
 
 	for _, p := range candidates {
-		if info, err := os.Stat(p); err == nil && info.IsDir() {
+		if exists(p) {
 			return p
 		}
 	}
 	return ""
+}
+
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
+func globPaths(pattern string) []string {
+	matches, _ := filepath.Glob(pattern)
+	return matches
 }
 
 func (s *Scanner) Scan() ([]*addon.Addon, error) {
