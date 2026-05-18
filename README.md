@@ -112,6 +112,15 @@ Frontend workflow smoke/profile reports can be captured with:
 
 The script runs fixture-backed frontend workflow tests, catalog benchmarks, and a production frontend build, then writes an ignored report under `build/reports/ui-profile/`. It is not a replacement for manually launching the Wails app before release, but it gives a repeatable local signal for Installed, Find More, Updates, Settings, addon detail data, dependency banners, task center, and failure/retry states.
 
+### Performance coding patterns
+
+- Keep startup work background-first: render from cached state, then refresh scans/catalog data asynchronously.
+- Keep Find More search/filter/sort logic in tested indexed helpers instead of rebuilding lowercase/search/version work in route markup.
+- Keep large lists virtualized with stable row dimensions, fixed image boxes, lazy image loading, async decoding, and bounded overscan.
+- Coalesce high-frequency Wails bridge progress events before reactive store writes; task state transitions stay immediate, byte/file counters can be batched.
+- Keep install/update presentation shared through small helpers for preflight, rollback language, update reasons, dependency display, and failure recovery.
+- Keep user settings in `settings.toml`, cache/state records in SQLite, and generated outputs out of hand-written changes.
+
 ## When not to use this
 
 - you want a signed and notarized app on every platform right now

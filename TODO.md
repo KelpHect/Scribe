@@ -459,9 +459,11 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
   - Acceptance criteria: verify usage before removal, clean install with npm, compare build report/lockfile effects, and keep dependencies that solve real problems such as virtualization/query caching.
   - Completed: `docs/dependency-audit.md` records npm/Go usage checks, clean npm install behavior, runtime-impact notes, and why query caching, virtualization, form validation, icon, toast, SQLite, Wails, GORM, UUID, and TOML dependencies stay. `npm audit fix` updated only the transitive `brace-expansion` lockfile entry to clear the moderate advisory.
   - Verification: `rm -rf frontend/node_modules && npm --prefix frontend ci`, `npm --prefix frontend audit --audit-level=moderate`, `npm --prefix frontend run build`, `go list -m all`, and `go mod tidy` were run; the only package-lock effect is `brace-expansion` `5.0.5` to `5.0.6`.
-- [ ] Add coding-pattern notes to docs after each performance fix.
+- [x] Add coding-pattern notes to docs after each performance fix.
   - Evidence: performance regressions often come from repeated hot-path mistakes.
   - Acceptance criteria: update `AGENTS.md`, README, or CONTRIBUTING only with durable lessons such as progress-event batching, catalog index reuse, startup scan boundaries, and generated-file recovery rules.
+  - Completed: `AGENTS.md` and CONTRIBUTING now capture the durable route/store/install/dependency/update/recovery patterns from the P9 fixes, and README has a short performance coding pattern summary for startup boundaries, indexed catalog helpers, virtualized images, bridge-event batching, shared install/update helpers, TOML settings, SQLite cache/state, and generated-file discipline.
+  - Verification: docs-only update checked with `git diff --check`.
 
 ## Completed / current-state evidence
 
