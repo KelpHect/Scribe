@@ -74,13 +74,13 @@ Wails generates `frontend/wailsjs/` and `frontend/dist/`.
 
 ## Local data reset
 
-The app database is `Scribe/esoui_cache.db` under the OS user config directory. It stores settings, ESOUI cache rows, search presets, and install MD5 records. It does not contain addon files.
+User-facing settings live in `Scribe/settings.toml` under the OS user config directory. The app database is `Scribe/esoui_cache.db`; it stores ESOUI cache rows, search presets, scanner cache, and install MD5 records. Neither file contains addon files.
 
-For local troubleshooting, close Scribe and rename or delete only that database file:
+For local troubleshooting, close Scribe and rename or delete only `settings.toml` and/or the database file:
 
-- Windows: `%AppData%\Scribe\esoui_cache.db`
-- macOS: `~/Library/Application Support/Scribe/esoui_cache.db`
-- Linux: `~/.config/Scribe/esoui_cache.db`
+- Windows: `%AppData%\Scribe\settings.toml` and `%AppData%\Scribe\esoui_cache.db`
+- macOS: `~/Library/Application Support/Scribe/settings.toml` and `~/Library/Application Support/Scribe/esoui_cache.db`
+- Linux: `~/.config/Scribe/settings.toml` and `~/.config/Scribe/esoui_cache.db`
 
 Do not reset a real ESO `AddOns` folder unless the task explicitly calls for addon install/update/uninstall behavior.
 

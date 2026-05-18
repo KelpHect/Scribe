@@ -5,6 +5,7 @@ go 1.26.3
 require (
 	github.com/glebarez/sqlite v1.11.0
 	github.com/google/uuid v1.6.0
+	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/wailsapp/wails/v2 v2.12.0
 	gorm.io/gorm v1.31.1
 )

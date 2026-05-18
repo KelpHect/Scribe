@@ -2,14 +2,15 @@ package settings
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	"Scribe/internal/esoui"
 
+	"github.com/pelletier/go-toml/v2"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type AppSettings struct {
@@ -28,11 +29,16 @@ func defaults() AppSettings {
 }
 
 type Manager struct {
-	db *gorm.DB
+	db           *gorm.DB
+	settingsPath string
 }
 
 func NewManager(db *gorm.DB) *Manager {
-	return &Manager{db: db}
+	return &Manager{db: db, settingsPath: defaultSettingsPath()}
+}
+
+func NewManagerWithPath(db *gorm.DB, settingsPath string) *Manager {
+	return &Manager{db: db, settingsPath: settingsPath}
 }
 
 const (
@@ -43,9 +49,64 @@ const (
 )
 
 func (m *Manager) GetSettings() (AppSettings, error) {
+	if m.settingsPath != "" {
+		if s, ok, err := m.loadTOMLSettings(); ok {
+			return s, err
+		}
+	}
+
+	s, migrated, err := m.loadLegacyDBSettings()
+	if err != nil {
+		return AppSettings{}, err
+	}
+	if migrated && m.settingsPath != "" {
+		_ = m.writeTOMLSettings(s)
+	}
+	return s, nil
+}
+
+func (m *Manager) SaveSettings(s AppSettings) error {
+	normalized, err := normalizeSettings(s)
+	if err != nil {
+		return err
+	}
+	if m.settingsPath == "" {
+		return fmt.Errorf("settings path is unavailable")
+	}
+	return m.writeTOMLSettings(normalized)
+}
+
+func (m *Manager) loadTOMLSettings() (AppSettings, bool, error) {
+	data, err := os.ReadFile(m.settingsPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return AppSettings{}, false, nil
+		}
+		return defaults(), true, nil
+	}
+
+	var file settingsFile
+	if err := toml.Unmarshal(data, &file); err != nil {
+		return defaults(), true, nil
+	}
+	s, err := normalizeSettings(file.toAppSettings())
+	if err != nil {
+		return defaults(), true, nil
+	}
+	return s, true, nil
+}
+
+func (m *Manager) loadLegacyDBSettings() (AppSettings, bool, error) {
+	if m.db == nil {
+		return defaults(), false, nil
+	}
+
 	var rows []esoui.DBSetting
 	if err := m.db.Select("key", "value").Find(&rows).Error; err != nil {
-		return AppSettings{}, fmt.Errorf("load settings: %w", err)
+		return AppSettings{}, false, fmt.Errorf("load settings: %w", err)
+	}
+	if len(rows) == 0 {
+		return defaults(), false, nil
 	}
 
 	kv := make(map[string]string, len(rows))
@@ -69,13 +130,25 @@ func (m *Manager) GetSettings() (AppSettings, error) {
 	if v, ok := kv[keyTheme]; ok {
 		s.Theme = normalizeTheme(v)
 	}
-	return s, nil
+	return s, true, nil
 }
 
-func (m *Manager) SaveSettings(s AppSettings) error {
+func (m *Manager) writeTOMLSettings(s AppSettings) error {
+	file := settingsFileFromAppSettings(s)
+	data, err := toml.Marshal(file)
+	if err != nil {
+		return fmt.Errorf("encode settings toml: %w", err)
+	}
+	if err := atomicWriteFile(m.settingsPath, data, 0o600); err != nil {
+		return fmt.Errorf("save settings: %w", err)
+	}
+	return nil
+}
+
+func normalizeSettings(s AppSettings) (AppSettings, error) {
 	normalizedPath, err := normalizeAddonPath(s.AddonPath)
 	if err != nil {
-		return err
+		return AppSettings{}, err
 	}
 	s.AddonPath = normalizedPath
 	s.AutoUpdate = false
@@ -83,19 +156,68 @@ func (m *Manager) SaveSettings(s AppSettings) error {
 		s.MemoryLimitMB = defaults().MemoryLimitMB
 	}
 	s.Theme = normalizeTheme(s.Theme)
-	rows := []esoui.DBSetting{
-		{Key: keyAddonPath, Value: s.AddonPath},
-		{Key: keyAutoUpdate, Value: strconv.FormatBool(s.AutoUpdate)},
-		{Key: keyMemoryLimitMB, Value: strconv.Itoa(s.MemoryLimitMB)},
-		{Key: keyTheme, Value: s.Theme},
+	return s, nil
+}
+
+type settingsFile struct {
+	AddonPath     string `toml:"addon_path"`
+	AutoUpdate    bool   `toml:"auto_update"`
+	MemoryLimitMB int    `toml:"memory_limit_mb"`
+	Theme         string `toml:"theme"`
+}
+
+func settingsFileFromAppSettings(s AppSettings) settingsFile {
+	return settingsFile{
+		AddonPath:     s.AddonPath,
+		AutoUpdate:    s.AutoUpdate,
+		MemoryLimitMB: s.MemoryLimitMB,
+		Theme:         s.Theme,
 	}
-	if err := m.db.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "key"}},
-		DoUpdates: clause.AssignmentColumns([]string{"value"}),
-	}).Create(&rows).Error; err != nil {
-		return fmt.Errorf("save settings: %w", err)
+}
+
+func (f settingsFile) toAppSettings() AppSettings {
+	return AppSettings{
+		AddonPath:     f.AddonPath,
+		AutoUpdate:    f.AutoUpdate,
+		MemoryLimitMB: f.MemoryLimitMB,
+		Theme:         f.Theme,
 	}
-	return nil
+}
+
+var atomicWriteFile = writeFileAtomic
+
+func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, ".settings-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(perm); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, path)
+}
+
+func defaultSettingsPath() string {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(dir, "Scribe", "settings.toml")
 }
 
 func normalizeAddonPath(path string) (string, error) {

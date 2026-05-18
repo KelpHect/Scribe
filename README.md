@@ -80,13 +80,13 @@ Optional release asset:
 
 ## Local data
 
-Scribe stores settings, ESOUI catalog cache, search presets, and install MD5 records in one SQLite file named `esoui_cache.db` under the OS user config directory in a `Scribe` folder.
+Scribe stores user-facing settings in `settings.toml` and keeps ESOUI catalog cache, search presets, scanner cache, and install MD5 records in `esoui_cache.db`. Both files live under the OS user config directory in a `Scribe` folder.
 
-- Windows: `%AppData%\Scribe\esoui_cache.db`
-- macOS: `~/Library/Application Support/Scribe/esoui_cache.db`
-- Linux: `~/.config/Scribe/esoui_cache.db`
+- Windows: `%AppData%\Scribe\settings.toml` and `%AppData%\Scribe\esoui_cache.db`
+- macOS: `~/Library/Application Support/Scribe/settings.toml` and `~/Library/Application Support/Scribe/esoui_cache.db`
+- Linux: `~/.config/Scribe/settings.toml` and `~/.config/Scribe/esoui_cache.db`
 
-That database is separate from your ESO `AddOns` folder. To reset Scribe's cache/settings, close Scribe and rename or delete only `esoui_cache.db`; do not delete your AddOns directory. Scribe will recreate the database on next launch and refresh ESOUI data.
+Those files are separate from your ESO `AddOns` folder. To reset Scribe's settings or cache, close Scribe and rename or delete only `settings.toml` and/or `esoui_cache.db`; do not delete your AddOns directory. Scribe will recreate missing files on next launch and refresh ESOUI data.
 
 Scribe does not include telemetry or analytics. Network requests are for MMOUI/ESOUI catalog/download behavior and user-triggered external links.
 

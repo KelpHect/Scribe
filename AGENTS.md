@@ -43,7 +43,7 @@
 
 ## Stack
 - Go 1.26.3, Wails v2.12, Node.js 24/npm 11, Svelte 5 runes, TypeScript 6, Vite 8, Tailwind CSS v4.
-- SQLite uses GORM with `glebarez/sqlite`; app settings/cache live under the user config dir in `Scribe/esoui_cache.db`.
+- SQLite uses GORM with `glebarez/sqlite`; cache/state live in `Scribe/esoui_cache.db`, while user-facing settings live in `Scribe/settings.toml`.
 - Echo is only an indirect Wails dependency; the app has no application HTTP server except opt-in pprof.
 - Wails binds methods on `App` in `app.go`; frontend calls them through thin service wrappers and dynamic imports.
 - This is not SvelteKit: no SSR, file router, server endpoints, load functions, or SvelteKit APIs.
@@ -69,10 +69,10 @@
 - Missing dependency installs resolve a dependency folder to the latest canonical ESOUI catalog entry; manifest version constraints are shown for context and must not pin downloads to an older dependency release.
 
 ## Data and persistence rules
-- Preserve the historical config directory name `Scribe`; changing it strands existing `esoui_cache.db` settings/cache.
+- Preserve the historical config directory name `Scribe`; changing it strands existing `settings.toml` and `esoui_cache.db` data.
 - Cache TTL is 4 hours and schema-versioned (`cacheSchemaVersion`); cache schema changes must intentionally migrate or invalidate SQLite data.
-- Do not store settings in frontend-only state when they must survive restart; persist through `settings.Manager`/`SaveSettings`.
-- Search presets and install MD5 records share the app DB; keep migrations compatible with GORM `AutoMigrate`.
+- Do not store settings in frontend-only state when they must survive restart; persist through `settings.Manager`/`SaveSettings`, which writes `settings.toml` atomically.
+- Search presets, scanner cache, and install MD5 records share the app DB; keep migrations compatible with GORM `AutoMigrate`.
 - ESOUI MD5 is for download integrity and suppressing update false positives only; never present it as cryptographic security.
 - Network behavior is MMOUI bootstrap (`https://api.mmoui.com/v3/globalconfig.json`) plus discovered ESO feeds; tests should not require live ESOUI unless explicitly marked/manual.
 
@@ -117,7 +117,7 @@
 ## Tests and fixtures
 - Existing tests cover scanner parsing/path detection, ESOUI cache/client/install/download behavior, settings persistence, app-level safety helpers, and frontend store/service smoke flows; add focused tests near the package being changed.
 - Scanner invariant: canonical manifests named after the folder (`Folder.addon`/`Folder.txt`) must win over stub files.
-- Add/keep regression tests for parser dependency fields (`DependsOn`, `PCDependsOn`, `OptionalDependsOn`), color-code stripping, version matching, cache/settings DB round trips, extraction boundaries, and uninstall validation when touching those areas.
+- Add/keep regression tests for parser dependency fields (`DependsOn`, `PCDependsOn`, `OptionalDependsOn`), color-code stripping, version matching, cache DB round trips, settings TOML persistence/migration, extraction boundaries, and uninstall validation when touching those areas.
 - Use temp dirs/temp SQLite files for filesystem/database tests; never point tests at a real ESO AddOns directory or user config DB.
 - Prefer ESOUI fixture data or mocked clients for remote behavior; stop and ask if expected MMOUI behavior cannot be inferred safely.
 

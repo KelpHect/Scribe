@@ -100,7 +100,7 @@ Purpose: reduce update/matching/cache/settings regressions before broader distri
   - Completed: temp SQLite cache tests cover persisted feed URLs, addon/category JSON fields, Set/Get reload, stale detection, explicit `Invalidate`, and schema mismatch deletion.
   - Verification: `go test ./internal/esoui` passes.
 - [x] Add settings persistence tests.
-  - Completed: temp SQLite settings tests cover defaults, save/load, invalid memory/theme fallback, addon path round trip, rejected invalid paths, inert auto-update, and repeated saves updating existing rows.
+  - Completed: temp settings tests cover defaults, save/load, invalid memory/theme fallback, addon path round trip, rejected invalid paths, inert auto-update, TOML migration, invalid TOML fallback, and atomic write failure behavior.
   - Verification: `go test ./internal/settings` passes.
 - [x] Add install MD5 record tests and update-suppression coverage.
   - Completed: install MD5 tests cover save/read for multiple UIDs, empty/nil no-ops, existing UID updates, and update suppression behavior when stored and remote MD5 values match or differ.
@@ -449,9 +449,11 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
   - Acceptance criteria: extract only catalog indexing, update reason formatting, dependency display planning, and task summary shaping where tests/benchmarks justify it.
   - Completed: hot-path presentation logic is now covered by pure helpers for catalog indexing/search, update action formatting, dependency display planning, install preflight/recovery, detail cache bounds, and task-center summary labels; the route/component changes stay local and do not introduce a framework-wide architecture layer.
   - Verification: frontend helper tests cover catalog indexing, update action labels, dependency display planning, install summaries/recovery, detail-cache trimming, and task summary shaping.
-- [ ] Move user-facing settings from SQLite into an atomic `settings.toml` file while keeping SQLite for cache/state.
+- [x] Move user-facing settings from SQLite into an atomic `settings.toml` file while keeping SQLite for cache/state.
   - Evidence: SQLite is appropriate for ESOUI catalog cache, category data, install MD5 records, and keyed app state, but small human-facing settings such as AddOns path, theme, and diagnostics thresholds are easier to inspect, recover, and edit safely as TOML.
   - Acceptance criteria: app stores settings at the existing user config dir as `settings.toml`, keeps `esoui_cache.db` for catalog/cache/install records, validates TOML settings before use, writes via temp-file-plus-rename, migrates existing SQLite settings to TOML once without losing AddOns path/theme/memory values, and has temp-dir tests for fresh settings, migration, invalid TOML fallback, and atomic write failure behavior.
+  - Completed: `internal/settings` now reads and writes `settings.toml` atomically under the existing `Scribe` config dir, validates and normalizes values before use, keeps auto-update inert, migrates legacy SQLite settings into TOML on first read, and leaves `esoui_cache.db` for cache/state records.
+  - Verification: temp-dir settings tests cover fresh defaults, save/load, SQLite-to-TOML migration, invalid TOML fallback, and injected atomic write failure preserving the previous file.
 - [ ] Audit dependencies for real use and runtime impact.
   - Evidence: current `node_modules` has extraneous packages locally, and package churn can obscure real performance work.
   - Acceptance criteria: verify usage before removal, clean install with npm, compare build report/lockfile effects, and keep dependencies that solve real problems such as virtualization/query caching.
@@ -471,8 +473,8 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
   - Evidence: `TestScanAddonDir_FallsBackToAlphabetical` covers a non-canonical manifest fallback in a temp addon directory.
 - [x] Remote catalog cache is SQLite-backed and schema-versioned.
   - Evidence: `internal/esoui/cache.go` stores addons/categories/meta in `esoui_cache.db` under the historical `Scribe` config dir with `cacheSchemaVersion = "2"`.
-- [x] Settings/cache/search presets/install MD5 records share one app DB with GORM migrations.
-  - Evidence: `OpenDB` automigrates remote addons, categories, cache meta, settings, search presets, and install records.
+- [x] Settings use TOML while cache/search presets/scanner cache/install MD5 records stay SQLite-backed.
+  - Evidence: `internal/settings` reads and writes `settings.toml`; `OpenDB` automigrates remote addons, categories, cache meta, legacy settings, search presets, scanner cache, and install records.
 - [x] Frontend uses generated Wails bindings through thin service wrappers.
   - Evidence: services under `frontend/src/lib/services` call `callWails`/dynamic Wails imports; `frontend/wailsjs` is absent and treated as generated.
 - [x] Route components are dynamically loaded except the initial Installed page.
