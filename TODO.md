@@ -349,9 +349,11 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
   - Acceptance criteria: scanner stores safe per-folder metadata in the app DB or a cache table, reparses changed folders only, invalidates correctly on folder deletion/rename, and preserves canonical-manifest preference tests.
   - Completed: scanner now fingerprints addon manifest files per folder, reuses cached parsed addons when fingerprints match, persists the cache in the app SQLite DB through `scanner_cache`, and replaces cache rows for the active AddOns path on each successful scan.
   - Verification: scanner tests cover reuse for unchanged folders, cache round-trip tests cover the SQLite-backed scanner cache, and existing canonical/fallback manifest tests remain in place.
-- [ ] Make remote catalog refresh more visibly background-first.
+- [x] Make remote catalog refresh more visibly background-first.
   - Evidence: stale cache handling exists, but the UI should never feel empty or blocked when a usable cached ESOUI catalog exists.
   - Acceptance criteria: cached remote data appears immediately when available, stale/background refresh status remains visible, refresh failure keeps prior results, and manual refresh does not duplicate in-flight work.
+  - Completed: remote catalog status now reports refresh-in-flight and refresh-started timestamps, Find More shows an explicit cached-data/background-refresh banner, manual refresh uses the same in-flight guard, and frontend refresh failures no longer replace existing cached results with an empty list.
+  - Verification: backend tests cover refresh in-flight status/guarding, frontend catalog-status tests cover the in-flight cached-data state, and service tests cover normalized status fields.
 
 ### Catalog, search, and rendering jank
 

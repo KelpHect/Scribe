@@ -47,6 +47,7 @@ type App struct {
 	lastRefreshMS   int64
 	lastRefreshErr  string
 	refreshInFlight bool
+	refreshStarted  time.Time
 
 	scanMu             sync.RWMutex
 	cachedStateReadyAt time.Time
@@ -134,6 +135,8 @@ type RemoteCatalogStatus struct {
 	HasData          bool   `json:"hasData"`
 	CacheStale       bool   `json:"cacheStale"`
 	LastRefreshError string `json:"lastRefreshError"`
+	RefreshInFlight  bool   `json:"refreshInFlight"`
+	RefreshStartedAt string `json:"refreshStartedAt"`
 }
 
 func (a *App) shutdown(ctx context.Context) {
@@ -792,6 +795,8 @@ func (a *App) beginRemoteRefresh() bool {
 		return false
 	}
 	a.refreshInFlight = true
+	a.refreshStarted = time.Now()
+	a.lastRefreshErr = ""
 	return true
 }
 
@@ -807,16 +812,24 @@ func (a *App) GetRemoteCatalogStatus() RemoteCatalogStatus {
 	a.remoteMu.RLock()
 	hasData := len(a.remoteList) > 0
 	lastErr := a.lastRefreshErr
+	refreshInFlight := a.refreshInFlight
+	refreshStarted := a.refreshStarted
 	a.remoteMu.RUnlock()
 
 	return RemoteCatalogStatus{
 		HasData:          hasData,
 		CacheStale:       a.esoCache != nil && a.esoCache.IsStale(),
 		LastRefreshError: lastErr,
+		RefreshInFlight:  refreshInFlight,
+		RefreshStartedAt: formatTime(refreshStarted),
 	}
 }
 
 func (a *App) RefreshRemoteAddons() ([]esoui.RemoteAddon, error) {
+	if !a.beginRemoteRefresh() {
+		return a.getRemoteList(), nil
+	}
+	defer a.endRemoteRefresh()
 	if a.esoCache != nil {
 		a.esoCache.Invalidate()
 	}

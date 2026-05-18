@@ -56,6 +56,7 @@ let installingUID: string | null = $state(null);
 const pendingInstallUIDs = new SvelteSet<string>();
 let installError: string | null = $state(null);
 let refreshing: boolean = $state(false);
+let refreshError: string | null = $state(null);
 
 // sidebar needs a tiny bit of shared state here instead of subscribing to the whole installed query
 let updateCount: number = $state(0);
@@ -67,8 +68,11 @@ export function _setUpdateCount(n: number) {
 async function forceRefresh(): Promise<void> {
   if (refreshing) return;
   refreshing = true;
+  refreshError = null;
   try {
     await refreshRemoteCatalog();
+  } catch (e) {
+    refreshError = e instanceof Error ? e.message : 'Remote catalog refresh failed';
   } finally {
     refreshing = false;
   }
@@ -178,6 +182,9 @@ export function getRemoteStore() {
     },
     get refreshing() {
       return refreshing;
+    },
+    get refreshError() {
+      return refreshError;
     },
     get updateCount() {
       return updateCount;

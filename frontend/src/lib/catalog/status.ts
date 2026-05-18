@@ -1,6 +1,11 @@
 import type { RemoteCatalogStatus } from '$lib/services/esoui-service';
 
-export type CatalogStatusView = 'ready' | 'stale-refresh-failed' | 'showing-stale-cache' | 'no-cache';
+export type CatalogStatusView =
+  | 'ready'
+  | 'refreshing-cache'
+  | 'stale-refresh-failed'
+  | 'showing-stale-cache'
+  | 'no-cache';
 
 interface CatalogStatusInput {
   remoteCount: number;
@@ -10,6 +15,9 @@ interface CatalogStatusInput {
 }
 
 export function getCatalogStatusView(input: CatalogStatusInput): CatalogStatusView {
+  if (input.remoteCount > 0 && input.remoteStatus?.refreshInFlight) {
+    return 'refreshing-cache';
+  }
   if (input.remoteCount > 0 && input.remoteStatus?.cacheStale && input.remoteStatus.lastRefreshError) {
     return 'stale-refresh-failed';
   }

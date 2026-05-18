@@ -160,6 +160,7 @@
     })
   );
   const staleRefreshFailed = $derived(catalogStatusView === 'stale-refresh-failed');
+  const refreshingCache = $derived(catalogStatusView === 'refreshing-cache');
   const showingStaleCache = $derived(catalogStatusView === 'showing-stale-cache');
 
   const categoryMap = $derived(new Map(categories.map((c: Category) => [c.id, c])));
@@ -640,7 +641,19 @@
           </div>
         </div>
       {:else}
-        {#if staleRefreshFailed}
+        {#if refreshingCache}
+          <div
+            class="border-border bg-muted/40 text-muted-foreground flex items-center justify-between gap-3 rounded-lg border p-3 text-sm"
+          >
+            <div class="flex min-w-0 items-center gap-2">
+              <Loader2 size={16} class="shrink-0 animate-spin" />
+              <span>Showing cached ESOUI data while a background refresh is running.</span>
+            </div>
+            <Button variant="ghost" size="sm" disabled>
+              Refreshing
+            </Button>
+          </div>
+        {:else if staleRefreshFailed}
           <div
             class="border-amber-500/40 bg-amber-500/10 flex items-center justify-between gap-3 rounded-lg border p-3"
           >

@@ -13,17 +13,21 @@ describe('fetchRemoteCatalogStatus', () => {
     mockedCallWails.mockReset();
   });
 
-  it('returns the Wails catalog status payload', async () => {
+	  it('returns the Wails catalog status payload', async () => {
     mockedCallWails.mockResolvedValueOnce({
       hasData: true,
       cacheStale: true,
-      lastRefreshError: 'network unavailable'
+      lastRefreshError: 'network unavailable',
+      refreshInFlight: true,
+      refreshStartedAt: '2026-05-18T12:00:00Z'
     } as never);
 
     await expect(fetchRemoteCatalogStatus()).resolves.toEqual({
       hasData: true,
       cacheStale: true,
-      lastRefreshError: 'network unavailable'
+      lastRefreshError: 'network unavailable',
+      refreshInFlight: true,
+      refreshStartedAt: '2026-05-18T12:00:00Z'
     });
     expect(mockedCallWails).toHaveBeenCalledWith('GetRemoteCatalogStatus');
   });
@@ -34,7 +38,9 @@ describe('fetchRemoteCatalogStatus', () => {
     await expect(fetchRemoteCatalogStatus()).resolves.toEqual({
       hasData: false,
       cacheStale: false,
-      lastRefreshError: ''
+      lastRefreshError: '',
+      refreshInFlight: false,
+      refreshStartedAt: ''
     });
   });
 });

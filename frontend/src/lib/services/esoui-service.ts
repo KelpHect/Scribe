@@ -50,6 +50,8 @@ export interface RemoteCatalogStatus {
   hasData: boolean;
   cacheStale: boolean;
   lastRefreshError: string;
+  refreshInFlight: boolean;
+  refreshStartedAt: string;
 }
 
 function normalizeMatchedAddon(match: WailsEsoui.MatchedAddon): MatchedAddon {
@@ -72,21 +74,18 @@ export async function fetchRemoteAddons(): Promise<RemoteAddon[]> {
 }
 
 export async function fetchRemoteCatalogStatus(): Promise<RemoteCatalogStatus> {
-  return (
-    (await callWails('GetRemoteCatalogStatus')) ?? {
-      hasData: false,
-      cacheStale: false,
-      lastRefreshError: ''
-    }
-  );
+  const status = (await callWails('GetRemoteCatalogStatus')) as RemoteCatalogStatus | undefined;
+  return {
+    hasData: status?.hasData ?? false,
+    cacheStale: status?.cacheStale ?? false,
+    lastRefreshError: status?.lastRefreshError ?? '',
+    refreshInFlight: status?.refreshInFlight ?? false,
+    refreshStartedAt: status?.refreshStartedAt ?? ''
+  };
 }
 
 export async function refreshRemoteAddons(): Promise<RemoteAddon[]> {
-  try {
-    return (await callWails('RefreshRemoteAddons')) ?? [];
-  } catch {
-    return [];
-  }
+  return (await callWails('RefreshRemoteAddons')) ?? [];
 }
 
 export async function searchRemoteAddons(query: string): Promise<RemoteAddon[]> {
