@@ -91,9 +91,9 @@ Purpose: reduce update/matching/cache/settings regressions before broader distri
 - [x] Add cache database round-trip and schema-invalidation tests.
   - Completed: temp SQLite cache tests cover persisted feed URLs, addon/category JSON fields, Set/Get reload, stale detection, explicit `Invalidate`, and schema mismatch deletion.
   - Verification: `go test ./internal/esoui` passes.
-- [ ] Add settings persistence tests.
-  - Evidence: `internal/settings/settings.go` has defaults, bool/int parsing, theme fallback, and upsert logic with no direct tests.
-  - Acceptance criteria: temp SQLite tests cover defaults, save/load, invalid memory/theme fallback, addon path round trip, and repeated saves updating existing rows.
+- [x] Add settings persistence tests.
+  - Completed: temp SQLite settings tests cover defaults, save/load, invalid memory/theme fallback, addon path round trip, rejected invalid paths, inert auto-update, and repeated saves updating existing rows.
+  - Verification: `go test ./internal/settings` passes.
 - [ ] Add install MD5 record tests and update-suppression coverage.
   - Evidence: `SaveInstallMD5`, `GetInstallMD5s`, and `App.suppressMD5FalsePositives` suppress update false positives based on ESOUI MD5, but only persistence helpers exist and are untested.
   - Acceptance criteria: tests cover save/read for multiple UIDs, empty/nil no-ops, and update suppression when stored and remote MD5 match while preserving updates when they differ.
