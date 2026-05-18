@@ -238,9 +238,9 @@ Purpose: improve the app without replacing Wails/Svelte/Go: fewer crashes, smoot
 - [x] Add a local-only redacted diagnostics export.
   - Completed: Settings now exposes a local copy-to-clipboard diagnostics export with app/build/platform data, redacted AddOns paths, startup timings, memory, persistence status, catalog/cache state, frontend cache counters, and recent failed install/update tasks.
   - Verification: `frontend/src/lib/diagnostics/export.test.ts` covers path/error redaction and payload content; `npm --prefix frontend run test` and `npm --prefix frontend run check` pass.
-- [ ] Audit background goroutine and async task lifecycles for shutdown safety.
-  - Evidence: download cancellation has regression coverage, but remote refresh, startup scans, diagnostics refresh, and future workers should have the same idempotent shutdown expectations.
-  - Acceptance criteria: tests or focused harnesses prove repeated cancel/shutdown calls do not panic, leak task ownership, or update UI state after shutdown.
+- [x] Audit background goroutine and async task lifecycles for shutdown safety.
+  - Completed: remote catalog refresh now skips cache/UI state writes after shutdown cancellation, app shutdown remains idempotent while waiting on background refresh work, and frontend download-store listener shutdown clears delayed dependency-check and invalidation timers.
+  - Verification: `shutdown_lifecycle_test.go` covers post-shutdown catalog-write suppression plus repeated shutdown waiting on background work; `go test . ./internal/esoui`, `npm --prefix frontend run check`, and frontend smoke tests pass.
 
 ### Install, update, and dependency reliability
 

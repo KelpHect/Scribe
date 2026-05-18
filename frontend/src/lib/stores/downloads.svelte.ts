@@ -79,8 +79,15 @@ let cleanupFn: (() => void) | null = null;
 
 let depCheckTimer: ReturnType<typeof setTimeout> | null = null;
 
+function clearDepCheckTimer() {
+  if (depCheckTimer !== null) {
+    clearTimeout(depCheckTimer);
+    depCheckTimer = null;
+  }
+}
+
 function scheduleMissingDepCheck() {
-  if (depCheckTimer !== null) clearTimeout(depCheckTimer);
+  clearDepCheckTimer();
   depCheckTimer = setTimeout(() => {
     depCheckTimer = null;
 
@@ -90,8 +97,15 @@ function scheduleMissingDepCheck() {
 }
 
 let invalidateTimer: ReturnType<typeof setTimeout> | null = null;
+function clearInvalidateTimer() {
+  if (invalidateTimer !== null) {
+    clearTimeout(invalidateTimer);
+    invalidateTimer = null;
+  }
+}
+
 function scheduleInvalidate() {
-  if (invalidateTimer !== null) clearTimeout(invalidateTimer);
+  clearInvalidateTimer();
   invalidateTimer = setTimeout(() => {
     invalidateTimer = null;
     void refreshInstalledState();
@@ -158,6 +172,8 @@ export async function startListening(): Promise<void> {
 
 export function stopListening(): void {
   if (cleanupFn) cleanupFn();
+  clearDepCheckTimer();
+  clearInvalidateTimer();
 }
 
 export async function installAddon(uid: string, name?: string): Promise<boolean> {

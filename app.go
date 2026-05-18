@@ -500,6 +500,16 @@ func (a *App) refreshRemoteList() error {
 		cats = nil
 	}
 	feeds := a.esoClient.FeedURLs()
+	if !a.applyRemoteCatalog(addons, cats, feeds) {
+		return context.Canceled
+	}
+	return nil
+}
+
+func (a *App) applyRemoteCatalog(addons []esoui.RemoteAddon, cats []esoui.Category, feeds *esoui.APIFeeds) bool {
+	if a.shutdownRequested() {
+		return false
+	}
 	if feeds != nil && a.esoCache != nil {
 		_ = a.esoCache.Set(*feeds, addons, cats)
 	}
@@ -508,7 +518,11 @@ func (a *App) refreshRemoteList() error {
 	a.remoteCategories = cats
 	a.lastRefreshErr = ""
 	a.remoteMu.Unlock()
-	return nil
+	return true
+}
+
+func (a *App) shutdownRequested() bool {
+	return a.shutdownCtx != nil && a.shutdownCtx.Err() != nil
 }
 
 func (a *App) getRemoteList() []esoui.RemoteAddon {
