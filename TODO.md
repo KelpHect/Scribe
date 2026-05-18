@@ -362,9 +362,11 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
   - Acceptance criteria: create a tested pure catalog index that precomputes lowercase title/author/folder fields, category name/order, latest compatibility, date number, library-like flag, and stable sort keys; sorting reuses per-query search scores instead of recomputing them in comparators.
   - Completed: Find More now builds a pure indexed remote catalog with precomputed lowercase title/author/folder fields, category names/order, latest compatibility, date timestamps, library-like flags, icon metadata, compatibility versions, and stable sort inputs; filtering computes each query score once per candidate and sorting reuses that score.
   - Verification: `remote-catalog-index.test.ts` covers indexing fields, search ranking, installed/content/version/category filters, category counts, sort keys, and game-version option sorting; frontend catalog benchmarks now include indexed filter/sort timing.
-- [ ] Add a worker-backed catalog filtering spike if main-thread filtering still exceeds frame budget.
+- [x] Add a worker-backed catalog filtering spike if main-thread filtering still exceeds frame budget.
   - Evidence: a large ESOUI catalog can make search/filter/sort CPU-bound even with virtualization.
   - Acceptance criteria: timeboxed Web Worker or worker-like spike processes fixture catalog search/filter/sort off the UI thread and is kept only if it measurably improves responsiveness without complicating state flow.
+  - Completed: the spike was closed without keeping a worker because the indexed main-thread fixture path is already below frame budget (`remote catalog indexed filter and sort` mean: 0.5720 ms for the 7k-addon benchmark). A worker would add catalog serialization, lifecycle, and fallback complexity without a measured responsiveness win at the current bottleneck.
+  - Verification: `npm --prefix frontend run bench -- --run` reports the indexed path faster than the older large-catalog score and metadata-prep benchmarks.
 - [ ] Tighten virtual-list and image behavior.
   - Evidence: virtualized lists exist, but image load, item measurement, overscan, and details preloading can still cause scroll hitching.
   - Acceptance criteria: list rows keep stable dimensions, lazy images have fixed boxes and fallbacks, overscan is bounded, image/detail prefetch is limited, and scroll remains smooth on large installed and remote lists.
