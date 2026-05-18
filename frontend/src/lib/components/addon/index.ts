@@ -8,4 +8,5 @@ export { default as OptionalDependencyList } from './OptionalDependencyList.svel
 export { default as AddonMetadataGrid } from './AddonMetadataGrid.svelte';
 export { default as CategoryHeader } from './CategoryHeader.svelte';
 export { default as MissingDepsBanner } from './MissingDepsBanner.svelte';
+export { default as AddonHealthPanel } from './AddonHealthPanel.svelte';
 export { default as UpdateRow } from './UpdateRow.svelte';

@@ -17,7 +17,7 @@
   import { PageToolbar } from '$lib/components/layout';
   import AddonCard from '$lib/components/addon/AddonCard.svelte';
   import AddonDetail from '$lib/components/addon/AddonDetail.svelte';
-  import { CategoryHeader, MissingDepsBanner } from '$lib/components/addon';
+  import { CategoryHeader, MissingDepsBanner, AddonHealthPanel } from '$lib/components/addon';
   import {
     openContextMenu,
     openContextMenuAt,
@@ -26,6 +26,7 @@
   import { fetchAddonPath, fetchInstalledAddons, openPath, type Addon } from '$lib/services/addon-service';
   import { openExternalURL } from '$lib/services/runtime-service';
   import { getRemoteStore } from '$lib/stores';
+  import { buildAddonHealthSummary } from '$lib/addons/health';
   import { batchInstall } from '$lib/stores/downloads.svelte';
   import { _setUpdateCount } from '$lib/stores/remote.svelte';
   import { uninstallRemoteAddons } from '$lib/stores/remote-mutations.svelte';
@@ -108,6 +109,23 @@
     }
   }
 
+  async function queueAvailableUpdates() {
+    const uids = Array.from(
+      new Set(
+        updatesAvailable
+          .map((match) => match.remote?.uid)
+          .filter((uid): uid is string => !!uid)
+      )
+    );
+    if (uids.length === 0) return;
+    batchInstalling = true;
+    try {
+      await batchInstall(uids);
+    } finally {
+      batchInstalling = false;
+    }
+  }
+
   const installableRequiredDeps = $derived(missingDeps.filter((d) => d.canInstall && !d.optional));
   const installableOptionalDeps = $derived(missingDeps.filter((d) => d.canInstall && d.optional));
 
@@ -169,6 +187,7 @@
   const totalCount = $derived(addons.length);
 
   const updatesAvailable = $derived(matchedAddons.filter((m: MatchedAddon) => m.updateAvailable));
+  const healthSummary = $derived(buildAddonHealthSummary(addons, matchedAddons, missingDeps));
 
   $effect(() => {
     _setUpdateCount(updatesAvailable.length);
@@ -638,6 +657,15 @@
         {batchInstalling}
         oninstall={() => installMissingDeps(true)}
         ondismiss={() => (dismissedOptionalDeps = true)}
+      />
+    {/if}
+
+    {#if !loading && addonPath !== ''}
+      <AddonHealthPanel
+        summary={healthSummary}
+        busy={batchInstalling}
+        oninstallrequired={() => installMissingDeps(false)}
+        onqueueupdates={queueAvailableUpdates}
       />
     {/if}
 

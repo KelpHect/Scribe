@@ -283,9 +283,11 @@ Purpose: improve the app without replacing Wails/Svelte/Go: fewer crashes, smoot
 - [x] Improve addon detail pages for update/install decisions.
   - Evidence: users need enough context to decide whether to install, update, or add optional dependencies without opening the browser for every addon.
   - Acceptance criteria: detail views clearly show installed/remote versions, update reason, dependency status, optional dependency affordances, ESOUI link, cached freshness, and safe install/update actions.
-- [ ] Add local-only addon health insights.
+- [x] Add local-only addon health insights.
   - Evidence: Scribe already scans manifests and dependencies; it can surface actionable local issues without cloud features or extra sources.
   - Acceptance criteria: health view flags missing required libraries, outdated-by-metadata addons, orphaned unknown folders, disabled/stub manifests where detectable, and provides safe actions without bulk deleting user folders.
+  - Completed: Installed now shows a local health panel derived from installed manifests, matched ESOUI metadata, and missing dependency results. It flags missing required libraries, metadata-reported updates, unknown local folders, and disabled/stub-like manifests where detectable, with safe actions to install required dependencies or queue updates only.
+  - Verification: `frontend/src/lib/addons/health.test.ts` covers each issue class and non-destructive action eligibility.
 
 ### Performance and maintainability
 
