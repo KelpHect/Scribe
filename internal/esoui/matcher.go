@@ -10,6 +10,15 @@ import (
 
 var versionNumRe = regexp.MustCompile(`\d+`)
 
+const (
+	UpdateStateUpToDate       = "up-to-date"
+	UpdateStateRemoteNewer    = "remote-newer"
+	UpdateStateLocalNewer     = "local-newer"
+	UpdateStateMD5OnlyChanged = "md5-only-changed"
+	UpdateStateUnknownVersion = "unknown-version"
+	UpdateStateUnmatched      = "unmatched"
+)
+
 func buildDirIndex(remotes []RemoteAddon) map[string][]*RemoteAddon {
 	index := make(map[string][]*RemoteAddon, len(remotes))
 	for i := range remotes {
@@ -30,6 +39,13 @@ func MatchAddons(locals []*addon.Addon, remotes []RemoteAddon) []MatchedAddon {
 		key := strings.ToLower(local.FolderName)
 		candidates, ok := index[key]
 		if !ok || len(candidates) == 0 {
+			matched = append(matched, MatchedAddon{
+				FolderName:    local.FolderName,
+				LocalVersion:  local.Version,
+				UpdateState:   UpdateStateUnmatched,
+				UpdateReason:  "No ESOUI catalog entry matched this addon folder.",
+				RemoteVersion: "",
+			})
 			continue
 		}
 
@@ -40,30 +56,40 @@ func MatchAddons(locals []*addon.Addon, remotes []RemoteAddon) []MatchedAddon {
 			}
 		}
 
-		updateAvailable := isUpdateAvailable(local.Version, best.UIVersion)
+		state, updateAvailable, reason := classifyVersionUpdate(local.Version, best.UIVersion)
 		matched = append(matched, MatchedAddon{
 			FolderName:      local.FolderName,
 			Remote:          best,
 			UpdateAvailable: updateAvailable,
 			LocalVersion:    local.Version,
 			RemoteVersion:   best.UIVersion,
+			UpdateState:     state,
+			UpdateReason:    reason,
 		})
 	}
 	return matched
 }
 
 func isUpdateAvailable(local, remote string) bool {
+	_, update, _ := classifyVersionUpdate(local, remote)
+	return update
+}
+
+func classifyVersionUpdate(local, remote string) (string, bool, string) {
 	local = strings.TrimSpace(local)
 	remote = strings.TrimSpace(remote)
 	if local == "" || remote == "" {
-		return false
+		return UpdateStateUnknownVersion, false, "Local or remote version is missing, so Scribe will not auto-offer an update from version text alone."
 	}
 	if local == remote {
-		return false
+		return UpdateStateUpToDate, false, "Local and ESOUI versions match."
 	}
 
 	lParts := extractVersionParts(local)
 	rParts := extractVersionParts(remote)
+	if len(lParts) == 0 || len(rParts) == 0 {
+		return UpdateStateUnknownVersion, false, "Version text could not be compared safely."
+	}
 
 	max := len(lParts)
 	if len(rParts) > max {
@@ -78,14 +104,14 @@ func isUpdateAvailable(local, remote string) bool {
 			rv = rParts[i]
 		}
 		if rv > lv {
-			return true
+			return UpdateStateRemoteNewer, true, "ESOUI has a newer version."
 		}
 		if rv < lv {
-			return false
+			return UpdateStateLocalNewer, false, "Local version appears newer than ESOUI."
 		}
 	}
 
-	return false
+	return UpdateStateUpToDate, false, "Local and ESOUI versions compare as equal."
 }
 
 func extractVersionParts(s string) []int {

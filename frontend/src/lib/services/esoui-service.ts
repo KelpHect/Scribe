@@ -42,6 +42,8 @@ export interface MatchedAddon {
   updateAvailable: boolean;
   localVersion: string;
   remoteVersion: string;
+  updateState: string;
+  updateReason: string;
 }
 
 export interface RemoteCatalogStatus {
@@ -51,10 +53,16 @@ export interface RemoteCatalogStatus {
 }
 
 function normalizeMatchedAddon(match: WailsEsoui.MatchedAddon): MatchedAddon {
+  const withState = match as WailsEsoui.MatchedAddon & {
+    updateState?: string;
+    updateReason?: string;
+  };
   return {
     ...match,
     remote: match.remote ?? null,
-    details: match.details ?? null
+    details: match.details ?? null,
+    updateState: withState.updateState ?? (match.updateAvailable ? 'remote-newer' : 'up-to-date'),
+    updateReason: withState.updateReason ?? ''
   };
 }
 

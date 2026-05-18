@@ -827,7 +827,7 @@ func (a *App) suppressMD5FalsePositives(matched []esoui.MatchedAddon) []esoui.Ma
 
 	var updateUIDs []string
 	for _, m := range matched {
-		if m.UpdateAvailable && m.Remote != nil {
+		if m.Remote != nil {
 			updateUIDs = append(updateUIDs, m.Remote.UID)
 		}
 	}
@@ -866,13 +866,19 @@ func (a *App) suppressMD5FalsePositives(matched []esoui.MatchedAddon) []esoui.Ma
 func suppressMD5Matches(matched []esoui.MatchedAddon, storedMD5s, remoteMD5s map[string]string) []esoui.MatchedAddon {
 	for i := range matched {
 		m := &matched[i]
-		if !m.UpdateAvailable || m.Remote == nil {
+		if m.Remote == nil {
 			continue
 		}
 		uid := m.Remote.UID
 		if stored, ok := storedMD5s[uid]; ok && stored != "" {
 			if remote, ok2 := remoteMD5s[uid]; ok2 && remote != "" && stored == remote {
 				m.UpdateAvailable = false
+				m.UpdateState = esoui.UpdateStateUpToDate
+				m.UpdateReason = "Installed download MD5 matches ESOUI, so Scribe is suppressing a version-text false positive."
+			} else if ok2 && remote != "" && !m.UpdateAvailable && m.UpdateState == esoui.UpdateStateUpToDate {
+				m.UpdateAvailable = true
+				m.UpdateState = esoui.UpdateStateMD5OnlyChanged
+				m.UpdateReason = "ESOUI download MD5 changed while the version text stayed the same."
 			}
 		}
 	}

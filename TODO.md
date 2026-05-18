@@ -250,9 +250,9 @@ Purpose: improve the app without replacing Wails/Svelte/Go: fewer crashes, smoot
 - [x] Make install/update extraction atomic or rollback-safe.
   - Completed: installs and updates now extract into a temporary staging directory under AddOns, then commit planned folders with backups for replacements and rollback on commit failure; cancellation and invalid archives return before touching existing addon folders and temp staging/backup dirs are cleaned.
   - Verification: `internal/esoui/installer_test.go` covers successful replacement/add, cancellation, invalid archive, and simulated commit failure rollback; `internal/esoui/download_manager_test.go` confirms cancelled extraction leaves no partial addon folder.
-- [ ] Improve update detection states for ESOUI version and MD5 edge cases.
-  - Evidence: ESOUI metadata can be inconsistent; users need clearer states than a single update badge when version, MD5, local-newer, unknown, or unchanged cases disagree.
-  - Acceptance criteria: matching classifies up-to-date, remote-newer, local-newer, MD5-only changed, unknown-version, and unmatched states; tests cover each state; UI labels explain why an update is or is not offered.
+- [x] Improve update detection states for ESOUI version and MD5 edge cases.
+  - Completed: matched addons now carry explicit `updateState`/`updateReason` values for up-to-date, remote-newer, local-newer, MD5-only changed, unknown-version, and unmatched cases; stored install MD5s can offer same-version download changes while suppressing matching-MD5 false positives, and Updates rows display the state/reason.
+  - Verification: `internal/esoui/matcher_test.go` covers version states and unmatched locals; `md5_suppression_test.go` covers MD5 false-positive suppression plus MD5-only changed updates; frontend type checks and smoke tests pass.
 - [ ] Add a dependency install plan with required/optional/version clarity.
   - Evidence: missing dependency discovery exists, but bulk dependency installs should show what will be installed, skipped, unresolved, optional, or version-constrained before queueing.
   - Acceptance criteria: dependency plan groups required and optional dependencies, marks installed/up-to-date/unresolved items, explains non-installable dependencies, dedupes shared dependencies, and only queues the confirmed installable set.

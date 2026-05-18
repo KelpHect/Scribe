@@ -23,6 +23,19 @@
 
   const { match, iconUrl, isThumbnail, task, isUpdating, globalInstalling, onupdate }: Props = $props();
 
+  const stateLabel = $derived.by(() => {
+    switch (match.updateState) {
+      case 'md5-only-changed':
+        return 'Download changed';
+      case 'remote-newer':
+        return 'Newer version';
+      case 'unknown-version':
+        return 'Version unknown';
+      default:
+        return 'Update available';
+    }
+  });
+
   async function openEsoui(e: MouseEvent) {
     e.preventDefault();
     const url = match.remote?.uiFileInfoUrl;
@@ -57,6 +70,7 @@
         <Badge variant="secondary">{match.localVersion}</Badge>
         <span class="text-muted-foreground text-xs">→</span>
         <Badge variant="destructive">{match.remoteVersion}</Badge>
+        <Badge variant="outline">{stateLabel}</Badge>
       </div>
       <div class="text-muted-foreground mt-0.5 truncate text-xs">
         {match.remote?.uiAuthorName ?? 'Unknown Author'}
@@ -70,6 +84,9 @@
           >
         {/if}
       </div>
+      {#if match.updateReason}
+        <p class="text-muted-foreground mt-1 line-clamp-2 text-xs">{match.updateReason}</p>
+      {/if}
     </div>
 
     <Button
@@ -82,6 +99,8 @@
         <Loader2 size={14} class="animate-spin" />
         {#if task?.state === 'queued'}
           Queued
+        {:else if task?.state === 'planning'}
+          Planning...
         {:else if task?.state === 'downloading'}
           {task.percent > 0 ? `${Math.round(task.percent)}%` : 'Downloading...'}
         {:else}

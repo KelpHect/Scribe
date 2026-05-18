@@ -64,6 +64,8 @@ type MatchedAddon struct {
 	UpdateAvailable bool                `json:"updateAvailable"`
 	LocalVersion    string              `json:"localVersion"`
 	RemoteVersion   string              `json:"remoteVersion"`
+	UpdateState     string              `json:"updateState"`
+	UpdateReason    string              `json:"updateReason"`
 }
 
 type MissingDepInfo struct {

@@ -149,6 +149,7 @@
             {@const task = getTaskState(uid)}
             {@const isUpdating =
               task?.state === 'queued' ||
+              task?.state === 'planning' ||
               task?.state === 'downloading' ||
               task?.state === 'extracting'}
             <UpdateRow
