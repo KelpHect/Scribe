@@ -139,14 +139,18 @@ func convertCategory(c apiCategory) Category {
 }
 
 type Client struct {
-	http       *http.Client
-	gameConfig *GameConfig
-	feedURLs   *APIFeeds
+	http          *http.Client
+	gameConfig    *GameConfig
+	feedURLs      *APIFeeds
+	bootstrapURL  string
+	retryBaseWait time.Duration
 }
 
 func NewClient() *Client {
 	return &Client{
-		http: &http.Client{Timeout: httpTimeout},
+		http:          &http.Client{Timeout: httpTimeout},
+		bootstrapURL:  bootstrapURL,
+		retryBaseWait: retryBaseWait,
 	}
 }
 
@@ -176,7 +180,7 @@ func (c *Client) CloseIdleConnections() {
 
 func (c *Client) fetchGlobalConfig() (string, error) {
 	var cfg apiGlobalConfig
-	if err := c.getJSON(bootstrapURL, &cfg); err != nil {
+	if err := c.getJSON(c.bootstrapURL, &cfg); err != nil {
 		return "", err
 	}
 
@@ -256,7 +260,7 @@ func (c *Client) FetchCategories() ([]Category, error) {
 
 func (c *Client) getJSON(url string, v any) error {
 	var lastErr error
-	wait := retryBaseWait
+	wait := c.retryBaseWait
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
 			time.Sleep(wait)

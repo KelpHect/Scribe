@@ -100,9 +100,9 @@ Purpose: reduce update/matching/cache/settings regressions before broader distri
 
 ### Network/API
 
-- [ ] Add MMOUI/ESOUI client fixture tests for API conversion and retry behavior.
-  - Evidence: `internal/esoui/client.go` converts MMOUI dates/counts/categories/details, retries 5xx responses, and bootstraps feed URLs from `globalconfig.json`, but tests currently do not mock HTTP.
-  - Acceptance criteria: `httptest`-based tests cover active/inactive global config, missing ESO game, 5xx retry, non-200 failure, malformed JSON, date/count parsing, category parent IDs, and details URL formation.
+- [x] Add MMOUI/ESOUI client fixture tests for API conversion and retry behavior.
+  - Completed: `httptest` client fixtures cover active/inactive global config, inactive/missing ESO game, 5xx retry, non-200 failure, malformed JSON, date/count parsing, category parent IDs, and details URL formation.
+  - Verification: `go test ./internal/esoui` passes.
 
 ## P3 — Frontend UX/accessibility and interaction polish
 
