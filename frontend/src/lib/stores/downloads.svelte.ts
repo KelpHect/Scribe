@@ -3,6 +3,7 @@ import { fetchMissingDependencies } from '$lib/services/esoui-service';
 import { getRuntime } from '$lib/services/runtime-service';
 import { toast } from 'svelte-sonner';
 import { SvelteMap, SvelteSet } from 'svelte/reactivity';
+import { filterNewInstallUIDs } from '$lib/stores/install-queue';
 
 export type TaskState =
   | 'queued'
@@ -71,14 +72,7 @@ export function isInstallActive(uid: string): boolean {
 }
 
 function uniquePendingUIDs(uids: string[]): string[] {
-  const seen = new Set<string>();
-  const unique: string[] = [];
-  for (const uid of uids.map((item) => item.trim()).filter(Boolean)) {
-    if (seen.has(uid) || isInstallActive(uid)) continue;
-    seen.add(uid);
-    unique.push(uid);
-  }
-  return unique;
+  return filterNewInstallUIDs(uids, isInstallActive);
 }
 
 let cleanupFn: (() => void) | null = null;

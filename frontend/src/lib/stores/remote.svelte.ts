@@ -5,6 +5,7 @@ import {
   batchInstall as batchInstallFn,
   isInstallActive
 } from '$lib/stores/downloads.svelte';
+import { filterNewInstallUIDs } from '$lib/stores/install-queue';
 import { SvelteSet } from 'svelte/reactivity';
 
 let searchQuery: string = $state('');
@@ -126,9 +127,7 @@ async function install(uid: string): Promise<boolean> {
 }
 
 async function batchInstall(uids: string[]): Promise<number> {
-  const uniqueUIDs = Array.from(new Set(uids.map((uid) => uid.trim()).filter(Boolean))).filter(
-    (uid) => !isInstallingUID(uid)
-  );
+  const uniqueUIDs = filterNewInstallUIDs(uids, isInstallingUID);
   if (uniqueUIDs.length === 0) return 0;
   for (const uid of uniqueUIDs) {
     pendingInstallUIDs.add(uid);

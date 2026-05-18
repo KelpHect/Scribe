@@ -125,9 +125,9 @@ Purpose: improve user trust, accessibility, and clarity once critical correctnes
 
 ### Frontend tests
 
-- [ ] Add a minimal frontend smoke-test strategy for core state flows.
-  - Evidence: no frontend unit/component/e2e test runner is configured; routes implement install/update/uninstall/settings/search behavior with only static `svelte-check`.
-  - Acceptance criteria: a maintainable test setup covers stores/services or critical components with mocked Wails bindings and no live ESOUI dependency.
+- [x] Add a minimal frontend smoke-test strategy for core state flows.
+  - Completed: Vitest is configured via `npm --prefix frontend run test`; smoke tests cover install UID dedupe/filtering and the remote catalog status service with mocked Wails wrappers and no live ESOUI dependency.
+  - Verification: `npm --prefix frontend run test`, `npm --prefix frontend run check`, `npm --prefix frontend run build`, Linux Wails build, `go test ./...`, and `git diff --check` pass.
 
 ## P4 — Documentation, contributor experience, and local tooling
 
