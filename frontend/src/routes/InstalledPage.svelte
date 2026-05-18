@@ -90,7 +90,14 @@
   }
 
   async function installMissingDeps(optional: boolean) {
-    const uids = missingDeps.filter((d) => d.canInstall && d.optional === optional).map((d) => d.remoteUID);
+    const uids = Array.from(
+      new Set(
+        missingDeps
+          .filter((d) => d.canInstall && d.optional === optional)
+          .map((d) => d.remoteUID)
+          .filter((uid): uid is string => !!uid)
+      )
+    );
     if (uids.length === 0) return;
     batchInstalling = true;
     try {

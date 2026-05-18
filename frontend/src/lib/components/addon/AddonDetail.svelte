@@ -105,10 +105,14 @@
 
   const missingInstallableUIDs = $derived(
     addon
-      ? (addon.dependsOn ?? [])
-          .filter((dep) => !installedFolderNames.has(dep.replace(/[><=]+\d+.*$/, '').trim().toLowerCase()))
-          .map((dep) => depUIDMap.get(dep.replace(/[><=]+\d+.*$/, '').trim().toLowerCase()) ?? null)
-          .filter((uid): uid is string => uid !== null)
+      ? Array.from(
+          new Set(
+            (addon.dependsOn ?? [])
+              .filter((dep) => !installedFolderNames.has(dep.replace(/[><=]+\d+.*$/, '').trim().toLowerCase()))
+              .map((dep) => depUIDMap.get(dep.replace(/[><=]+\d+.*$/, '').trim().toLowerCase()) ?? null)
+              .filter((uid): uid is string => uid !== null)
+          )
+        )
       : []
   );
 

@@ -69,10 +69,13 @@ type MatchedAddon struct {
 }
 
 type MissingDepInfo struct {
-	DepFolderName string   `json:"depFolderName"`
-	RequiredBy    []string `json:"requiredBy"`
-	RemoteUID     string   `json:"remoteUID"`
-	RemoteName    string   `json:"remoteName"`
-	CanInstall    bool     `json:"canInstall"`
-	Optional      bool     `json:"optional"`
+	DepFolderName      string   `json:"depFolderName"`
+	RequiredBy         []string `json:"requiredBy"`
+	VersionConstraints []string `json:"versionConstraints"`
+	RemoteUID          string   `json:"remoteUID"`
+	RemoteName         string   `json:"remoteName"`
+	CanInstall         bool     `json:"canInstall"`
+	Optional           bool     `json:"optional"`
+	PlanState          string   `json:"planState"`
+	PlanReason         string   `json:"planReason"`
 }

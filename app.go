@@ -1031,6 +1031,13 @@ func stripDepVersion(dep string) string {
 	return strings.TrimSpace(dep)
 }
 
+func depVersionConstraint(dep string) string {
+	if idx := strings.IndexAny(dep, "><!="); idx >= 0 {
+		return strings.TrimSpace(dep[idx:])
+	}
+	return ""
+}
+
 func (a *App) GetMissingDependencies() ([]esoui.MissingDepInfo, error) {
 	if a.scanner == nil {
 		return nil, nil
@@ -1050,8 +1057,9 @@ func findMissingDependencies(locals []*addon.Addon, remotes []esoui.RemoteAddon)
 	}
 
 	type depEntry struct {
-		requiredBy []string
-		optional   bool
+		requiredBy  []string
+		constraints map[string]struct{}
+		optional    bool
 	}
 	missing := make(map[string]*depEntry)
 
@@ -1065,10 +1073,13 @@ func findMissingDependencies(locals []*addon.Addon, remotes []esoui.RemoteAddon)
 				continue
 			}
 			if missing[folder] == nil {
-				missing[folder] = &depEntry{}
+				missing[folder] = &depEntry{constraints: make(map[string]struct{})}
 			}
 			missing[folder].requiredBy = append(missing[folder].requiredBy, local.FolderName)
 			missing[folder].optional = false
+			if constraint := depVersionConstraint(dep); constraint != "" {
+				missing[folder].constraints[constraint] = struct{}{}
+			}
 		}
 
 		for _, dep := range local.OptionalDependsOn {
@@ -1080,9 +1091,12 @@ func findMissingDependencies(locals []*addon.Addon, remotes []esoui.RemoteAddon)
 				continue
 			}
 			if missing[folder] == nil {
-				missing[folder] = &depEntry{optional: true}
+				missing[folder] = &depEntry{optional: true, constraints: make(map[string]struct{})}
 			}
 			missing[folder].requiredBy = append(missing[folder].requiredBy, local.FolderName)
+			if constraint := depVersionConstraint(dep); constraint != "" {
+				missing[folder].constraints[constraint] = struct{}{}
+			}
 		}
 	}
 
@@ -1101,18 +1115,54 @@ func findMissingDependencies(locals []*addon.Addon, remotes []esoui.RemoteAddon)
 	result := make([]esoui.MissingDepInfo, 0, len(missing))
 	for folder, entry := range missing {
 		info := esoui.MissingDepInfo{
-			DepFolderName: folder,
-			RequiredBy:    entry.requiredBy,
-			Optional:      entry.optional,
+			DepFolderName:      folder,
+			RequiredBy:         sortedUniqueStrings(entry.requiredBy),
+			VersionConstraints: sortedMapKeys(entry.constraints),
+			Optional:           entry.optional,
+			PlanState:          "unresolved",
+			PlanReason:         "No ESOUI catalog entry matched this dependency folder.",
 		}
 		if r, ok := dirToRemote[folder]; ok {
 			info.RemoteUID = r.UID
 			info.RemoteName = r.UIName
 			info.CanInstall = true
+			info.PlanState = "installable"
+			info.PlanReason = "Matched ESOUI addon metadata and can be queued for install."
 		}
 		result = append(result, info)
 	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Optional != result[j].Optional {
+			return !result[i].Optional
+		}
+		return result[i].DepFolderName < result[j].DepFolderName
+	})
 	return result
+}
+
+func sortedUniqueStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		if value != "" {
+			seen[value] = struct{}{}
+		}
+	}
+	return sortedMapKeys(seen)
+}
+
+func sortedMapKeys(values map[string]struct{}) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(values))
+	for value := range values {
+		out = append(out, value)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func (a *App) GetSettings() (settings.AppSettings, error) {

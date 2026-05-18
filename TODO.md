@@ -253,9 +253,9 @@ Purpose: improve the app without replacing Wails/Svelte/Go: fewer crashes, smoot
 - [x] Improve update detection states for ESOUI version and MD5 edge cases.
   - Completed: matched addons now carry explicit `updateState`/`updateReason` values for up-to-date, remote-newer, local-newer, MD5-only changed, unknown-version, and unmatched cases; stored install MD5s can offer same-version download changes while suppressing matching-MD5 false positives, and Updates rows display the state/reason.
   - Verification: `internal/esoui/matcher_test.go` covers version states and unmatched locals; `md5_suppression_test.go` covers MD5 false-positive suppression plus MD5-only changed updates; frontend type checks and smoke tests pass.
-- [ ] Add a dependency install plan with required/optional/version clarity.
-  - Evidence: missing dependency discovery exists, but bulk dependency installs should show what will be installed, skipped, unresolved, optional, or version-constrained before queueing.
-  - Acceptance criteria: dependency plan groups required and optional dependencies, marks installed/up-to-date/unresolved items, explains non-installable dependencies, dedupes shared dependencies, and only queues the confirmed installable set.
+- [x] Add a dependency install plan with required/optional/version clarity.
+  - Completed: missing-dependency results now include deterministic install plan state, plan reason, version constraints, required-by grouping, required-over-optional precedence, and installable/unresolved classification; banners show the plan before queueing and callers dedupe UIDs before installing only installable dependencies.
+  - Verification: `missing_dependencies_test.go` covers shared dependency dedupe, version constraints, installable/unresolved states, installed dependencies being skipped, and required-over-optional behavior; frontend type checks and smoke tests pass.
 - [ ] Add batch task retry and partial-failure handling.
   - Evidence: installs, updates, and dependency installs can fail item-by-item; users should retry failed items without duplicating successful or active tasks.
   - Acceptance criteria: completed task history records success/failure/cancel per addon, exposes retry-failed, avoids duplicate queue entries, and preserves useful failure messages.

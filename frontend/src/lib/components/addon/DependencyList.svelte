@@ -50,10 +50,14 @@
   }
 
   const missingUIDs = $derived(
-    deps
-      .filter((dep) => !isInstalled(dep))
-      .map((dep) => getRemoteUID(dep))
-      .filter((uid): uid is string => uid !== null)
+    Array.from(
+      new Set(
+        deps
+          .filter((dep) => !isInstalled(dep))
+          .map((dep) => getRemoteUID(dep))
+          .filter((uid): uid is string => uid !== null)
+      )
+    )
   );
 </script>
 

@@ -43,6 +43,12 @@ func TestGetMissingDependenciesResolution(t *testing.T) {
 	if !containsString(shared.RequiredBy, "RequiredAddon") || !containsString(shared.RequiredBy, "OptionalAddon") {
 		t.Fatalf("LibShared RequiredBy = %#v, want both requiring addons", shared.RequiredBy)
 	}
+	if shared.PlanState != "installable" || shared.PlanReason == "" {
+		t.Fatalf("LibShared plan = %+v, want installable with reason", shared)
+	}
+	if !containsString(shared.VersionConstraints, ">=1.0") {
+		t.Fatalf("LibShared VersionConstraints = %#v, want >=1.0", shared.VersionConstraints)
+	}
 
 	optional := byFolder["liboptional"]
 	if !optional.Optional {
@@ -58,6 +64,9 @@ func TestGetMissingDependenciesResolution(t *testing.T) {
 	}
 	if unknown.CanInstall || unknown.RemoteUID != "" {
 		t.Fatalf("LibUnknown remote mapping = %+v, want unresolved not installable", unknown)
+	}
+	if unknown.PlanState != "unresolved" || unknown.PlanReason == "" {
+		t.Fatalf("LibUnknown plan = %+v, want unresolved with reason", unknown)
 	}
 
 	if _, ok := byFolder["libinstalled"]; ok {
@@ -91,6 +100,9 @@ func TestFindMissingDependenciesPureHelper(t *testing.T) {
 	}
 	if !containsString(required.RequiredBy, "RootAddon") || !containsString(required.RequiredBy, "OtherAddon") {
 		t.Fatalf("LibRequired RequiredBy = %#v, want both addons", required.RequiredBy)
+	}
+	if !containsString(required.VersionConstraints, ">=1.0") || !containsString(required.VersionConstraints, "<=2.0") {
+		t.Fatalf("LibRequired VersionConstraints = %#v, want both version constraints", required.VersionConstraints)
 	}
 
 	optional := byFolder["liboptional"]

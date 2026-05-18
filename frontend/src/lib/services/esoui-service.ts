@@ -145,15 +145,28 @@ export async function fetchCategories(): Promise<Category[]> {
 export interface MissingDepInfo {
   depFolderName: string;
   requiredBy: string[];
+  versionConstraints: string[];
   remoteUID: string;
   remoteName: string;
   canInstall: boolean;
   optional: boolean;
+  planState: string;
+  planReason: string;
 }
 
 export async function fetchMissingDependencies(): Promise<MissingDepInfo[]> {
   try {
-    return (await callWails('GetMissingDependencies')) ?? [];
+    return ((await callWails('GetMissingDependencies')) ?? []).map((dep) => ({
+      ...dep,
+      requiredBy: dep.requiredBy ?? [],
+      versionConstraints: (dep as MissingDepInfo).versionConstraints ?? [],
+      planState: (dep as MissingDepInfo).planState ?? (dep.canInstall ? 'installable' : 'unresolved'),
+      planReason:
+        (dep as MissingDepInfo).planReason ??
+        (dep.canInstall
+          ? 'Matched ESOUI addon metadata and can be queued for install.'
+          : 'No ESOUI catalog entry matched this dependency folder.')
+    }));
   } catch {
     return [];
   }
