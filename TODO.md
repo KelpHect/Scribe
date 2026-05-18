@@ -82,9 +82,9 @@ Purpose: reduce update/matching/cache/settings regressions before broader distri
 - [x] Add matcher/version tests for update detection and remote directory selection.
   - Completed: matcher tests now cover exact/equal versions, local older/newer, empty versions, prefixed/suffixed version strings, most-specific remote candidate selection for multi-dir addons, and unmatched locals.
   - Verification: `go test ./internal/esoui` passes.
-- [ ] Add dependency-resolution tests for missing dependency discovery.
-  - Evidence: `App.GetMissingDependencies` strips simple version operators, lowercases folder names, merges required/optional state, and maps remote dirs, but no tests cover required-vs-optional conflicts, installed deps, versioned dep tokens, or unresolvable deps.
-  - Acceptance criteria: tests or extracted helper tests cover required taking precedence over optional, installed deps ignored, remote UID mapping by `UIDirs`, and unresolved deps shown as not installable.
+- [x] Add dependency-resolution tests for missing dependency discovery.
+  - Completed: app-level missing dependency tests cover versioned dependency tokens, required-over-optional precedence, installed dependencies being ignored, remote UID mapping by `UIDirs`, and unresolved dependencies marked not installable.
+  - Verification: `go test .` passes.
 
 ### Persistence/data
 
