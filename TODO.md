@@ -454,9 +454,11 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
   - Acceptance criteria: app stores settings at the existing user config dir as `settings.toml`, keeps `esoui_cache.db` for catalog/cache/install records, validates TOML settings before use, writes via temp-file-plus-rename, migrates existing SQLite settings to TOML once without losing AddOns path/theme/memory values, and has temp-dir tests for fresh settings, migration, invalid TOML fallback, and atomic write failure behavior.
   - Completed: `internal/settings` now reads and writes `settings.toml` atomically under the existing `Scribe` config dir, validates and normalizes values before use, keeps auto-update inert, migrates legacy SQLite settings into TOML on first read, and leaves `esoui_cache.db` for cache/state records.
   - Verification: temp-dir settings tests cover fresh defaults, save/load, SQLite-to-TOML migration, invalid TOML fallback, and injected atomic write failure preserving the previous file.
-- [ ] Audit dependencies for real use and runtime impact.
+- [x] Audit dependencies for real use and runtime impact.
   - Evidence: current `node_modules` has extraneous packages locally, and package churn can obscure real performance work.
   - Acceptance criteria: verify usage before removal, clean install with npm, compare build report/lockfile effects, and keep dependencies that solve real problems such as virtualization/query caching.
+  - Completed: `docs/dependency-audit.md` records npm/Go usage checks, clean npm install behavior, runtime-impact notes, and why query caching, virtualization, form validation, icon, toast, SQLite, Wails, GORM, UUID, and TOML dependencies stay. `npm audit fix` updated only the transitive `brace-expansion` lockfile entry to clear the moderate advisory.
+  - Verification: `rm -rf frontend/node_modules && npm --prefix frontend ci`, `npm --prefix frontend audit --audit-level=moderate`, `npm --prefix frontend run build`, `go list -m all`, and `go mod tidy` were run; the only package-lock effect is `brace-expansion` `5.0.5` to `5.0.6`.
 - [ ] Add coding-pattern notes to docs after each performance fix.
   - Evidence: performance regressions often come from repeated hot-path mistakes.
   - Acceptance criteria: update `AGENTS.md`, README, or CONTRIBUTING only with durable lessons such as progress-event batching, catalog index reuse, startup scan boundaries, and generated-file recovery rules.

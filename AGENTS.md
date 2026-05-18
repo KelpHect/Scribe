@@ -131,6 +131,7 @@
 ## Lessons learned
 - `frontend/wailsjs` absence causes frontend type/check failures; regenerate with Wails instead of committing generated files.
 - `frontend/dist` absence breaks root Go tests because embedded assets are required.
+- A clean `npm ci` can still show `@emnapi/*`, `@napi-rs/wasm-runtime`, `@tybys/wasm-util`, and `tslib` as extraneous because of optional/bundled WASM bindings in the frontend toolchain; do not remove declared app dependencies based only on that npm output.
 - Cache schema/version changes must intentionally invalidate or migrate SQLite cache.
 - Settings AddOns path changes can diverge if routed through `SetAddonPath` without `SaveSettings`; persist path-changing UI flows.
 - The Auto Update setting is persisted but not implemented as a worker; do not describe it as active behavior unless implementing a safe opt-in flow.
