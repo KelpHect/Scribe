@@ -76,5 +76,8 @@ jobs:
 
           wails "${build_args[@]}"
 
+      - name: Run frontend type checks
+        run: npm --prefix frontend run check
+
       - name: Run Go tests
         run: go test ./...

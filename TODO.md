@@ -60,9 +60,9 @@ Purpose: fix gaps users or contributors hit in normal settings, install, update,
 - [x] Make clean-checkout verification deterministic when generated Wails artifacts are absent.
   - Completed: `scripts/verify.sh` regenerates Wails bindings and `frontend/dist` through Wails, then runs frontend type checks and Go tests.
   - Verification: README/CONTRIBUTING document the script as the clean-checkout check path and reiterate that generated files are not hand-edited.
-- [ ] Add frontend type checking to CI once generated bindings are available.
-  - Evidence: `frontend/package.json` provides `npm run check` and AGENTS requires it for frontend changes, but `.github/workflows/ci.yml` only runs Wails build and Go tests.
-  - Acceptance criteria: CI runs `npm --prefix frontend run check` in a step where generated Wails bindings exist and fails PRs on Svelte/TypeScript errors.
+- [x] Add frontend type checking to CI once generated bindings are available.
+  - Completed: CI now runs `npm --prefix frontend run check` after the Wails build step, where generated bindings are available.
+  - Verification: local `./scripts/verify.sh` exercises the same generated-bindings-before-type-check sequence.
 
 ### Operations/docs
 
