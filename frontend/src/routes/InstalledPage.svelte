@@ -27,6 +27,7 @@
   import { openExternalURL } from '$lib/services/runtime-service';
   import { getRemoteStore } from '$lib/stores';
   import { buildAddonHealthSummary } from '$lib/addons/health';
+  import { describeUpdateAction } from '$lib/addons/decision';
   import { batchInstall } from '$lib/stores/downloads.svelte';
   import { _setUpdateCount } from '$lib/stores/remote.svelte';
   import { uninstallRemoteAddons } from '$lib/stores/remote-mutations.svelte';
@@ -265,7 +266,15 @@
       ...(matched?.updateAvailable && matched.remote?.uid
         ? [
             {
-              label: 'Update',
+              label: describeUpdateAction({
+                installed: true,
+                updateAvailable: matched.updateAvailable,
+                updateState: matched.updateState,
+                updateReason: matched.updateReason,
+                localVersion: matched.localVersion,
+                remoteVersion: matched.remoteVersion,
+                folderName: matched.folderName
+              }).label,
               icon: Download,
               disabled: remote.isInstallingUID(matched.remote.uid),
               action: () => remote.install(matched.remote!.uid)
@@ -296,6 +305,19 @@
 
   function hasUpdate(addon: Addon): boolean {
     return updateSet.has(addon.folderName.toLowerCase());
+  }
+
+  function getUpdateAction(addon: Addon) {
+    const match = matchedMap.get(addon.folderName.toLowerCase());
+    return describeUpdateAction({
+      installed: true,
+      updateAvailable: match?.updateAvailable ?? false,
+      updateState: match?.updateState ?? (match?.remote ? 'up-to-date' : 'unmatched'),
+      updateReason: match?.updateReason ?? '',
+      localVersion: match?.localVersion ?? addon.version,
+      remoteVersion: match?.remoteVersion ?? match?.remote?.uiVersion,
+      folderName: addon.folderName
+    });
   }
 
   const matchedMap = $derived(
@@ -744,6 +766,8 @@
                         addon={row.addon}
                         selected={selectedFolders.has(row.addon.folderName)}
                         updateAvailable={hasUpdate(row.addon)}
+                        updateLabel={getUpdateAction(row.addon).label}
+                        updateReason={getUpdateAction(row.addon).reason}
                         categoryIconUrl={getCategoryIconUrl(row.addon)}
                         isThumbnail={getIsThumbnail(row.addon)}
                         selectable={true}

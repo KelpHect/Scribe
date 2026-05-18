@@ -15,7 +15,11 @@
   import Loader2 from 'lucide-svelte/icons/loader-2';
   import Package from 'lucide-svelte/icons/package';
   import User from 'lucide-svelte/icons/user';
-  import { describeAddonDecision, type AddonDecisionTone } from '$lib/addons/decision';
+  import {
+    describeAddonDecision,
+    describeUpdateAction,
+    type AddonDecisionTone
+  } from '$lib/addons/decision';
   import { openExternalURL } from '$lib/services/runtime-service';
   import { getRemoteStore, getDownloadStore } from '$lib/stores';
   import { formatCompact, parseAddonChangelog, parseAddonDescription } from '$lib/utils';
@@ -166,13 +170,27 @@
         })
       : null
   );
+  const updateAction = $derived(
+    addon
+      ? describeUpdateAction({
+          installed: isInstalled,
+          updateAvailable,
+          updateState,
+          updateReason,
+          localVersion,
+          remoteVersion: addon.uiVersion,
+          folderName: installedFolderName ?? ''
+        })
+      : null
+  );
 
   const primaryAction = $derived.by(() => {
     if (updateAvailable) {
       return {
-        label: 'Update',
+        label: updateAction?.label ?? 'Update',
         pendingLabel: installButtonLabel || 'Updating...',
         icon: ArrowUpCircle,
+        reason: updateAction?.reason ?? '',
         onclick: () => runInstall('Update failed')
       };
     }
@@ -183,6 +201,7 @@
       label: 'Install',
       pendingLabel: installButtonLabel || 'Installing...',
       icon: Download,
+      reason: 'Install the latest ESOUI package for this addon.',
       onclick: () => runInstall('Install failed')
     };
   });
@@ -300,6 +319,7 @@
               size="sm"
               onclick={primaryAction.onclick}
               disabled={isActionDisabled}
+              title={primaryAction.reason}
             >
               {#if isActionDisabled}
                 <Loader2 size={13} class="animate-spin" />{primaryAction.pendingLabel}

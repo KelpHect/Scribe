@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeAddonDecision } from './decision';
+import { describeAddonDecision, describeUpdateAction } from './decision';
 
 describe('describeAddonDecision', () => {
   it('describes a new install with the remote version', () => {
@@ -60,6 +60,48 @@ describe('describeAddonDecision', () => {
     expect(describeAddonDecision({ installed: true, updateState: 'up-to-date' })).toMatchObject({
       label: 'Up to date',
       tone: 'success'
+    });
+  });
+});
+
+describe('describeUpdateAction', () => {
+  it('allows remote-newer updates with a shared reason', () => {
+    expect(
+      describeUpdateAction({
+        installed: true,
+        updateAvailable: true,
+        updateState: 'remote-newer',
+        localVersion: '1.0.0',
+        remoteVersion: '1.1.0'
+      })
+    ).toMatchObject({
+      label: 'Update to ESOUI version',
+      canUpdate: true,
+      reason: 'ESOUI version 1.1.0 is newer than local version 1.0.0.'
+    });
+  });
+
+  it('allows same-version package refreshes when MD5 changed', () => {
+    expect(
+      describeUpdateAction({
+        installed: true,
+        updateAvailable: true,
+        updateState: 'md5-only-changed'
+      })
+    ).toMatchObject({
+      label: 'Update changed package',
+      canUpdate: true
+    });
+  });
+
+  it('blocks local-newer and unknown-version automatic updates', () => {
+    expect(describeUpdateAction({ installed: true, updateState: 'local-newer' })).toMatchObject({
+      canUpdate: false,
+      label: 'No update offered'
+    });
+    expect(describeUpdateAction({ installed: true, updateState: 'unknown-version' })).toMatchObject({
+      canUpdate: false,
+      label: 'Compare manually'
     });
   });
 });

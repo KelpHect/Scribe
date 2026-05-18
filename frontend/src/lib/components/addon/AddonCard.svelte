@@ -11,6 +11,8 @@
     addon: Addon;
     selected?: boolean;
     updateAvailable?: boolean;
+    updateLabel?: string;
+    updateReason?: string;
     categoryIconUrl?: string;
     isThumbnail?: boolean;
     selectable?: boolean;
@@ -26,6 +28,8 @@
     addon,
     selected = false,
     updateAvailable = false,
+    updateLabel = 'Update',
+    updateReason = '',
     categoryIconUrl,
     isThumbnail = false,
     selectable = false,
@@ -99,7 +103,9 @@
         <Badge variant="outline">Library</Badge>
       {/if}
       {#if updateAvailable}
-        <Badge variant="destructive">Update</Badge>
+        <span title={updateReason}>
+          <Badge variant="destructive">{updateLabel}</Badge>
+        </span>
       {/if}
     </div>
     <div class="text-muted-foreground mt-0.5 truncate text-xs">

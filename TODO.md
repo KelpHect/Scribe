@@ -413,9 +413,11 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
   - Acceptance criteria: required dependencies are prioritized, optional dependencies are grouped separately, version constraints are visible, unresolved dependencies explain why no install action exists, and batch install dedupes already active tasks.
   - Completed: Installed now shows required and optional dependency banners separately even when some dependencies are unresolved, each banner summarizes required/optional/installable/unresolved counts, shows version constraints and required-by context, explains unresolved plan reasons, and installs only installable latest-canonical ESOUI matches through the existing deduped batch queue.
   - Verification: frontend checks pass, install-queue tests continue to cover deduping active/duplicate install UIDs, and health tests still distinguish required vs optional dependency impact.
-- [ ] Add update explanation details everywhere update actions appear.
+- [x] Add update explanation details everywhere update actions appear.
   - Evidence: update-state reasons now exist, but rows, detail views, and task flows should consistently explain remote-newer, local-newer, MD5-only changed, unknown-version, and unmatched states.
   - Acceptance criteria: Installed, Updates, addon detail, and task planning surfaces share one tested formatter for update reason text and safe action eligibility.
+  - Completed: `describeUpdateAction` now provides shared update labels, reason text, and action eligibility; Updates rows, Installed badges/context-menu labels, local addon details, and remote addon detail update buttons use the shared formatter so remote-newer, MD5-only changed, local-newer, unknown-version, unmatched, and up-to-date states explain the same way.
+  - Verification: `decision.test.ts` covers remote-newer, MD5-only changed, local-newer, and unknown-version action text/eligibility.
 - [ ] Add recovery guidance for failed installs and partial failures.
   - Evidence: retry exists, but users need useful next steps when download, MD5, archive preflight, extraction, or commit fails.
   - Acceptance criteria: failed task details classify the stage, show a short safe action, include copyable diagnostics, and never suggest manually deleting broad AddOns directories.

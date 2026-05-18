@@ -92,6 +92,7 @@
 - Install preflight UI should use the shared helpers in `frontend/src/lib/install/preflight.ts` so task center, update rows, and addon detail dialogs explain add/replace folders and rollback behavior consistently.
 - Startup cleanup may remove only stale Scribe-owned `.scribe-staging-*` and `.scribe-backup-*` directories under the configured AddOns folder; never broaden this to ordinary addon folders or arbitrary temp paths.
 - Missing dependency UI must keep required and optional groups separate, show unresolved dependencies with the backend plan reason, and install only deduped latest-canonical ESOUI matches.
+- Update labels, reasons, and action eligibility should come from `describeUpdateAction`/`describeAddonDecision` so Installed, Updates, and detail dialogs explain remote-newer, local-newer, MD5-only changed, unknown-version, and unmatched states consistently.
 - Keep search/filter/sort work indexed or memoized for large catalogs; do not repeatedly lowercase, parse versions, score search, or sort compatibility data inside hot render paths.
 - Keep Find More catalog indexing/filtering in the tested pure helpers under `frontend/src/lib/perf`; route components should pass state into those helpers instead of rebuilding search/sort logic inline.
 - Prefer native desktop-feeling utility UI over marketing layouts, decorative effects, or large animation-heavy surfaces.

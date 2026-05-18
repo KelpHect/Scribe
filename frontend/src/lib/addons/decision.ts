@@ -19,6 +19,12 @@ export interface AddonDecision {
   folderName: string;
 }
 
+export interface UpdateActionInfo {
+  label: string;
+  reason: string;
+  canUpdate: boolean;
+}
+
 function clean(value: string | null | undefined): string {
   return value?.trim() ?? '';
 }
@@ -115,5 +121,67 @@ export function describeAddonDecision(input: AddonDecisionInput): AddonDecision 
     localVersion,
     remoteVersion,
     folderName
+  };
+}
+
+export function describeUpdateAction(input: AddonDecisionInput): UpdateActionInfo {
+  const updateState = clean(input.updateState);
+  const updateReason = clean(input.updateReason);
+  const localVersion = clean(input.localVersion);
+  const remoteVersion = clean(input.remoteVersion);
+
+  if (input.updateAvailable) {
+    if (updateState === 'md5-only-changed') {
+      return {
+        label: 'Update changed package',
+        reason:
+          updateReason ||
+          'ESOUI changed the downloadable package while the visible version stayed the same.',
+        canUpdate: true
+      };
+    }
+    return {
+      label: 'Update to ESOUI version',
+      reason:
+        updateReason ||
+        (remoteVersion
+          ? `ESOUI version ${remoteVersion} is newer than local version ${localVersion || 'unknown'}.`
+          : 'ESOUI has a newer installable copy.'),
+      canUpdate: true
+    };
+  }
+
+  if (updateState === 'local-newer') {
+    return {
+      label: 'No update offered',
+      reason:
+        updateReason ||
+        'The installed version appears newer than ESOUI, so updating is not offered automatically.',
+      canUpdate: false
+    };
+  }
+
+  if (updateState === 'unknown-version') {
+    return {
+      label: 'Compare manually',
+      reason:
+        updateReason ||
+        'Scribe cannot compare these version strings safely, so no automatic update action is shown.',
+      canUpdate: false
+    };
+  }
+
+  if (updateState === 'unmatched' || !input.installed) {
+    return {
+      label: 'No matched update',
+      reason: updateReason || 'This addon is not matched to an installed ESOUI update target.',
+      canUpdate: false
+    };
+  }
+
+  return {
+    label: 'Up to date',
+    reason: updateReason || 'The installed addon matches the latest known ESOUI version.',
+    canUpdate: false
   };
 }

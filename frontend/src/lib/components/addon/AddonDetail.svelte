@@ -13,7 +13,11 @@
   import Loader2 from 'lucide-svelte/icons/loader-2';
   import Package from 'lucide-svelte/icons/package';
   import Trash2 from 'lucide-svelte/icons/trash-2';
-  import { describeAddonDecision, type AddonDecisionTone } from '$lib/addons/decision';
+  import {
+    describeAddonDecision,
+    describeUpdateAction,
+    type AddonDecisionTone
+  } from '$lib/addons/decision';
   import type { Addon } from '$lib/services/addon-service';
   import type { Category, MatchedAddon } from '$lib/services/esoui-service';
   import { getRemoteStore, navigation } from '$lib/stores';
@@ -52,6 +56,20 @@
           installed: true,
           updateAvailable: matched?.updateAvailable ?? false,
           updateState: matched?.updateState ?? (matched?.remote ? '' : 'unmatched'),
+          updateReason: matched?.updateReason ?? '',
+          localVersion: matched?.localVersion || addon.version,
+          remoteVersion: matched?.remoteVersion || matched?.remote?.uiVersion,
+          folderName: addon.folderName
+        })
+      : null
+  );
+
+  const updateAction = $derived(
+    addon
+      ? describeUpdateAction({
+          installed: true,
+          updateAvailable: matched?.updateAvailable ?? false,
+          updateState: matched?.updateState ?? (matched?.remote ? 'up-to-date' : 'unmatched'),
           updateReason: matched?.updateReason ?? '',
           localVersion: matched?.localVersion || addon.version,
           remoteVersion: matched?.remoteVersion || matched?.remote?.uiVersion,
@@ -234,10 +252,10 @@
               <span class="mx-1 opacity-40">·</span>
               {#if matched.updateAvailable}
                 <span class="text-destructive font-medium"
-                  >Update available → {matched.remote.uiVersion}</span
+                  >{updateAction?.label ?? 'Update available'} -> {matched.remote.uiVersion}</span
                 >
               {:else}
-                <span>Up to date</span>
+                <span>{updateAction?.label ?? 'Up to date'}</span>
               {/if}
             {/if}
           </div>
@@ -249,7 +267,8 @@
             size="sm"
             class="shrink-0"
             onclick={handleUpdate}
-            disabled={isInstalling}
+            disabled={isInstalling || !updateAction?.canUpdate}
+            title={updateAction?.reason ?? ''}
           >
             {#if isInstalling}
               <Loader2 size={13} class="animate-spin" />Updating...
