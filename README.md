@@ -70,6 +70,16 @@ wails build -tags webkit2_41
 - macOS builds are ad-hoc signed, not notarized, so Gatekeeper may still warn
 - addon metadata comes from ESOUI/MMOUI, so upstream version weirdness still leaks through sometimes
 
+## Local data
+
+Scribe stores settings, ESOUI catalog cache, search presets, and install MD5 records in one SQLite file named `esoui_cache.db` under the OS user config directory in a `Scribe` folder.
+
+- Windows: `%AppData%\Scribe\esoui_cache.db`
+- macOS: `~/Library/Application Support/Scribe/esoui_cache.db`
+- Linux: `~/.config/Scribe/esoui_cache.db`
+
+That database is separate from your ESO `AddOns` folder. To reset Scribe's cache/settings, close Scribe and rename or delete only `esoui_cache.db`; do not delete your AddOns directory. Scribe will recreate the database on next launch and refresh ESOUI data.
+
 ## When not to use this
 
 - you want a signed and notarized app on every platform right now

@@ -70,6 +70,18 @@ Wails generates `frontend/wailsjs/` and `frontend/dist/`.
 - do not hand-edit generated files
 - run `./scripts/verify.sh` from a clean checkout when you want the full recovery-and-check path
 
+## Local data reset
+
+The app database is `Scribe/esoui_cache.db` under the OS user config directory. It stores settings, ESOUI cache rows, search presets, and install MD5 records. It does not contain addon files.
+
+For local troubleshooting, close Scribe and rename or delete only that database file:
+
+- Windows: `%AppData%\Scribe\esoui_cache.db`
+- macOS: `~/Library/Application Support/Scribe/esoui_cache.db`
+- Linux: `~/.config/Scribe/esoui_cache.db`
+
+Do not reset a real ESO `AddOns` folder unless the task explicitly calls for addon install/update/uninstall behavior.
+
 For local profiling, start the app with `SCRIBE_PPROF=1` to expose pprof on `localhost:6060`. The old `SCRIBEEGO_PPROF=1` spelling still works for compatibility.
 
 If you touch release workflows or packaging, say that clearly in the PR body.

@@ -141,9 +141,9 @@ Purpose: make setup, verification, release expectations, and generated-file reco
 - [x] Align documented check commands with actual project gates.
   - Completed: README, CONTRIBUTING, and `frontend/README.md` now list the Go, frontend check/test/build, Wails packaging, clean-checkout generated-file caveats, Linux `webkit2_41` build tag, and the mutating ESLint caveat.
   - Verification: `git diff --check` passes.
-- [ ] Document local database/cache location and reset behavior.
-  - Evidence: `internal/esoui/cache.go` and settings persistence use the historical user config dir `Scribe/esoui_cache.db`, but user-facing docs do not describe where settings/cache live or how to safely reset cache without touching AddOns.
-  - Acceptance criteria: docs describe config DB location by OS at a high level, cache-vs-AddOns distinction, and a safe reset/troubleshooting flow.
+- [x] Document local database/cache location and reset behavior.
+  - Completed: README and CONTRIBUTING now document `Scribe/esoui_cache.db` under the OS user config directory, what the database stores, that it is separate from ESO AddOns, and the safe close-and-rename/delete reset flow.
+  - Verification: `git diff --check` passes.
 
 ### Tooling/scripts
 
