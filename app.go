@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	stdRuntime "runtime"
@@ -521,7 +522,15 @@ func (a *App) BrowseFolder(title string) (string, error) {
 }
 
 func (a *App) OpenPath(path string) error {
-	cleaned := filepath.Clean(path)
+	addonPath := ""
+	if a.scanner != nil {
+		addonPath = a.scanner.GetAddonPath()
+	}
+	cleaned, err := validateOpenPath(addonPath, path)
+	if err != nil {
+		return err
+	}
+
 	var cmd *exec.Cmd
 	switch stdRuntime.GOOS {
 	case "windows":
@@ -536,6 +545,50 @@ func (a *App) OpenPath(path string) error {
 	}
 	go cmd.Wait()
 	return nil
+}
+
+func validateOpenPath(addonPath, path string) (string, error) {
+	cleanRoot := filepath.Clean(strings.TrimSpace(addonPath))
+	cleanTarget := filepath.Clean(strings.TrimSpace(path))
+	if cleanRoot == "." || cleanTarget == "." {
+		return "", fmt.Errorf("addon path is not configured")
+	}
+	if !filepath.IsAbs(cleanRoot) || !filepath.IsAbs(cleanTarget) {
+		return "", fmt.Errorf("path must be absolute")
+	}
+
+	rootInfo, err := os.Stat(cleanRoot)
+	if err != nil {
+		return "", fmt.Errorf("stat addon path: %w", err)
+	}
+	if !rootInfo.IsDir() {
+		return "", fmt.Errorf("addon path is not a directory")
+	}
+	targetInfo, err := os.Stat(cleanTarget)
+	if err != nil {
+		return "", fmt.Errorf("stat open path: %w", err)
+	}
+	if !targetInfo.IsDir() {
+		return "", fmt.Errorf("open path is not a directory")
+	}
+
+	resolvedRoot, err := filepath.EvalSymlinks(cleanRoot)
+	if err != nil {
+		return "", fmt.Errorf("resolve addon path: %w", err)
+	}
+	resolvedTarget, err := filepath.EvalSymlinks(cleanTarget)
+	if err != nil {
+		return "", fmt.Errorf("resolve open path: %w", err)
+	}
+
+	rel, err := filepath.Rel(resolvedRoot, resolvedTarget)
+	if err != nil {
+		return "", fmt.Errorf("compare open path: %w", err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return "", fmt.Errorf("open path must be inside configured AddOns directory")
+	}
+	return resolvedTarget, nil
 }
 
 func (a *App) PerformMemoryCleanup() DiagnosticsSnapshot {

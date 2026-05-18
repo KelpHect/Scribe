@@ -113,9 +113,9 @@ Purpose: improve user trust, accessibility, and clarity once critical correctnes
 - [x] Improve feedback when remote refresh fails but stale cache exists.
   - Completed: backend now exposes remote catalog status, including cached-data presence, staleness, and the last background refresh error; `FindMorePage.svelte` distinguishes stale cached data, failed background refreshes, and no saved catalog data.
   - Verification: Linux Wails build, `npm --prefix frontend run check`, `go test ./...`, and `git diff --check` pass.
-- [ ] Review `OpenPath` for least-surprise behavior.
-  - Evidence: `App.OpenPath` opens any frontend-provided path with OS shell helpers; current UI passes addon folder paths, but the bound backend method is broad.
-  - Acceptance criteria: either constrain backend calls to configured AddOns descendants for folder-opening operations or document why broader shell opening is intentionally supported.
+- [x] Review `OpenPath` for least-surprise behavior.
+  - Completed: `App.OpenPath` now validates that the requested directory is the configured AddOns directory or a child directory after symlink resolution before invoking OS shell helpers.
+  - Verification: `open_path_test.go` covers addon root/child directories, empty/relative paths, outside and sibling-prefix directories, missing targets, file targets, and symlink escapes; Linux Wails build, `npm --prefix frontend run check`, `go test ./...`, and `git diff --check` pass.
 - [ ] Improve keyboard/a11y coverage for clickable rows and custom controls.
   - Evidence: `svelte-check` warns on `AddonCard.svelte` visible clickable divs; multiple components intentionally suppress Svelte a11y warnings for custom row/list/menu behavior.
   - Acceptance criteria: primary addon rows, remote rows, dialogs, selects, context menus, and lightbox controls are reachable/usable by keyboard and remaining suppressions are justified narrowly.
