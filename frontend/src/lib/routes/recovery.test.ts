@@ -3,7 +3,10 @@ import { createLazyRouteState, loadLazyRoute, normalizeRecoverableError } from '
 
 describe('normalizeRecoverableError', () => {
   it('keeps failed service messages copyable', () => {
-    const error = normalizeRecoverableError(new Error('Wails service unavailable'), 'Service failed');
+    const error = normalizeRecoverableError(
+      new Error('Wails service unavailable'),
+      'Service failed'
+    );
 
     expect(error.message).toBe('Wails service unavailable');
     expect(error.details).toContain('Wails service unavailable');

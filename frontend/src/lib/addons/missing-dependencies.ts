@@ -36,7 +36,10 @@ export function buildMissingDependencyDisplayPlan(
     installable,
     unresolved,
     installablePreview: preview(installable.map(dependencyName), 4),
-    unresolvedPreview: preview(unresolved.map((dep) => dep.depFolderName), 3),
+    unresolvedPreview: preview(
+      unresolved.map((dep) => dep.depFolderName),
+      3
+    ),
     rows: deps.slice(0, rowLimit).map(toRow),
     hiddenCount: Math.max(0, deps.length - rowLimit)
   };

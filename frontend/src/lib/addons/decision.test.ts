@@ -99,9 +99,11 @@ describe('describeUpdateAction', () => {
       canUpdate: false,
       label: 'No update offered'
     });
-    expect(describeUpdateAction({ installed: true, updateState: 'unknown-version' })).toMatchObject({
-      canUpdate: false,
-      label: 'Compare manually'
-    });
+    expect(describeUpdateAction({ installed: true, updateState: 'unknown-version' })).toMatchObject(
+      {
+        canUpdate: false,
+        label: 'Compare manually'
+      }
+    );
   });
 });

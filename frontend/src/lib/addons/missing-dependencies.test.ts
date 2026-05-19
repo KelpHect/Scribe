@@ -26,8 +26,18 @@ describe('missing dependency display planning', () => {
   it('separates counts and previews required, optional, installable, and unresolved dependencies', () => {
     const plan = buildMissingDependencyDisplayPlan([
       dep({ depFolderName: 'LibA', remoteName: 'Library A', optional: false, canInstall: true }),
-      dep({ depFolderName: 'LibB', optional: true, canInstall: false, planReason: 'No catalog match.' }),
-      dep({ depFolderName: 'LibC', optional: false, canInstall: false, planReason: 'No catalog match.' })
+      dep({
+        depFolderName: 'LibB',
+        optional: true,
+        canInstall: false,
+        planReason: 'No catalog match.'
+      }),
+      dep({
+        depFolderName: 'LibC',
+        optional: false,
+        canInstall: false,
+        planReason: 'No catalog match.'
+      })
     ]);
 
     expect(plan.requiredCount).toBe(2);
@@ -40,7 +50,12 @@ describe('missing dependency display planning', () => {
     const plan = buildMissingDependencyDisplayPlan(
       [
         dep({ depFolderName: 'LibA', requiredBy: ['One', 'Two', 'Three'] }),
-        dep({ depFolderName: 'LibB', canInstall: false, optional: true, planReason: 'No ESOUI match.' })
+        dep({
+          depFolderName: 'LibB',
+          canInstall: false,
+          optional: true,
+          planReason: 'No ESOUI match.'
+        })
       ],
       1
     );

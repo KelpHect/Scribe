@@ -23,7 +23,13 @@ export function getInstallRecoveryGuidance(task: TaskProgress): InstallRecoveryG
   const lower = error.toLowerCase();
 
   if (task.state === 'cancelled') {
-    return guidance(task, 'cancelled', 'Install cancelled', 'Retry when you are ready. No manual AddOns cleanup is required.', error);
+    return guidance(
+      task,
+      'cancelled',
+      'Install cancelled',
+      'Retry when you are ready. No manual AddOns cleanup is required.',
+      error
+    );
   }
 
   if (lower.includes('md5 mismatch') || lower.includes('compute md5')) {
@@ -109,6 +115,11 @@ function guidance(
     stage,
     title,
     action,
-    diagnostics: [`uid=${task.uid}`, `name=${task.name || task.uid}`, `stage=${stage}`, `error=${error || 'n/a'}`].join('\n')
+    diagnostics: [
+      `uid=${task.uid}`,
+      `name=${task.name || task.uid}`,
+      `stage=${stage}`,
+      `error=${error || 'n/a'}`
+    ].join('\n')
   };
 }

@@ -155,11 +155,6 @@ func MatchAddons(locals []*addon.Addon, remotes []RemoteAddon) []MatchedAddon {
 	return matched
 }
 
-func isUpdateAvailable(local, remote string) bool {
-	_, update, _ := classifyVersionUpdate(local, remote)
-	return update
-}
-
 func classifyVersionUpdate(local, remote string) (string, bool, string) {
 	local = strings.TrimSpace(local)
 	remote = strings.TrimSpace(remote)

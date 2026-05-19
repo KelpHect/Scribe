@@ -164,7 +164,6 @@
   );
 
   const availableVersions = $derived.by(() => {
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const versionNames = new Map<string, string>();
     for (const r of indexedRemoteAddons) {
       for (const cv of r.addon.compatabilities ?? []) {

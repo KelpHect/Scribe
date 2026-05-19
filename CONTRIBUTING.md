@@ -47,7 +47,7 @@ sudo dnf install -y gcc-c++ pkgconf-pkg-config npm gtk3-devel webkit2gtk4.1-deve
 ./scripts/verify.sh
 ```
 
-This runs diff sanity, regenerates Wails bindings and `frontend/dist`, then runs frontend type checks, frontend smoke tests, and Go tests. Generated files are build output; do not hand-edit them.
+This runs diff sanity, regenerates Wails bindings and `frontend/dist`, then runs frontend type checks, Oxlint, Oxfmt check, frontend smoke tests, and Go tests. Generated files are build output; do not hand-edit them.
 
 Use these focused checks while you work:
 
@@ -55,13 +55,14 @@ Use these focused checks while you work:
 npm --prefix frontend run check
 npm --prefix frontend run test
 npm --prefix frontend run lint:check
+npm --prefix frontend run format:check
 npm --prefix frontend run build
 go test ./...
 wails build -tags webkit2_41   # Linux
 wails build                    # Windows/macOS
 ```
 
-Run `wails build` before root `go test ./...` on a clean checkout so `frontend/dist/` exists. Use `npm --prefix frontend run lint:check` for lint verification. Avoid `npm --prefix frontend run lint` unless you want ESLint autofixes applied.
+Run `wails build` before root `go test ./...` on a clean checkout so `frontend/dist/` exists. Use `npm --prefix frontend run lint:check` for Oxlint verification and `npm --prefix frontend run format:check` for Oxfmt-supported TypeScript, JavaScript, and CSS files. Avoid `npm --prefix frontend run lint` unless you intentionally want Oxlint autofixes and will review the diff.
 
 ## Generated files
 

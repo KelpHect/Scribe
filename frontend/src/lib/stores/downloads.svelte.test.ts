@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  shouldApplyDownloadProgressImmediately,
-  type TaskProgress
-} from './downloads.svelte';
+import { shouldApplyDownloadProgressImmediately, type TaskProgress } from './downloads.svelte';
 
 function task(input: Partial<TaskProgress> = {}): TaskProgress {
   return {
@@ -24,16 +21,25 @@ describe('download progress coalescing', () => {
   it('applies first events, state transitions, and terminal states immediately', () => {
     expect(shouldApplyDownloadProgressImmediately(task(), undefined)).toBe(true);
     expect(
-      shouldApplyDownloadProgressImmediately(task({ state: 'extracting' }), task({ state: 'downloading' }))
+      shouldApplyDownloadProgressImmediately(
+        task({ state: 'extracting' }),
+        task({ state: 'downloading' })
+      )
     ).toBe(true);
     expect(
-      shouldApplyDownloadProgressImmediately(task({ state: 'complete' }), task({ state: 'complete' }))
+      shouldApplyDownloadProgressImmediately(
+        task({ state: 'complete' }),
+        task({ state: 'complete' })
+      )
     ).toBe(true);
     expect(
       shouldApplyDownloadProgressImmediately(task({ state: 'failed' }), task({ state: 'failed' }))
     ).toBe(true);
     expect(
-      shouldApplyDownloadProgressImmediately(task({ state: 'cancelled' }), task({ state: 'cancelled' }))
+      shouldApplyDownloadProgressImmediately(
+        task({ state: 'cancelled' }),
+        task({ state: 'cancelled' })
+      )
     ).toBe(true);
   });
 

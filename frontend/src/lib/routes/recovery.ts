@@ -17,7 +17,10 @@ export function createLazyRouteState<TComponent>(): LazyRouteState<TComponent> {
   };
 }
 
-export function normalizeRecoverableError(error: unknown, fallbackMessage: string): RecoverableRouteError {
+export function normalizeRecoverableError(
+  error: unknown,
+  fallbackMessage: string
+): RecoverableRouteError {
   if (error instanceof Error) {
     return {
       message: error.message || fallbackMessage,

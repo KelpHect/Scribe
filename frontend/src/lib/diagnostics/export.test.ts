@@ -79,6 +79,7 @@ describe('diagnostics export redaction', () => {
       },
       diagnostics: {
         startupMs: 100,
+        uptimeMs: 1200,
         domReadyMs: 80,
         frontendReadyMs: 120,
         remoteReadyMs: 300,
@@ -134,6 +135,7 @@ describe('diagnostics export redaction', () => {
     const payload = JSON.parse(exported);
     expect(payload.app).toMatchObject({ version: '1.0.3', platform: 'linux/amd64' });
     expect(payload.paths.addonPath).toBe('[redacted-path]/AddOns');
+    expect(payload.startup.uptimeMs).toBe(1200);
     expect(payload.memory.sysMb).toBe(80);
     expect(payload.persistence.status).toBe('ok');
     expect(payload.catalog.remoteAddons).toBe(5000);

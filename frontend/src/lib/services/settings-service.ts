@@ -11,12 +11,12 @@ export interface AppSettings {
 export async function getSettings(): Promise<AppSettings> {
   try {
     const settings = await callWails('GetSettings');
-      return {
-        addonPath: settings.addonPath,
-        autoUpdate: settings.autoUpdate,
-        memoryLimitMb: settings.memoryLimitMb ?? 150,
-        theme: normalizeTheme(settings.theme)
-      };
+    return {
+      addonPath: settings.addonPath,
+      autoUpdate: settings.autoUpdate,
+      memoryLimitMb: settings.memoryLimitMb ?? 150,
+      theme: normalizeTheme(settings.theme)
+    };
   } catch {
     return {
       addonPath: '',

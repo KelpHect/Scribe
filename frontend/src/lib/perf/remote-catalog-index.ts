@@ -1,8 +1,4 @@
-import {
-  compareEsoUiCategoryOrder,
-  compareVersionStrings,
-  getUpdatedState
-} from '$lib/utils';
+import { compareEsoUiCategoryOrder, compareVersionStrings, getUpdatedState } from '$lib/utils';
 import type { Category, RemoteAddon } from '$lib/services/esoui-service';
 import { getLatestCompatibility, isLibraryLikeRemoteAddon } from './remote-list';
 
@@ -92,7 +88,10 @@ export function normalizeRemoteSearchQuery(query: string): string {
   return query.toLowerCase().trim();
 }
 
-export function scoreIndexedRemoteAddon(addon: IndexedRemoteAddon, normalizedQuery: string): number {
+export function scoreIndexedRemoteAddon(
+  addon: IndexedRemoteAddon,
+  normalizedQuery: string
+): number {
   const q = normalizedQuery.trim();
   if (!q) return 0;
 
@@ -117,7 +116,8 @@ export function filterRemoteCatalog(
     if (query && !Number.isFinite(searchScore)) continue;
     if (options.contentFilter === 'libraries' && !item.libraryLike) continue;
     if (options.hideInstalled && options.installedUIDs.has(item.addon.uid)) continue;
-    if (options.versionFilter && !item.compatibilityVersions.includes(options.versionFilter)) continue;
+    if (options.versionFilter && !item.compatibilityVersions.includes(options.versionFilter))
+      continue;
 
     countMap.set(item.addon.categoryId, (countMap.get(item.addon.categoryId) ?? 0) + 1);
 
@@ -165,7 +165,9 @@ function compareIndexedRemoteAddon(
     case 'date':
       return numericThenTitle(a.dateTime, b.dateTime, a, b);
     case 'author':
-      return compareStrings(a.authorLower, b.authorLower) || compareStrings(a.nameLower, b.nameLower);
+      return (
+        compareStrings(a.authorLower, b.authorLower) || compareStrings(a.nameLower, b.nameLower)
+      );
     case 'category':
       return (
         a.categoryOrder - b.categoryOrder ||

@@ -32,7 +32,14 @@ function makeRemoteAddons(count: number): RemoteAddon[] {
 describe('remote list preparation benchmarks', () => {
   const addons = makeRemoteAddons(7000);
   const categories: Category[] = [
-    { id: 'addons', name: 'Stand-Alone Addons', iconUrl: '', parentId: '', parentIds: [], count: 0 },
+    {
+      id: 'addons',
+      name: 'Stand-Alone Addons',
+      iconUrl: '',
+      parentId: '',
+      parentIds: [],
+      count: 0
+    },
     { id: 'libraries', name: 'Libraries', iconUrl: '', parentId: '', parentIds: [], count: 0 }
   ];
   const index = buildRemoteCatalogIndex(addons, categories);

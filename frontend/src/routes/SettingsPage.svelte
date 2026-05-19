@@ -559,8 +559,13 @@
                   </p>
                   <div class="text-muted-foreground space-y-1 text-xs">
                     <p>
-                      Startup: <span class="text-foreground font-mono"
+                      Startup ready: <span class="text-foreground font-mono"
                         >{diagnostics.startupMs} ms</span
+                      >
+                    </p>
+                    <p>
+                      Uptime: <span class="text-foreground font-mono"
+                        >{diagnostics.uptimeMs ?? 0} ms</span
                       >
                     </p>
                     <p>

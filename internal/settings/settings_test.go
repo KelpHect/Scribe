@@ -139,7 +139,7 @@ func TestGetSettingsMigratesLegacySQLiteSettingsToTOML(t *testing.T) {
 		t.Fatalf("seed legacy settings: %v", err)
 	}
 	settingsPath := filepath.Join(t.TempDir(), "settings.toml")
-	mgr := NewManagerWithPath(db, settingsPath)
+	mgr := newManagerWithPath(db, settingsPath)
 
 	got, err := mgr.GetSettings()
 	if err != nil {
@@ -210,7 +210,7 @@ func newTestManagerAndPath(t *testing.T) (*Manager, string) {
 	t.Helper()
 	db := newTestDB(t)
 	settingsPath := filepath.Join(t.TempDir(), "settings.toml")
-	return NewManagerWithPath(db, settingsPath), settingsPath
+	return newManagerWithPath(db, settingsPath), settingsPath
 }
 
 func newTestDB(t *testing.T) *gorm.DB {
@@ -221,4 +221,8 @@ func newTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("OpenDB: %v", err)
 	}
 	return db
+}
+
+func newManagerWithPath(db *gorm.DB, settingsPath string) *Manager {
+	return &Manager{db: db, settingsPath: settingsPath}
 }

@@ -37,10 +37,6 @@ func NewManager(db *gorm.DB) *Manager {
 	return &Manager{db: db, settingsPath: defaultSettingsPath()}
 }
 
-func NewManagerWithPath(db *gorm.DB, settingsPath string) *Manager {
-	return &Manager{db: db, settingsPath: settingsPath}
-}
-
 const (
 	keyAddonPath     = "addon_path"
 	keyAutoUpdate    = "auto_update"

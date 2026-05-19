@@ -32,6 +32,7 @@ export function remoteAddonSearchScore(addon: RemoteAddon, query: string): numbe
 }
 
 export function isLibraryLikeRemoteAddon(addon: RemoteAddon, categoryName = ''): boolean {
-  const haystack = `${addon.uiName} ${categoryName} ${(addon.uiDirs ?? []).join(' ')}`.toLowerCase();
+  const haystack =
+    `${addon.uiName} ${categoryName} ${(addon.uiDirs ?? []).join(' ')}`.toLowerCase();
   return /\blib|library|libraries|dependency|dependencies/.test(haystack);
 }

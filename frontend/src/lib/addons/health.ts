@@ -46,7 +46,9 @@ export function buildAddonHealthSummary(
       count: missingRequired.length,
       description: 'Some installed addons declare required libraries that are not installed.',
       actionLabel: missingRequired.some((dep) => dep.canInstall) ? 'Install required' : undefined,
-      addonFolderNames: Array.from(new Set(missingRequired.flatMap((dep) => dep.requiredBy))).sort(),
+      addonFolderNames: Array.from(
+        new Set(missingRequired.flatMap((dep) => dep.requiredBy))
+      ).sort(),
       dependencyFolderNames: missingRequired.map((dep) => dep.depFolderName).sort()
     });
   }

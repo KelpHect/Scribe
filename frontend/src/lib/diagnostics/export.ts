@@ -41,6 +41,7 @@ export function buildLocalDiagnosticsExport(input: BuildDiagnosticsExportInput):
     },
     startup: {
       startupMs: input.diagnostics.startupMs,
+      uptimeMs: input.diagnostics.uptimeMs ?? null,
       domReadyMs: input.diagnostics.domReadyMs,
       frontendReadyMs: input.diagnostics.frontendReadyMs,
       remoteReadyMs: input.diagnostics.remoteReadyMs,
@@ -60,23 +61,23 @@ export function buildLocalDiagnosticsExport(input: BuildDiagnosticsExportInput):
       status: input.diagnostics.persistenceStatus ?? 'unknown',
       error: redactLocalPathText(input.diagnostics.persistenceError ?? '')
     },
-	    catalog: {
-	      remoteAddons: input.diagnostics.remoteAddons,
-	      remoteCategories: input.diagnostics.remoteCategories,
-	      installedAddons: input.diagnostics.installedAddons,
-	      remoteCacheStale: input.diagnostics.remoteCacheStale,
-	      remoteRefreshCount: input.diagnostics.remoteRefreshCount,
-	      lastRemoteRefreshAt: input.diagnostics.lastRemoteRefreshAt,
-	      lastRemoteRefreshMs: input.diagnostics.lastRemoteRefreshMs,
-	      cachedStateReadyMs: input.diagnostics.cachedStateReadyMs ?? null,
-	      scanStartedMs: input.diagnostics.scanStartedMs ?? null,
-	      scanReadyMs: input.diagnostics.scanReadyMs ?? null,
-	      scanInFlight: input.diagnostics.scanInFlight ?? null,
-	      lastScanError: redactLocalPathText(input.diagnostics.lastScanError ?? ''),
-	      tempCleanupRemoved: input.diagnostics.tempCleanupRemoved ?? null,
-	      tempCleanupRetained: input.diagnostics.tempCleanupRetained ?? null,
-	      tempCleanupError: redactLocalPathText(input.diagnostics.tempCleanupError ?? '')
-	    },
+    catalog: {
+      remoteAddons: input.diagnostics.remoteAddons,
+      remoteCategories: input.diagnostics.remoteCategories,
+      installedAddons: input.diagnostics.installedAddons,
+      remoteCacheStale: input.diagnostics.remoteCacheStale,
+      remoteRefreshCount: input.diagnostics.remoteRefreshCount,
+      lastRemoteRefreshAt: input.diagnostics.lastRemoteRefreshAt,
+      lastRemoteRefreshMs: input.diagnostics.lastRemoteRefreshMs,
+      cachedStateReadyMs: input.diagnostics.cachedStateReadyMs ?? null,
+      scanStartedMs: input.diagnostics.scanStartedMs ?? null,
+      scanReadyMs: input.diagnostics.scanReadyMs ?? null,
+      scanInFlight: input.diagnostics.scanInFlight ?? null,
+      lastScanError: redactLocalPathText(input.diagnostics.lastScanError ?? ''),
+      tempCleanupRemoved: input.diagnostics.tempCleanupRemoved ?? null,
+      tempCleanupRetained: input.diagnostics.tempCleanupRetained ?? null,
+      tempCleanupError: redactLocalPathText(input.diagnostics.tempCleanupError ?? '')
+    },
     detailFetches: {
       totalBackendCalls: input.diagnostics.detailRequests,
       uniqueUIDs: input.diagnostics.detailUniqueUids,

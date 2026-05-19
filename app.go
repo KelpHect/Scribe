@@ -103,6 +103,7 @@ type DiagnosticsCount struct {
 
 type DiagnosticsSnapshot struct {
 	StartupMS           int64              `json:"startupMs"`
+	UptimeMS            int64              `json:"uptimeMs"`
 	DOMReadyMS          int64              `json:"domReadyMs"`
 	FrontendReadyMS     int64              `json:"frontendReadyMs"`
 	RemoteReadyMS       int64              `json:"remoteReadyMs"`
@@ -433,15 +434,6 @@ func (a *App) recordDetailFetch(uid string) {
 	a.perfMu.Unlock()
 }
 
-func (a *App) recordRemoteRefresh(started time.Time) {
-	now := time.Now()
-	a.perfMu.Lock()
-	a.remoteRefreshes++
-	a.lastRefreshAt = now
-	a.lastRefreshMS = now.Sub(started).Milliseconds()
-	a.perfMu.Unlock()
-}
-
 func (a *App) getDiagnosticsSnapshot() DiagnosticsSnapshot {
 	a.perfMu.RLock()
 	startedAt := a.startedAt
@@ -506,8 +498,12 @@ func (a *App) getDiagnosticsSnapshot() DiagnosticsSnapshot {
 	tempCleanupError := a.tempCleanupError
 	a.tempCleanupMu.RUnlock()
 
+	now := time.Now()
+	startupReadyAt := firstNonZeroTime(frontendReadyAt, domReadyAt, cachedStateReadyAt, now)
+
 	return DiagnosticsSnapshot{
-		StartupMS:           elapsedMS(startedAt, time.Now()),
+		StartupMS:           elapsedMS(startedAt, startupReadyAt),
+		UptimeMS:            elapsedMS(startedAt, now),
 		DOMReadyMS:          elapsedMS(startedAt, domReadyAt),
 		FrontendReadyMS:     elapsedMS(startedAt, frontendReadyAt),
 		RemoteReadyMS:       elapsedMS(startedAt, remoteReadyAt),
@@ -550,6 +546,15 @@ func elapsedMS(start, end time.Time) int64 {
 		return 0
 	}
 	return end.Sub(start).Milliseconds()
+}
+
+func firstNonZeroTime(values ...time.Time) time.Time {
+	for _, value := range values {
+		if !value.IsZero() {
+			return value
+		}
+	}
+	return time.Time{}
 }
 
 func formatTime(t time.Time) string {

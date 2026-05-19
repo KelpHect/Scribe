@@ -68,7 +68,6 @@ function normalizeMatchedAddon(match: WailsEsoui.MatchedAddon): MatchedAddon {
   };
 }
 
-
 export async function fetchRemoteAddons(): Promise<RemoteAddon[]> {
   return (await callWails('GetRemoteAddons')) ?? [];
 }
@@ -159,7 +158,8 @@ export async function fetchMissingDependencies(): Promise<MissingDepInfo[]> {
       ...dep,
       requiredBy: dep.requiredBy ?? [],
       versionConstraints: (dep as MissingDepInfo).versionConstraints ?? [],
-      planState: (dep as MissingDepInfo).planState ?? (dep.canInstall ? 'installable' : 'unresolved'),
+      planState:
+        (dep as MissingDepInfo).planState ?? (dep.canInstall ? 'installable' : 'unresolved'),
       planReason:
         (dep as MissingDepInfo).planReason ??
         (dep.canInstall

@@ -350,7 +350,6 @@
   });
 
   const depUIDMap = $derived.by(() => {
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const map = new Map<string, string>();
     for (const r of remoteAddons) {
       for (const dir of r.uiDirs ?? []) {
@@ -394,7 +393,6 @@
   const LIBRARIES_ID = '__libraries__';
 
   const groupedAddons = $derived.by(() => {
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const groupMap = new Map<string, Addon[]>();
     const libraries: Addon[] = [];
 

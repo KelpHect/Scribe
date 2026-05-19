@@ -459,7 +459,6 @@
               class="bbcode-content text-foreground text-sm leading-relaxed"
               onclick={handleRichTextLinkClick}
             >
-              <!-- eslint-disable-next-line svelte/no-at-html-tags -->
               {@html descriptionHtml}
             </div>
           </div>
@@ -544,7 +543,6 @@
                       class="bbcode-content text-foreground text-sm leading-relaxed"
                       onclick={handleRichTextLinkClick}
                     >
-                      <!-- eslint-disable-next-line svelte/no-at-html-tags -->
                       {@html section.html}
                     </div>
                   </div>

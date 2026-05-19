@@ -15,7 +15,12 @@
   import RecoverableError from '$lib/components/layout/RecoverableError.svelte';
   import { DownloadQueue } from '$lib/components/download';
   import type { ContextMenuEntry } from '$lib/services/context-menu-service';
-  import { fetchDiagnostics, performMemoryCleanup } from '$lib/services/diagnostics-service';
+  import {
+    fetchDiagnostics,
+    performMemoryCleanup,
+    type DiagnosticsSnapshot
+  } from '$lib/services/diagnostics-service';
+  import { shouldRunMemoryCleanup } from '$lib/diagnostics/memory-cleanup';
   import {
     clipboardGetText,
     clipboardSetText,
@@ -90,6 +95,7 @@
   let contextMenuItems = $state<ContextMenuEntry[]>([]);
   let memoryLimitMb = $state(150);
   let memoryCleanupRunning = false;
+  let lastMemoryCleanupAt = 0;
   let useCustomTitleBar = $state(false);
 
   function closeContextMenu() {
@@ -138,15 +144,24 @@
 
   async function maybeCleanupMemory() {
     if (memoryCleanupRunning || memoryLimitMb <= 0) return;
-    const diagnostics = await fetchDiagnostics();
-    const currentMb = Math.max(diagnostics.heapAllocMb, diagnostics.sysMb);
-    if (currentMb < memoryLimitMb) return;
+    let diagnostics: DiagnosticsSnapshot;
+    try {
+      diagnostics = await fetchDiagnostics();
+    } catch {
+      return;
+    }
+    if (!shouldRunMemoryCleanup(diagnostics, memoryLimitMb, Date.now(), lastMemoryCleanupAt)) {
+      return;
+    }
 
     memoryCleanupRunning = true;
+    lastMemoryCleanupAt = Date.now();
     try {
       queryClient.removeQueries({ queryKey: addonDetailsQueryRoot });
       await performMemoryCleanup();
       void emitRuntimeEvent('perf:capture', 'memory-cleanup').catch(() => undefined);
+    } catch {
+      // Diagnostics cleanup is opportunistic; a failed cleanup should not interrupt the app shell.
     } finally {
       memoryCleanupRunning = false;
     }

@@ -158,11 +158,12 @@ npm --prefix frontend run check
 npm --prefix frontend run test
 npm --prefix frontend run bench -- --run
 npm --prefix frontend run lint:check
+npm --prefix frontend run format:check
 npm --prefix frontend run build
 go test ./...
 ```
 
-On Linux, local Wails builds need `-tags webkit2_41` after installing the GTK/WebKit packages above. Use `npm --prefix frontend run lint:check` for lint verification; `npm --prefix frontend run lint` applies autofixes.
+On Linux, local Wails builds need `-tags webkit2_41` after installing the GTK/WebKit packages above. Use `npm --prefix frontend run lint:check` for Oxlint verification. `npm --prefix frontend run format:check` checks Oxfmt-supported TypeScript, JavaScript, and CSS files; Svelte component formatting is still kept by focused edits, review, and `svelte-check`.
 
 ### generated files
 

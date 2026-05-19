@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { getLatestCompatibility, isLibraryLikeRemoteAddon, remoteAddonSearchScore } from './remote-list';
+import {
+  getLatestCompatibility,
+  isLibraryLikeRemoteAddon,
+  remoteAddonSearchScore
+} from './remote-list';
 import type { RemoteAddon } from '$lib/services/esoui-service';
 
 describe('getLatestCompatibility', () => {
@@ -32,15 +36,38 @@ describe('remoteAddonSearchScore', () => {
   } satisfies Omit<RemoteAddon, 'uiName' | 'uiDirs'>;
 
   it('ranks exact title and folder matches ahead of loose author matches', () => {
-    expect(remoteAddonSearchScore({ ...base, uiName: 'LibFoo', uiDirs: ['LibFoo'] }, 'libfoo')).toBe(0);
-    expect(remoteAddonSearchScore({ ...base, uiName: 'LibFoo Extras', uiDirs: ['LibFooExtras'] }, 'libfoo')).toBe(1);
-    expect(remoteAddonSearchScore({ ...base, uiName: 'Better LibFoo', uiDirs: ['BetterLibFoo'] }, 'libfoo')).toBe(2);
-    expect(remoteAddonSearchScore({ ...base, uiName: 'Other', uiAuthorName: 'LibFoo Team', uiDirs: ['Other'] }, 'libfoo')).toBe(3);
+    expect(
+      remoteAddonSearchScore({ ...base, uiName: 'LibFoo', uiDirs: ['LibFoo'] }, 'libfoo')
+    ).toBe(0);
+    expect(
+      remoteAddonSearchScore(
+        { ...base, uiName: 'LibFoo Extras', uiDirs: ['LibFooExtras'] },
+        'libfoo'
+      )
+    ).toBe(1);
+    expect(
+      remoteAddonSearchScore(
+        { ...base, uiName: 'Better LibFoo', uiDirs: ['BetterLibFoo'] },
+        'libfoo'
+      )
+    ).toBe(2);
+    expect(
+      remoteAddonSearchScore(
+        { ...base, uiName: 'Other', uiAuthorName: 'LibFoo Team', uiDirs: ['Other'] },
+        'libfoo'
+      )
+    ).toBe(3);
   });
 
   it('identifies library-like catalog entries for dependency filtering', () => {
-    expect(isLibraryLikeRemoteAddon({ ...base, uiName: 'LibAddonMenu', uiDirs: ['LibAddonMenu'] })).toBe(true);
-    expect(isLibraryLikeRemoteAddon({ ...base, uiName: 'Quest Pins', uiDirs: ['QuestPins'] })).toBe(false);
-    expect(isLibraryLikeRemoteAddon({ ...base, uiName: 'Helper', uiDirs: ['Helper'] }, 'Libraries')).toBe(true);
+    expect(
+      isLibraryLikeRemoteAddon({ ...base, uiName: 'LibAddonMenu', uiDirs: ['LibAddonMenu'] })
+    ).toBe(true);
+    expect(isLibraryLikeRemoteAddon({ ...base, uiName: 'Quest Pins', uiDirs: ['QuestPins'] })).toBe(
+      false
+    );
+    expect(
+      isLibraryLikeRemoteAddon({ ...base, uiName: 'Helper', uiDirs: ['Helper'] }, 'Libraries')
+    ).toBe(true);
   });
 });

@@ -26,7 +26,9 @@
 - For frontend changes, also run `npm --prefix frontend run check` and `npm --prefix frontend run test`; run `npm --prefix frontend run build` when touching bundling, styling, assets, Wails bindings, or route/component loading.
 - Use `npm --prefix frontend install` to restore frontend deps; do not use another package manager.
 - Use `npm --prefix frontend run lint:check` for non-mutating lint verification when lint rules/config or broad frontend code shape changes.
-- Avoid `npm --prefix frontend run lint` unless intentionally applying eslint autofixes, because the script runs `eslint . --fix`.
+- Use `npm --prefix frontend run format:check` when touching TypeScript, JavaScript, CSS, Oxfmt config, or broad frontend code shape.
+- Avoid `npm --prefix frontend run lint` unless intentionally applying Oxlint autofixes; review the diff afterwards.
+- `npm --prefix frontend run format` uses Oxfmt for supported TS/JS/CSS files. Oxfmt does not replace Svelte component formatting, so keep Svelte markup edits small and readable.
 - Clean-checkout caveat: root `go test ./...` fails if `frontend/dist` is absent because `main.go` embeds `all:frontend/dist`; run Wails/build first.
 - Clean-checkout caveat: frontend type checks fail if `frontend/wailsjs` is absent/stale; regenerate via `wails dev`/`wails build`, never by authoring generated bindings.
 - `npm --prefix frontend run check` is expected to pass after bindings are regenerated; rerun it before claiming frontend package or type-check changes are clean.
@@ -43,6 +45,7 @@
 
 ## Stack
 - Go 1.26.3, Wails v2.12, Node.js 24/npm 11, Svelte 5 runes, TypeScript 6, Vite 8, Tailwind CSS v4.
+- Frontend lint/format tooling is Oxlint/Oxfmt; do not reintroduce ESLint or Prettier without a measured reason and an accepted tooling decision.
 - SQLite uses GORM with `glebarez/sqlite`; cache/state live in `Scribe/esoui_cache.db`, while user-facing settings live in `Scribe/settings.toml`.
 - Echo is only an indirect Wails dependency; the app has no application HTTP server except opt-in pprof.
 - Wails binds methods on `App` in `app.go`; frontend calls them through thin service wrappers and dynamic imports.
@@ -62,6 +65,7 @@
 - `internal/settings` owns persisted app settings only; do not mix settings persistence into UI or ESOUI client code.
 - Frontend service modules in `frontend/src/lib/services` stay thin Wails/runtime wrappers; shared client state belongs in `frontend/src/lib/stores` or TanStack Query helpers under `frontend/src/lib/db`.
 - Route components under `frontend/src/routes` compose pages and queries; reusable UI belongs under `frontend/src/lib/components`.
+- Avoid empty barrel folders and unused schema/constant modules. Keep `frontend/src/lib` organized by live ownership: `addons`, `catalog`, `components`, `db`, `diagnostics`, `install`, `perf`, `routes`, `services`, `stores`, and `utils`.
 - External URLs must go through Wails runtime helpers from frontend services; do not add ad-hoc browser/process launching for URLs.
 - Do not introduce framework-agnostic abstraction layers, service locators, event buses, or plugin-style extension points unless they remove proven duplication or fix a measured problem.
 - Keep expensive transforms in pure helpers where they can be tested and benchmarked; avoid burying catalog filtering, matching, or install planning inside component markup.
@@ -132,6 +136,7 @@
 - `frontend/wailsjs` absence causes frontend type/check failures; regenerate with Wails instead of committing generated files.
 - `frontend/dist` absence breaks root Go tests because embedded assets are required.
 - A clean `npm ci` can still show `@emnapi/*`, `@napi-rs/wasm-runtime`, `@tybys/wasm-util`, and `tslib` as extraneous because of optional/bundled WASM bindings in the frontend toolchain; do not remove declared app dependencies based only on that npm output.
+- Oxfmt currently covers supported TypeScript, JavaScript, and CSS files here; `.svelte` component formatting remains manual plus `svelte-check`/Oxlint validation.
 - Cache schema/version changes must intentionally invalidate or migrate SQLite cache.
 - Settings AddOns path changes can diverge if routed through `SetAddonPath` without `SaveSettings`; persist path-changing UI flows.
 - The Auto Update setting is persisted but not implemented as a worker; do not describe it as active behavior unless implementing a safe opt-in flow.

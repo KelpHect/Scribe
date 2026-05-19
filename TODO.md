@@ -1,15 +1,15 @@
 # Scribe TODO Audit Ledger
 
-Last audit refresh: 2026-05-18
+Last audit refresh: 2026-05-19
 
 ## Audit scope inspected
 
 - Code: `app.go`, `main.go`, `pprof.go`, `internal/addon`, `internal/scanner`, `internal/esoui`, `internal/settings`, and the Svelte frontend under `frontend/src` including routes, components, stores, services, query helpers, theme/runtime/diagnostics flows, and utilities.
 - Tests: Go coverage now spans scanner parsing/path detection, ESOUI cache/client/install/download behavior, settings persistence, root app safety helpers, and missing-dependency/MD5 helpers; frontend smoke tests run through Vitest for store/service flows alongside `svelte-check`.
 - Docs/plans: `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, `frontend/README.md`, and the prior `TODO.md`. No `docs/`, `plan/`, `plans/`, `roadmap/`, `roadmaps/`, or `backlog/` directories/files were present outside this ledger.
-- Scripts/config: `go.mod`, `go.sum`, `wails.json`, `frontend/package.json`, `frontend/package-lock.json`, `frontend/vite.config.ts`, `frontend/svelte.config.js`, `frontend/eslint.config.js`, `scripts/build-release.sh`, `scripts/build-release.ps1`, `.github/workflows/ci.yml`, `.github/workflows/release.yml`, and `.github/workflows/tag-release.yml`.
+- Scripts/config: `go.mod`, `go.sum`, `wails.json`, `frontend/package.json`, `frontend/package-lock.json`, `frontend/vite.config.ts`, `frontend/svelte.config.js`, `frontend/.oxlintrc.json`, `frontend/.oxfmtrc.json`, `scripts/build-release.sh`, `scripts/build-release.ps1`, `.github/workflows/ci.yml`, `.github/workflows/release.yml`, and `.github/workflows/tag-release.yml`.
 - Generated/runtime surfaces: `frontend/wailsjs/`, `frontend/dist/`, `build/bin/`, build reports, and packaged binaries are treated as generated; Wails build/regeneration is the supported recovery path.
-- Verification baseline: `./scripts/verify.sh` runs diff sanity, Wails build/regeneration, frontend type checks, frontend smoke tests, and Go tests without mutating lint/format commands.
+- Verification baseline: `./scripts/verify.sh` runs diff sanity, Wails build/regeneration, frontend type checks, Oxlint, Oxfmt check, frontend smoke tests, and Go tests without mutating lint/format commands.
 
 ## Current direction
 
@@ -66,7 +66,7 @@ Purpose: fix gaps users or contributors hit in normal settings, install, update,
   - Completed: dependency-update compatibility fixes removed the `matchAll` unknown type issue, `InstalledPage.svelte` declaration ordering issue, clickable-card a11y warning, and TypeScript 6 `baseUrl` warning while preserving Wails aliases.
   - Verification: after Wails-generated bindings are present, `npm --prefix frontend run check` reports 0 errors and 0 warnings.
 - [x] Make clean-checkout verification deterministic when generated Wails artifacts are absent.
-  - Completed: `scripts/verify.sh` regenerates Wails bindings and `frontend/dist` through Wails, then runs frontend type checks and Go tests.
+  - Completed: `scripts/verify.sh` regenerates Wails bindings and `frontend/dist` through Wails, then runs frontend type checks, Oxlint, Oxfmt check, frontend smoke tests, and Go tests.
   - Verification: README/CONTRIBUTING document the script as the clean-checkout check path and reiterate that generated files are not hand-edited.
 - [x] Add frontend type checking to CI once generated bindings are available.
   - Completed: CI now runs `npm --prefix frontend run check` after the Wails build step, where generated bindings are available.
@@ -147,7 +147,7 @@ Purpose: make setup, verification, release expectations, and generated-file reco
   - Completed: README, CONTRIBUTING, and `frontend/README.md` now explain that `frontend/wailsjs/` and `frontend/dist/` are Wails-generated, when to use `wails dev`/`wails build` to recover them, and that generated files are not hand-edited.
   - Verification: `git diff --check` passes.
 - [x] Align documented check commands with actual project gates.
-  - Completed: README, CONTRIBUTING, and `frontend/README.md` now list the Go, frontend check/test/build, Wails packaging, clean-checkout generated-file caveats, Linux `webkit2_41` build tag, and the mutating ESLint caveat.
+  - Completed: README, CONTRIBUTING, and `frontend/README.md` now list the Go, frontend check/test/build, lint/format, Wails packaging, clean-checkout generated-file caveats, Linux `webkit2_41` build tag, and the mutating lint caveat.
   - Verification: `git diff --check` passes.
 - [x] Document local database/cache location and reset behavior.
   - Completed: README and CONTRIBUTING now document `Scribe/esoui_cache.db` under the OS user config directory, what the database stores, that it is separate from ESO AddOns, and the safe close-and-rename/delete reset flow.
@@ -156,11 +156,21 @@ Purpose: make setup, verification, release expectations, and generated-file reco
 ### Tooling/scripts
 
 - [x] Add a non-mutating verification script or Make target for common checks.
-  - Completed: `scripts/verify.sh` now runs `git diff --check`, the Wails build/regeneration path, frontend type checks, frontend smoke tests, and Go tests without invoking mutating lint/format commands; docs describe the command as the common clean-checkout verification path.
+  - Completed: `scripts/verify.sh` now runs `git diff --check`, the Wails build/regeneration path, frontend type checks, Oxlint, Oxfmt check, frontend smoke tests, and Go tests without invoking mutating lint/format commands; docs describe the command as the common clean-checkout verification path.
   - Verification: `./scripts/verify.sh` passes.
 - [x] Add a non-fixing lint script if linting is intended in CI or local checks.
-  - Completed: `frontend/package.json` now exposes `lint:check` as `eslint .`, while the existing mutating `lint` command remains available for intentional autofixes; README, CONTRIBUTING, and `frontend/README.md` recommend `lint:check` for verification.
+  - Completed: `frontend/package.json` now exposes `lint:check` as non-mutating Oxlint verification, while the existing mutating `lint` command remains available for intentional Oxlint autofixes; README, CONTRIBUTING, and `frontend/README.md` recommend `lint:check` for verification.
   - Verification: `npm --prefix frontend run lint:check` and `./scripts/verify.sh` pass.
+- [x] Replace ESLint/Prettier with Oxc tooling.
+  - Evidence: frontend lint/format tooling should be lighter and avoid carrying overlapping parser/plugin stacks when Oxc tools cover the active TypeScript/JavaScript/CSS code paths.
+  - Acceptance criteria: remove ESLint, TypeScript ESLint, Svelte ESLint config/plugin, Prettier, and Prettier plugins; add Oxlint/Oxfmt scripts; document the Svelte formatting limitation honestly; keep `svelte-check` as the Svelte semantic gate.
+  - Completed: `frontend/package.json` now uses `oxlint` for `lint:check`/`lint` and `oxfmt` for `format:check`/`format`; old ESLint/Prettier configs were removed; `.oxlintrc.json` and `.oxfmtrc.json` are checked in; docs and AGENTS describe the new rules.
+  - Verification: `npm --prefix frontend run lint:check`, `npm --prefix frontend run format:check`, `npm --prefix frontend run check`, and frontend tests pass.
+- [x] Prune unused frontend scaffold modules.
+  - Evidence: the frontend contained unused empty/barrel/schema/constant modules from earlier IndexedDB/hotkey/form scaffolding that no route, service, store, or component imported.
+  - Acceptance criteria: remove only modules proven unused by repository search and keep live ownership folders for routes, services, stores, diagnostics, install helpers, perf helpers, and components.
+  - Completed: removed dead `frontend/src/lib/index.ts`, `frontend/src/lib/forms`, `frontend/src/lib/hotkeys`, `frontend/src/lib/schemas`, and stale `frontend/src/lib/db/index.ts` while keeping live `db` query/cache modules.
+  - Verification: `npm --prefix frontend run check` and `npm --prefix frontend run lint:check` pass.
 
 ## P5 — Release/distribution, compatibility, and operations hardening
 

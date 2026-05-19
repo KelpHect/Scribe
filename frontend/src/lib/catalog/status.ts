@@ -18,7 +18,11 @@ export function getCatalogStatusView(input: CatalogStatusInput): CatalogStatusVi
   if (input.remoteCount > 0 && input.remoteStatus?.refreshInFlight) {
     return 'refreshing-cache';
   }
-  if (input.remoteCount > 0 && input.remoteStatus?.cacheStale && input.remoteStatus.lastRefreshError) {
+  if (
+    input.remoteCount > 0 &&
+    input.remoteStatus?.cacheStale &&
+    input.remoteStatus.lastRefreshError
+  ) {
     return 'stale-refresh-failed';
   }
   if (
@@ -29,7 +33,10 @@ export function getCatalogStatusView(input: CatalogStatusInput): CatalogStatusVi
   ) {
     return 'showing-stale-cache';
   }
-  if (input.remoteCount === 0 && (input.isError || (input.hasRemoteCatalogStatus && !input.remoteStatus?.hasData))) {
+  if (
+    input.remoteCount === 0 &&
+    (input.isError || (input.hasRemoteCatalogStatus && !input.remoteStatus?.hasData))
+  ) {
     return 'no-cache';
   }
   return 'ready';

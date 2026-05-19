@@ -1,12 +1,14 @@
 # Dependency Audit
 
-Last updated: 2026-05-18
+Last updated: 2026-05-19
 
 ## Summary
 
-No declared runtime dependency was removed. The current dependencies are used by live code, build config, tests, or the Wails/SQLite/TOML runtime path.
+The current runtime dependencies are used by live code, build config, tests, or the Wails/SQLite/TOML runtime path.
 
 `npm audit fix` updated the lockfile-only `brace-expansion` dev dependency from `5.0.5` to `5.0.6`, clearing the moderate npm advisory without changing `frontend/package.json`.
+
+The frontend lint/format stack was simplified by removing ESLint, TypeScript ESLint, Svelte ESLint config/plugin, Prettier, and Prettier plugins, then adding Oxlint and Oxfmt. Oxfmt is used for supported TypeScript, JavaScript, and CSS files; `.svelte` component formatting remains governed by focused edits, review, Svelte language checks, and Oxlint diagnostics.
 
 ## Frontend
 
@@ -28,7 +30,7 @@ Declared frontend dependencies are used as follows:
 - `lucide-svelte`: app icons. It is deprecated upstream in favor of `@lucide/svelte`, but a package rename should be handled as a focused compatibility task, not hidden inside a dependency cleanup.
 - `svelte`: app framework.
 - `svelte-sonner`: toast/task notifications.
-- `valibot`: Settings validation schemas.
+- `valibot`: Settings form validation in `SettingsPage.svelte`.
 
 The clean `npm ci` tree still reports `@emnapi/*`, `@napi-rs/wasm-runtime`, `@tybys/wasm-util`, and `tslib` as extraneous. They come from optional/bundled WASM bindings in the Rolldown/Tailwind toolchain and are not committed app dependencies.
 

@@ -27,7 +27,7 @@
   let failed = $state(false);
 
   $effect(() => {
-    src;
+    void src;
     failed = false;
   });
 

@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchMatchedAddons, fetchMissingDependencies, fetchRemoteCatalogStatus } from './esoui-service';
+import {
+  fetchMatchedAddons,
+  fetchMissingDependencies,
+  fetchRemoteCatalogStatus
+} from './esoui-service';
 import { callWails } from './wails-service';
 
 vi.mock('./wails-service', () => ({
-  callWails: vi.fn()
+  callWails: vi.fn<typeof callWails>()
 }));
 
 const mockedCallWails = vi.mocked(callWails);
@@ -13,7 +17,7 @@ describe('fetchRemoteCatalogStatus', () => {
     mockedCallWails.mockReset();
   });
 
-	  it('returns the Wails catalog status payload', async () => {
+  it('returns the Wails catalog status payload', async () => {
     mockedCallWails.mockResolvedValueOnce({
       hasData: true,
       cacheStale: true,

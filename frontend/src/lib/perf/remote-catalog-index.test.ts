@@ -8,9 +8,30 @@ import {
 import type { Category, RemoteAddon } from '$lib/services/esoui-service';
 
 const categories: Category[] = [
-  { id: 'utility', name: 'Utility Mods', iconUrl: 'utility.png', parentId: '', parentIds: [], count: 0 },
-  { id: 'library', name: 'Libraries', iconUrl: 'library.png', parentId: '', parentIds: [], count: 0 },
-  { id: 'combat', name: 'Action Bar Mods', iconUrl: 'combat.png', parentId: '', parentIds: [], count: 0 }
+  {
+    id: 'utility',
+    name: 'Utility Mods',
+    iconUrl: 'utility.png',
+    parentId: '',
+    parentIds: [],
+    count: 0
+  },
+  {
+    id: 'library',
+    name: 'Libraries',
+    iconUrl: 'library.png',
+    parentId: '',
+    parentIds: [],
+    count: 0
+  },
+  {
+    id: 'combat',
+    name: 'Action Bar Mods',
+    iconUrl: 'combat.png',
+    parentId: '',
+    parentIds: [],
+    count: 0
+  }
 ];
 
 const baseAddon = {
@@ -84,7 +105,10 @@ describe('filterRemoteCatalog', () => {
 
     expect(scoreIndexedRemoteAddon(index[0], 'libfoo')).toBe(3);
 
-    const result = filterRemoteCatalog(index, defaultOptions({ query: 'LibFoo', sortKey: 'downloads' }));
+    const result = filterRemoteCatalog(
+      index,
+      defaultOptions({ query: 'LibFoo', sortKey: 'downloads' })
+    );
 
     expect(result.list.map((item) => item.addon.uid)).toEqual(['exact', 'prefix', 'author']);
   });
@@ -181,22 +205,22 @@ describe('filterRemoteCatalog', () => {
       categories
     );
 
-    expect(filterRemoteCatalog(index, defaultOptions({ sortKey: 'downloads' })).list[0].addon.uid).toBe(
-      'high'
-    );
-    expect(filterRemoteCatalog(index, defaultOptions({ sortKey: 'favorites' })).list[0].addon.uid).toBe(
-      'high'
-    );
+    expect(
+      filterRemoteCatalog(index, defaultOptions({ sortKey: 'downloads' })).list[0].addon.uid
+    ).toBe('high');
+    expect(
+      filterRemoteCatalog(index, defaultOptions({ sortKey: 'favorites' })).list[0].addon.uid
+    ).toBe('high');
     expect(filterRemoteCatalog(index, defaultOptions({ sortKey: 'date' })).list[0].addon.uid).toBe(
       'high'
     );
     expect(
-      filterRemoteCatalog(index, defaultOptions({ sortKey: 'author', sortDirection: 'asc' })).list[0]
-        .addon.uid
+      filterRemoteCatalog(index, defaultOptions({ sortKey: 'author', sortDirection: 'asc' }))
+        .list[0].addon.uid
     ).toBe('high');
     expect(
-      filterRemoteCatalog(index, defaultOptions({ sortKey: 'category', sortDirection: 'asc' })).list[0]
-        .addon.uid
+      filterRemoteCatalog(index, defaultOptions({ sortKey: 'category', sortDirection: 'asc' }))
+        .list[0].addon.uid
     ).toBe('high');
   });
 });

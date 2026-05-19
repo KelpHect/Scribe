@@ -7,6 +7,7 @@ export interface DiagnosticsCount {
 
 export interface DiagnosticsSnapshot {
   startupMs: number;
+  uptimeMs?: number;
   domReadyMs: number;
   frontendReadyMs: number;
   remoteReadyMs: number;

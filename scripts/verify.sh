@@ -18,5 +18,7 @@ fi
 git diff --check
 "${WAILS[@]}" "${build_args[@]}"
 npm --prefix frontend run check
+npm --prefix frontend run lint:check
+npm --prefix frontend run format:check
 npm --prefix frontend run test
 go test ./...

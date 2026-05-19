@@ -61,7 +61,10 @@ describe('addon detail cache bounds', () => {
 
   it('reports bounded cache and screenshot stats for diagnostics', () => {
     const queryClient = new QueryClient();
-    queryClient.setQueryData(addonDetailsQueryKey('101'), detail('101', ADDON_DETAIL_MAX_SCREENSHOTS));
+    queryClient.setQueryData(
+      addonDetailsQueryKey('101'),
+      detail('101', ADDON_DETAIL_MAX_SCREENSHOTS)
+    );
 
     const stats = getAddonDetailCacheStats(queryClient);
 

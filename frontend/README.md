@@ -13,9 +13,10 @@ npm --prefix frontend run build
 npm --prefix frontend run check
 npm --prefix frontend run test
 npm --prefix frontend run lint:check
+npm --prefix frontend run format:check
 ```
 
-`npm --prefix frontend run lint` applies ESLint fixes. Use `lint:check` for non-mutating verification.
+`npm --prefix frontend run lint` applies Oxlint fixes. Use `lint:check` for non-mutating verification. `format:check` uses Oxfmt for supported TypeScript, JavaScript, and CSS files; Svelte component formatting is still kept through focused edits and `svelte-check`.
 
 ## Gotchas
 

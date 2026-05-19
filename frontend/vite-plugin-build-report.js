@@ -13,7 +13,7 @@ const BUDGETS = {
   'vendor-icons.js': 5_000,
   'vendor-tanstack-data.js': 5_000,
   'vendor-tanstack-ui.js': 10_000,
-  'vendor-svelte.js': 15_000,
+  'vendor-svelte.js': 15_000
 };
 
 const TOTAL_GZIP_BUDGET = 500_000;
@@ -63,7 +63,7 @@ export default function buildReportPlugin() {
               file: fileName,
               size,
               budget,
-              overBy: size - budget,
+              overBy: size - budget
             });
           }
 
@@ -72,7 +72,7 @@ export default function buildReportPlugin() {
             size,
             type: isJs ? 'js' : isCss ? 'css' : 'other',
             budget: budget ?? null,
-            withinBudget: budget ? size <= budget : null,
+            withinBudget: budget ? size <= budget : null
           });
         }
       }
@@ -85,7 +85,7 @@ export default function buildReportPlugin() {
         totalGzipBudgetBytes: TOTAL_GZIP_BUDGET,
         chunks: chunks.sort((a, b) => b.size - a.size),
         violations,
-        budgets: BUDGETS,
+        budgets: BUDGETS
       };
 
       const reportPath = join(options.dir ?? 'dist', 'build-report.json');
@@ -94,11 +94,13 @@ export default function buildReportPlugin() {
       if (violations.length > 0) {
         console.warn('\n[budget] Bundle size violations:');
         for (const v of violations) {
-          console.warn(`  ${v.file}: ${(v.size / 1024).toFixed(1)}KB (budget: ${(v.budget / 1024).toFixed(1)}KB, +${(v.overBy / 1024).toFixed(1)}KB over)`);
+          console.warn(
+            `  ${v.file}: ${(v.size / 1024).toFixed(1)}KB (budget: ${(v.budget / 1024).toFixed(1)}KB, +${(v.overBy / 1024).toFixed(1)}KB over)`
+          );
         }
       } else {
         console.log('[budget] All chunks within size budgets ✓');
       }
-    },
+    }
   };
 }

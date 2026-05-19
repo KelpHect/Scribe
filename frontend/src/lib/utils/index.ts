@@ -147,7 +147,9 @@ function stripBbcodeTags(input: string): string {
 
 function parseDependencyItem(rawItem: string): ParsedDependencyLink | null {
   const urlMatch = rawItem.match(/\[url=([^\]]+)\]([\s\S]*?)\[\/url\]/i);
-  const name = stripBbcodeTags(rawItem).replace(/^[-:*\s]+/, '').trim();
+  const name = stripBbcodeTags(rawItem)
+    .replace(/^[-:*\s]+/, '')
+    .trim();
   if (!name) return null;
   return {
     name,
@@ -168,13 +170,18 @@ function isLikelyDependencyName(value: string): boolean {
   if (!name) return false;
   if (name.length > 80) return false;
   if (/\s{3,}/.test(name)) return false;
-  if (/^(required libraries?|dependencies|optional libraries?|optional dependencies?)$/i.test(name)) return false;
+  if (/^(required libraries?|dependencies|optional libraries?|optional dependencies?)$/i.test(name))
+    return false;
   if (/^(please install|otherwise|if you need|the following)/i.test(name)) return false;
 
   const tokens = name.split(/\s+/).filter(Boolean);
   if (tokens.length > 6) return false;
 
-  return tokens.every((token) => /^(?:Lib[A-Za-z0-9_.-]+|[A-Z][A-Za-z0-9_.-]+(?:UI|Companion|Pins|Menu|Logger|Filters|Vars|Pad)?|[A-Za-z]+(?:-[0-9.]+)?|[0-9.]+)$/.test(token));
+  return tokens.every((token) =>
+    /^(?:Lib[A-Za-z0-9_.-]+|[A-Z][A-Za-z0-9_.-]+(?:UI|Companion|Pins|Menu|Logger|Filters|Vars|Pad)?|[A-Za-z]+(?:-[0-9.]+)?|[0-9.]+)$/.test(
+      token
+    )
+  );
 }
 
 function splitDependencySentence(input: string): string[] {
@@ -184,7 +191,11 @@ function splitDependencySentence(input: string): string[] {
     .filter((part) => isLikelyDependencyName(part));
 }
 
-function extractSentenceDependencies(source: string, target: ParsedDependencyLink[], pattern: RegExp): string {
+function extractSentenceDependencies(
+  source: string,
+  target: ParsedDependencyLink[],
+  pattern: RegExp
+): string {
   return source.replace(pattern, (match, libs) => {
     const parsed = splitDependencySentence(libs).map((name) => ({ name, url: null }));
     if (parsed.length === 0) return match;
@@ -193,7 +204,11 @@ function extractSentenceDependencies(source: string, target: ParsedDependencyLin
   });
 }
 
-function extractPlainDependencySections(source: string, requiredLibraries: ParsedDependencyLink[], optionalLibraries: ParsedDependencyLink[]): string {
+function extractPlainDependencySections(
+  source: string,
+  requiredLibraries: ParsedDependencyLink[],
+  optionalLibraries: ParsedDependencyLink[]
+): string {
   const lines = source.split('\n');
   const kept: string[] = [];
 
@@ -211,9 +226,12 @@ function extractPlainDependencySections(source: string, requiredLibraries: Parse
       continue;
     }
 
-    if (/^(optional libraries?|optional dependencies?|3rd party optional plugins.*)$/i.test(plain)) {
+    if (
+      /^(optional libraries?|optional dependencies?|3rd party optional plugins.*)$/i.test(plain)
+    ) {
       currentTarget = optionalLibraries;
-      currentHeadingPattern = /^(optional libraries?|optional dependencies?|3rd party optional plugins.*)$/i;
+      currentHeadingPattern =
+        /^(optional libraries?|optional dependencies?|3rd party optional plugins.*)$/i;
       continue;
     }
 
@@ -307,10 +325,16 @@ export function parseAddonDescription(input: string): ParsedAddonDescription {
   cleaned = extractPlainDependencySections(cleaned, requiredLibraries, optionalLibraries);
 
   if (requiredLibraries.length > 0) {
-    cleaned = cleaned.replace(/(?:^|\n)[^\n]*(?:required libraries?|dependencies|requires[^\n]*libraries|libraries separately)[^\n]*(?=\n|$)/gi, '\n');
+    cleaned = cleaned.replace(
+      /(?:^|\n)[^\n]*(?:required libraries?|dependencies|requires[^\n]*libraries|libraries separately)[^\n]*(?=\n|$)/gi,
+      '\n'
+    );
   }
   if (optionalLibraries.length > 0) {
-    cleaned = cleaned.replace(/(?:^|\n)[^\n]*(?:optional libraries?|optional dependencies?|the following library is optional)[^\n]*(?=\n|$)/gi, '\n');
+    cleaned = cleaned.replace(
+      /(?:^|\n)[^\n]*(?:optional libraries?|optional dependencies?|the following library is optional)[^\n]*(?=\n|$)/gi,
+      '\n'
+    );
   }
 
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
@@ -327,12 +351,16 @@ function isChangelogHeader(line: string): boolean {
   if (!plain) return false;
   if (/^#{1,6}\s+/.test(line.trim())) return true;
   if (/^(?:version\s*)?v?\d+(?:\.\d+)+(?:[a-z])?$/i.test(plain)) return true;
-  if (/^(?:version\s*)?\d+(?:\.\d+)+(?:[a-z])?(?:,\s*v?\d+(?:\.\d+)+(?:[a-z])?)+$/i.test(plain)) return true;
+  if (/^(?:version\s*)?\d+(?:\.\d+)+(?:[a-z])?(?:,\s*v?\d+(?:\.\d+)+(?:[a-z])?)+$/i.test(plain))
+    return true;
   return false;
 }
 
 function normalizeChangelogTitle(line: string): string {
-  return stripBbcodeTags(line).replace(/^#+\s*/, '').replace(/:+$/, '').trim();
+  return stripBbcodeTags(line)
+    .replace(/^#+\s*/, '')
+    .replace(/:+$/, '')
+    .trim();
 }
 
 export function parseAddonChangelog(input: string): ParsedChangelogSection[] {
@@ -396,7 +424,10 @@ export function bbcodeToHtml(input: string): string {
   s = s.replace(/\[left\]([\s\S]*?)\[\/left\]/gi, '<div class="bbcode-align-left">$1</div>');
   s = s.replace(/\[right\]([\s\S]*?)\[\/right\]/gi, '<div class="bbcode-align-right">$1</div>');
   s = s.replace(/\[indent\]([\s\S]*?)\[\/indent\]/gi, '<div class="bbcode-indent">$1</div>');
-  s = s.replace(/\[quote\]([\s\S]*?)\[\/quote\]/gi, '<blockquote class="bbcode-quote">$1</blockquote>');
+  s = s.replace(
+    /\[quote\]([\s\S]*?)\[\/quote\]/gi,
+    '<blockquote class="bbcode-quote">$1</blockquote>'
+  );
 
   s = s.replace(/\[url=([^\]]+)\]([\s\S]*?)\[\/url\]/gi, (_m, href, text) => {
     const safeHref = href.startsWith('http') ? href : '#';
@@ -417,7 +448,10 @@ export function bbcodeToHtml(input: string): string {
   s = s.replace(/\[\*\]/gi, '');
 
   s = s.replace(/^#{2,3}\s+(.+)$/gm, (_m, text) => `<div class="bbcode-heading">${text}</div>`);
-  s = s.replace(/^v?\d+(?:\.\d+)+(?:[a-z])?\s*:?$/gim, (text) => `<div class="bbcode-version">${text.trim()}</div>`);
+  s = s.replace(
+    /^v?\d+(?:\.\d+)+(?:[a-z])?\s*:?$/gim,
+    (text) => `<div class="bbcode-version">${text.trim()}</div>`
+  );
   s = s.replace(/^(?:-{3,}|_{3,}|={3,})$/gm, '<hr class="bbcode-rule">');
   s = s.replace(/^&gt;\s+(.+)$/gm, '<blockquote class="bbcode-quote">$1</blockquote>');
 
@@ -427,8 +461,14 @@ export function bbcodeToHtml(input: string): string {
   s = s.replace(/\n{2,}/g, '</p><p class="bbcode-para">');
   s = s.replace(/\n/g, '<br>');
   s = `<p class="bbcode-para">${s}</p>`;
-  s = s.replace(/<p class="bbcode-para">\s*(<(?:div|blockquote)[\s\S]*?<\/(?:div|blockquote)>|<hr class="bbcode-rule">)\s*<\/p>/gi, '$1');
-  s = s.replace(/<p class="bbcode-para">\s*(<div class="bbcode-(?:heading|version)">[\s\S]*?<\/div>)\s*<\/p>/gi, '$1');
+  s = s.replace(
+    /<p class="bbcode-para">\s*(<(?:div|blockquote)[\s\S]*?<\/(?:div|blockquote)>|<hr class="bbcode-rule">)\s*<\/p>/gi,
+    '$1'
+  );
+  s = s.replace(
+    /<p class="bbcode-para">\s*(<div class="bbcode-(?:heading|version)">[\s\S]*?<\/div>)\s*<\/p>/gi,
+    '$1'
+  );
 
   return s;
 }

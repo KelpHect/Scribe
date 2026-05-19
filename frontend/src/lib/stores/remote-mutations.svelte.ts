@@ -22,6 +22,9 @@ export async function uninstallRemoteAddons(
   toast.success(`${addons.length} addons uninstalled`, { duration: 4000 });
 }
 
-export async function uninstallRemoteAddon(folderName: string, displayName?: string): Promise<void> {
+export async function uninstallRemoteAddon(
+  folderName: string,
+  displayName?: string
+): Promise<void> {
   await uninstallRemoteAddons([{ folderName, displayName }]);
 }

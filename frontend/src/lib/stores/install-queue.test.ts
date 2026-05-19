@@ -10,9 +10,7 @@ describe('filterNewInstallUIDs', () => {
 
   it('skips UIDs that are already pending or active', () => {
     const active = new Set(['101', '303']);
-    const got = filterNewInstallUIDs(['101', '202', '303', '202', '404'], (uid) =>
-      active.has(uid)
-    );
+    const got = filterNewInstallUIDs(['101', '202', '303', '202', '404'], (uid) => active.has(uid));
 
     expect(got).toEqual(['202', '404']);
   });

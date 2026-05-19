@@ -20,10 +20,12 @@ function task(error: string, state: TaskProgress['state'] = 'failed'): TaskProgr
 
 describe('getInstallRecoveryGuidance', () => {
   it('classifies download and integrity failures', () => {
-    expect(getInstallRecoveryGuidance(task('download https://example returned 500'))).toMatchObject({
-      stage: 'download',
-      title: 'Download failed'
-    });
+    expect(getInstallRecoveryGuidance(task('download https://example returned 500'))).toMatchObject(
+      {
+        stage: 'download',
+        title: 'Download failed'
+      }
+    );
     expect(getInstallRecoveryGuidance(task('MD5 mismatch: expected a, got b'))).toMatchObject({
       stage: 'integrity',
       title: 'Download integrity check failed'
@@ -34,7 +36,9 @@ describe('getInstallRecoveryGuidance', () => {
     const preflight = getInstallRecoveryGuidance(
       task('archive contains invalid addon folder name: ../Bad')
     );
-    const commit = getInstallRecoveryGuidance(task('backup existing addon folder SkyShards: permission denied'));
+    const commit = getInstallRecoveryGuidance(
+      task('backup existing addon folder SkyShards: permission denied')
+    );
 
     expect(preflight).toMatchObject({ stage: 'preflight' });
     expect(commit).toMatchObject({ stage: 'commit' });

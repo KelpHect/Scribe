@@ -78,7 +78,11 @@ function percentile(samples: number[], ratio: number): number {
   return sorted[Math.max(0, index)];
 }
 
-export function recordFrontendTiming(name: string, durationMs: number, meta: TimingMeta = {}): void {
+export function recordFrontendTiming(
+  name: string,
+  durationMs: number,
+  meta: TimingMeta = {}
+): void {
   const safeDuration = Math.max(0, durationMs);
   const existing =
     timings.get(name) ??
@@ -104,7 +108,11 @@ export function recordFrontendTiming(name: string, durationMs: number, meta: Tim
   timings.set(name, existing);
 }
 
-export function measureFrontendTiming<T>(name: string, run: () => T, meta: (result: T) => TimingMeta): T {
+export function measureFrontendTiming<T>(
+  name: string,
+  run: () => T,
+  meta: (result: T) => TimingMeta
+): T {
   const start = nowMs();
   const result = run();
   recordFrontendTiming(name, nowMs() - start, meta(result));
