@@ -1,6 +1,9 @@
 package esoui
 
 import (
+	"bytes"
+	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -73,6 +76,9 @@ func BenchmarkSQLiteSaveRemoteCatalog(b *testing.B) {
 		b.Fatal(err)
 	}
 	cache := NewCacheFromDB(db)
+	if err := cache.Set(APIFeeds{ListFiles: "fixture"}, remotes, categories); err != nil {
+		b.Fatal(err)
+	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -82,6 +88,66 @@ func BenchmarkSQLiteSaveRemoteCatalog(b *testing.B) {
 		}
 	}
 	reportSQLiteFileSizes(b, dbPath)
+}
+
+func BenchmarkSQLiteSaveRemoteCatalogChangedOne(b *testing.B) {
+	_, remotes := benchmarkCatalog(1000, 7000)
+	categories := []Category{{ID: "cat-ui", Name: "User Interface"}}
+	dbPath := filepath.Join(b.TempDir(), "remote-cache-changed.db")
+	db, err := OpenDB(dbPath)
+	if err != nil {
+		b.Fatal(err)
+	}
+	cache := NewCacheFromDB(db)
+	if err := cache.Set(APIFeeds{ListFiles: "fixture"}, remotes, categories); err != nil {
+		b.Fatal(err)
+	}
+	variants := [][]RemoteAddon{
+		append([]RemoteAddon(nil), remotes...),
+		append([]RemoteAddon(nil), remotes...),
+	}
+	variants[0][0].UIVersion = "changed-a"
+	variants[1][0].UIVersion = "changed-b"
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := cache.Set(APIFeeds{ListFiles: "fixture"}, variants[i%2], categories); err != nil {
+			b.Fatal(err)
+		}
+	}
+	reportSQLiteFileSizes(b, dbPath)
+}
+
+func BenchmarkSQLiteSaveRemoteCatalogInitial(b *testing.B) {
+	_, remotes := benchmarkCatalog(1000, 7000)
+	categories := []Category{{ID: "cat-ui", Name: "User Interface"}}
+	dir := b.TempDir()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		dbPath := filepath.Join(dir, fmt.Sprintf("remote-cache-initial-%d.db", i))
+		db, err := OpenDB(dbPath)
+		if err != nil {
+			b.Fatal(err)
+		}
+		cache := NewCacheFromDB(db)
+		b.StartTimer()
+		err = cache.Set(APIFeeds{ListFiles: "fixture"}, remotes, categories)
+		b.StopTimer()
+		if err != nil {
+			b.Fatal(err)
+		}
+		sqlDB, err := db.DB()
+		if err != nil {
+			b.Fatal(err)
+		}
+		if err := sqlDB.Close(); err != nil {
+			b.Fatal(err)
+		}
+	}
 }
 
 func BenchmarkSQLiteSaveScannerCache(b *testing.B) {
@@ -123,6 +189,105 @@ func BenchmarkSQLiteQueryInstallMD5s(b *testing.B) {
 		_ = GetInstallMD5s(db, uids)
 	}
 	reportSQLiteFileSizes(b, dbPath)
+}
+
+func BenchmarkRemoteCatalogSnapshotCodecs(b *testing.B) {
+	_, remotes := benchmarkCatalog(1000, 7000)
+	categories := []Category{{ID: "cat-ui", Name: "User Interface"}}
+
+	jsonAddons, err := json.Marshal(remotes)
+	if err != nil {
+		b.Fatal(err)
+	}
+	jsonCategories, err := json.Marshal(categories)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	var gobBuf bytes.Buffer
+	if err := gob.NewEncoder(&gobBuf).Encode(remotes); err != nil {
+		b.Fatal(err)
+	}
+	gobAddons := append([]byte(nil), gobBuf.Bytes()...)
+	gobBuf.Reset()
+	if err := gob.NewEncoder(&gobBuf).Encode(categories); err != nil {
+		b.Fatal(err)
+	}
+	gobCategories := append([]byte(nil), gobBuf.Bytes()...)
+	binaryAddons := encodeRemoteAddonSnapshot(remotes)
+	binaryCategories := encodeCategorySnapshot(categories)
+
+	b.Run("JSONDecode", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			var addons []RemoteAddon
+			var cats []Category
+			if err := json.Unmarshal(jsonAddons, &addons); err != nil {
+				b.Fatal(err)
+			}
+			if err := json.Unmarshal(jsonCategories, &cats); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	b.Run("GobDecode", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			var addons []RemoteAddon
+			var cats []Category
+			if err := gob.NewDecoder(bytes.NewReader(gobAddons)).Decode(&addons); err != nil {
+				b.Fatal(err)
+			}
+			if err := gob.NewDecoder(bytes.NewReader(gobCategories)).Decode(&cats); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	b.Run("BinaryDecode", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			if _, err := decodeRemoteAddonSnapshot(binaryAddons); err != nil {
+				b.Fatal(err)
+			}
+			if _, err := decodeCategorySnapshot(binaryCategories); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	b.Run("JSONEncode", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			if _, err := json.Marshal(remotes); err != nil {
+				b.Fatal(err)
+			}
+			if _, err := json.Marshal(categories); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	b.Run("GobEncode", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			var buf bytes.Buffer
+			if err := gob.NewEncoder(&buf).Encode(remotes); err != nil {
+				b.Fatal(err)
+			}
+			buf.Reset()
+			if err := gob.NewEncoder(&buf).Encode(categories); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	b.Run("BinaryEncode", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			_ = encodeRemoteAddonSnapshot(remotes)
+			_ = encodeCategorySnapshot(categories)
+		}
+	})
+	b.ReportMetric(float64(len(jsonAddons)+len(jsonCategories)), "json_bytes")
+	b.ReportMetric(float64(len(gobAddons)+len(gobCategories)), "gob_bytes")
+	b.ReportMetric(float64(len(binaryAddons)+len(binaryCategories)), "binary_bytes")
 }
 
 func BenchmarkRemoteSearchLargeCatalog(b *testing.B) {

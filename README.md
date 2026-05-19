@@ -81,7 +81,7 @@ When releasing locally with `gh`, only publish artifacts that were built and smo
 
 ## Local data
 
-Scribe stores user-facing settings in `settings.toml` and keeps ESOUI catalog cache, search preset rows, scanner cache, and install MD5 records in `esoui_cache.db`. Both files live under the OS user config directory in a `Scribe` folder.
+Scribe stores user-facing settings in `settings.toml` and keeps ESOUI catalog cache, search preset rows, scanner cache, and install MD5 records in `esoui_cache.db`. The remote catalog cache uses a whole-catalog custom-binary snapshot for fast loads, keeps JSON fallback for old caches, and uses a hash to skip large unchanged refresh writes. Both files live under the OS user config directory in a `Scribe` folder.
 
 - Windows: `%AppData%\Scribe\settings.toml` and `%AppData%\Scribe\esoui_cache.db`
 - macOS: `~/Library/Application Support/Scribe/settings.toml` and `~/Library/Application Support/Scribe/esoui_cache.db`

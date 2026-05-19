@@ -77,6 +77,8 @@
 - Preserve the historical config directory name `Scribe`; changing it strands existing `settings.toml` and `esoui_cache.db` data.
 - Cache TTL is 4 hours and schema-versioned (`cacheSchemaVersion`); cache schema changes must intentionally migrate or invalidate SQLite data.
 - Do not store settings in frontend-only state when they must survive restart; persist through `settings.Manager`/`SaveSettings`, which writes `settings.toml` atomically.
+- Remote catalog cache uses a versioned custom-binary snapshot row for whole-catalog load, a normalized `catalog_hash` to skip unchanged large writes, JSON snapshot fallback for old caches, and compatibility addon/category row tables for existing query/debug paths.
+- Binary snapshot decode intentionally uses zero-copy strings from immutable SQLite blob bytes; do not mutate snapshot blobs or reuse that pattern outside measured cache hot paths.
 - Search presets, scanner cache, and install MD5 records share the app DB; keep migrations compatible with GORM `AutoMigrate`.
 - SQLite cache DB connections intentionally use WAL, `synchronous=NORMAL`, `busy_timeout`, `journal_size_limit`, a negative-KiB `cache_size` budget, and `PRAGMA optimize` on open/shutdown; preserve or benchmark changes to those PRAGMAs.
 - `SCRIBE_SQLITE_MMAP_MB` is an opt-in local experiment for SQLite `mmap_size`; do not enable mmap by default without desktop measurements across supported platforms.
@@ -116,7 +118,7 @@
 - Prefer cache reuse, incremental work, batching, throttling, and pure helper optimization over broad rewrites.
 - Avoid adding dependencies for small utilities when a small local helper is clearer and cheaper.
 - Remove unused dependencies only after verifying usage and lockfile effects with npm; do not churn packages for aesthetics.
-- For SQLite/cache changes, keep or add benchmarks for DB open, cached catalog load, remote catalog save, scanner cache save, install-MD5 query, and DB/WAL/SHM size reporting.
+- For SQLite/cache changes, keep or add benchmarks for DB open, cached catalog load, snapshot codec decode/encode, remote catalog unchanged save, changed-one save, initial save, scanner cache save, install-MD5 query, and DB/WAL/SHM size reporting.
 - A framework or shell migration must have a spike branch/plan with measured bundle size, startup time, memory, scroll/search latency, install-progress responsiveness, packaging impact, and regression risk.
 
 ## Security/safety rules

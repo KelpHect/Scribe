@@ -63,6 +63,19 @@ type DBCacheMeta struct {
 
 func (DBCacheMeta) TableName() string { return "cache_meta" }
 
+type DBRemoteCatalogSnapshot struct {
+	Key            string `gorm:"primaryKey"`
+	FeedURLsJSON   string
+	AddonsJSON     string
+	CategoriesJSON string
+	AddonsBlob     []byte
+	CategoriesBlob []byte
+	CatalogHash    string `gorm:"index"`
+	FetchedAtJSON  string
+}
+
+func (DBRemoteCatalogSnapshot) TableName() string { return "remote_catalog_snapshots" }
+
 type DBInstallRecord struct {
 	UID          string `gorm:"primaryKey"`
 	InstalledMD5 string
@@ -125,7 +138,7 @@ func OpenDB(path string) (*gorm.DB, error) {
 	sqlDB.SetMaxIdleConns(4)
 	sqlDB.SetConnMaxIdleTime(10 * time.Minute)
 	sqlDB.SetConnMaxLifetime(1 * time.Hour)
-	if err := db.AutoMigrate(&DBRemoteAddon{}, &DBCategory{}, &DBCacheMeta{}, &DBSetting{}, &DBSearchPreset{}, &DBInstallRecord{}, &DBScannerCache{}); err != nil {
+	if err := db.AutoMigrate(&DBRemoteAddon{}, &DBCategory{}, &DBCacheMeta{}, &DBRemoteCatalogSnapshot{}, &DBSetting{}, &DBSearchPreset{}, &DBInstallRecord{}, &DBScannerCache{}); err != nil {
 		return nil, fmt.Errorf("automigrate: %w", err)
 	}
 	if err := OptimizeDB(db, sqliteOptimizeOnOpenMode); err != nil {

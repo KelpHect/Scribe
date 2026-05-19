@@ -3,6 +3,7 @@ package esoui
 import (
 	"Scribe/internal/addon"
 	"Scribe/internal/scanner"
+	"encoding/json"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -91,6 +92,250 @@ func TestCacheRoundTripPersistsFeedsAddonsAndCategories(t *testing.T) {
 	}
 }
 
+func TestCacheSnapshotWinsWhenCompatibilityRowsDrift(t *testing.T) {
+	db := newCacheTestDB(t)
+	cache := NewCacheFromDB(db)
+	feeds := APIFeeds{ListFiles: "fixture"}
+	addons := []RemoteAddon{{
+		UID:        "123",
+		CategoryID: "cat",
+		UIName:     "Remote Addon",
+		UIVersion:  "1.0",
+		UIDirs:     []string{"RemoteAddon"},
+	}}
+	categories := []Category{{ID: "cat", Name: "Category"}}
+
+	if err := cache.Set(feeds, addons, categories); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	if err := db.Model(&DBRemoteAddon{}).Where("uid = ?", "123").Update("ui_name", "Sentinel Drift").Error; err != nil {
+		t.Fatalf("force row-table drift: %v", err)
+	}
+	reloaded := NewCacheFromDB(db)
+	got, _, _ := reloaded.Get()
+	if len(got) != 1 || got[0].UIName != "Remote Addon" {
+		t.Fatalf("snapshot load = %#v, want original snapshot value", got)
+	}
+}
+
+func TestCacheLoadsLegacyJSONSnapshot(t *testing.T) {
+	db := newCacheTestDB(t)
+	feeds := APIFeeds{ListFiles: "fixture"}
+	fetchedAt := time.Now().UTC()
+	addons := []RemoteAddon{{
+		UID:        "legacy",
+		CategoryID: "cat",
+		UIName:     "Legacy Snapshot Addon",
+		UIVersion:  "1.0",
+		UIDirs:     []string{"LegacySnapshotAddon"},
+	}}
+	categories := []Category{{ID: "cat", Name: "Category"}}
+	feedsJSON := mustJSON(t, feeds)
+	fetchedAtJSON := mustJSON(t, fetchedAt)
+	addonsJSON := mustJSON(t, addons)
+	categoriesJSON := mustJSON(t, categories)
+
+	if err := db.Create(&DBCacheMeta{Key: metaKeySchemaVersion, Value: cacheSchemaVersion}).Error; err != nil {
+		t.Fatalf("write schema meta: %v", err)
+	}
+	if err := db.Create(&DBRemoteCatalogSnapshot{
+		Key:            remoteCatalogSnapshotKey,
+		FeedURLsJSON:   feedsJSON,
+		FetchedAtJSON:  fetchedAtJSON,
+		AddonsJSON:     addonsJSON,
+		CategoriesJSON: categoriesJSON,
+		CatalogHash:    "legacy-hash",
+	}).Error; err != nil {
+		t.Fatalf("write legacy snapshot: %v", err)
+	}
+
+	reloaded := NewCacheFromDB(db)
+	gotAddons, gotFeeds, gotCategories := reloaded.Get()
+	if gotFeeds == nil || !reflect.DeepEqual(*gotFeeds, feeds) {
+		t.Fatalf("feeds = %#v, want %#v", gotFeeds, feeds)
+	}
+	if !reflect.DeepEqual(gotAddons, addons) {
+		t.Fatalf("addons = %#v, want %#v", gotAddons, addons)
+	}
+	if !reflect.DeepEqual(gotCategories, categories) {
+		t.Fatalf("categories = %#v, want %#v", gotCategories, categories)
+	}
+}
+
+func TestCacheUnchangedSaveUpgradesLegacyJSONSnapshotToBinary(t *testing.T) {
+	db := newCacheTestDB(t)
+	feeds := APIFeeds{ListFiles: "fixture"}
+	addons := []RemoteAddon{{
+		UID:        "legacy",
+		CategoryID: "cat",
+		UIName:     "Legacy Snapshot Addon",
+		UIVersion:  "1.0",
+		UIDirs:     []string{"LegacySnapshotAddon"},
+	}}
+	categories := []Category{{ID: "cat", Name: "Category"}}
+	legacySnap := &snapshot{
+		FetchedAt:  time.Now().UTC(),
+		FeedURLs:   feeds,
+		Addons:     addons,
+		Categories: categories,
+	}
+	payload, err := buildCatalogPayload(legacySnap)
+	if err != nil {
+		t.Fatalf("buildCatalogPayload: %v", err)
+	}
+	if err := db.Create(&DBCacheMeta{Key: metaKeySchemaVersion, Value: cacheSchemaVersion}).Error; err != nil {
+		t.Fatalf("write schema meta: %v", err)
+	}
+	if err := db.Create(&DBCacheMeta{Key: metaKeyCatalogHash, Value: payload.Hash}).Error; err != nil {
+		t.Fatalf("write catalog hash meta: %v", err)
+	}
+	if err := db.Create(&DBRemoteCatalogSnapshot{
+		Key:            remoteCatalogSnapshotKey,
+		FeedURLsJSON:   payload.FeedURLsJSON,
+		FetchedAtJSON:  payload.FetchedAtJSON,
+		AddonsJSON:     mustJSON(t, addons),
+		CategoriesJSON: mustJSON(t, categories),
+		CatalogHash:    payload.Hash,
+	}).Error; err != nil {
+		t.Fatalf("write legacy snapshot: %v", err)
+	}
+
+	cache := NewCacheFromDB(db)
+	if err := cache.Set(feeds, addons, categories); err != nil {
+		t.Fatalf("Set unchanged legacy snapshot: %v", err)
+	}
+	var row DBRemoteCatalogSnapshot
+	if err := db.Where("key = ?", remoteCatalogSnapshotKey).First(&row).Error; err != nil {
+		t.Fatalf("read upgraded snapshot: %v", err)
+	}
+	if len(row.AddonsBlob) == 0 || len(row.CategoriesBlob) == 0 {
+		t.Fatalf("snapshot was not upgraded to binary blobs: addon=%d category=%d", len(row.AddonsBlob), len(row.CategoriesBlob))
+	}
+	var compatRows int64
+	if err := db.Model(&DBRemoteAddon{}).Count(&compatRows).Error; err != nil {
+		t.Fatalf("count compatibility rows: %v", err)
+	}
+	if compatRows != 0 {
+		t.Fatalf("unchanged binary upgrade rewrote compatibility rows: %d", compatRows)
+	}
+}
+
+func TestCacheUnchangedSaveSkipsCompatibilityRowRewrite(t *testing.T) {
+	db := newCacheTestDB(t)
+	cache := NewCacheFromDB(db)
+	feeds := APIFeeds{ListFiles: "fixture"}
+	addons := []RemoteAddon{{
+		UID:        "123",
+		CategoryID: "cat",
+		UIName:     "Remote Addon",
+		UIVersion:  "1.0",
+		UIDirs:     []string{"RemoteAddon"},
+	}}
+	categories := []Category{{ID: "cat", Name: "Category"}}
+
+	if err := cache.Set(feeds, addons, categories); err != nil {
+		t.Fatalf("Set initial: %v", err)
+	}
+	if err := db.Model(&DBRemoteAddon{}).Where("uid = ?", "123").Update("ui_name", "Sentinel Drift").Error; err != nil {
+		t.Fatalf("force row-table drift: %v", err)
+	}
+	var beforeHash DBCacheMeta
+	if err := db.Where("key = ?", metaKeyCatalogHash).First(&beforeHash).Error; err != nil {
+		t.Fatalf("read catalog hash: %v", err)
+	}
+	time.Sleep(time.Millisecond)
+	if err := cache.Set(feeds, addons, categories); err != nil {
+		t.Fatalf("Set unchanged: %v", err)
+	}
+
+	var row DBRemoteAddon
+	if err := db.Where("uid = ?", "123").First(&row).Error; err != nil {
+		t.Fatalf("read compatibility row: %v", err)
+	}
+	if row.UIName != "Sentinel Drift" {
+		t.Fatalf("unchanged save rewrote compatibility row: ui_name=%q", row.UIName)
+	}
+	var afterHash DBCacheMeta
+	if err := db.Where("key = ?", metaKeyCatalogHash).First(&afterHash).Error; err != nil {
+		t.Fatalf("read catalog hash after unchanged save: %v", err)
+	}
+	if afterHash.Value != beforeHash.Value {
+		t.Fatalf("catalog hash changed on identical payload: before=%q after=%q", beforeHash.Value, afterHash.Value)
+	}
+	var fetched DBCacheMeta
+	if err := db.Where("key = ?", metaKeyFetchedAt).First(&fetched).Error; err != nil {
+		t.Fatalf("read fetched_at after unchanged save: %v", err)
+	}
+	if fetched.Value == "" {
+		t.Fatal("fetched_at metadata was not maintained")
+	}
+}
+
+func TestCacheChangedSaveDiffsCompatibilityRows(t *testing.T) {
+	db := newCacheTestDB(t)
+	cache := NewCacheFromDB(db)
+	feeds := APIFeeds{ListFiles: "fixture"}
+	initial := []RemoteAddon{
+		{UID: "a", CategoryID: "cat-a", UIName: "Addon A", UIVersion: "1.0", UIDirs: []string{"A"}},
+		{UID: "b", CategoryID: "cat-b", UIName: "Addon B", UIVersion: "1.0", UIDirs: []string{"B"}},
+	}
+	if err := cache.Set(feeds, initial, []Category{{ID: "cat-a", Name: "A"}, {ID: "cat-b", Name: "B"}}); err != nil {
+		t.Fatalf("Set initial: %v", err)
+	}
+
+	next := []RemoteAddon{
+		{UID: "b", CategoryID: "cat-b", UIName: "Addon B", UIVersion: "2.0", UIDirs: []string{"B"}},
+		{UID: "c", CategoryID: "cat-c", UIName: "Addon C", UIVersion: "1.0", UIDirs: []string{"C"}},
+	}
+	if err := cache.Set(feeds, next, []Category{{ID: "cat-b", Name: "B"}, {ID: "cat-c", Name: "C"}}); err != nil {
+		t.Fatalf("Set changed: %v", err)
+	}
+
+	var addonRows []DBRemoteAddon
+	if err := db.Order("uid").Find(&addonRows).Error; err != nil {
+		t.Fatalf("read addon rows: %v", err)
+	}
+	if len(addonRows) != 2 || addonRows[0].UID != "b" || addonRows[0].UIVersion != "2.0" || addonRows[1].UID != "c" {
+		t.Fatalf("addon compatibility rows = %#v", addonRows)
+	}
+	var categoryRows []DBCategory
+	if err := db.Order("id").Find(&categoryRows).Error; err != nil {
+		t.Fatalf("read category rows: %v", err)
+	}
+	if len(categoryRows) != 2 || categoryRows[0].ID != "cat-b" || categoryRows[1].ID != "cat-c" {
+		t.Fatalf("category compatibility rows = %#v", categoryRows)
+	}
+
+	reloaded := NewCacheFromDB(db)
+	got, _, gotCategories := reloaded.Get()
+	if !reflect.DeepEqual(got, next) {
+		t.Fatalf("snapshot addons = %#v, want %#v", got, next)
+	}
+	if len(gotCategories) != 2 || gotCategories[0].ID != "cat-b" || gotCategories[1].ID != "cat-c" {
+		t.Fatalf("snapshot categories = %#v", gotCategories)
+	}
+}
+
+func TestCatalogHashIgnoresAddonAndCategoryOrder(t *testing.T) {
+	feedsJSON := []byte(`{"ListFiles":"fixture"}`)
+	addonsA := []DBRemoteAddon{{UID: "b", UIName: "B"}, {UID: "a", UIName: "A"}}
+	addonsB := []DBRemoteAddon{{UID: "a", UIName: "A"}, {UID: "b", UIName: "B"}}
+	categoriesA := []DBCategory{{ID: "2", Name: "Two"}, {ID: "1", Name: "One"}}
+	categoriesB := []DBCategory{{ID: "1", Name: "One"}, {ID: "2", Name: "Two"}}
+
+	hashA, err := hashCatalog(feedsJSON, addonsA, categoriesA)
+	if err != nil {
+		t.Fatalf("hashCatalog A: %v", err)
+	}
+	hashB, err := hashCatalog(feedsJSON, addonsB, categoriesB)
+	if err != nil {
+		t.Fatalf("hashCatalog B: %v", err)
+	}
+	if hashA != hashB {
+		t.Fatalf("hash differs by row order: %q != %q", hashA, hashB)
+	}
+}
+
 func TestCacheStaleDetectionAndInvalidate(t *testing.T) {
 	cache := NewCacheFromDB(newCacheTestDB(t))
 	if !cache.IsStale() {
@@ -145,8 +390,12 @@ func TestCacheSchemaMismatchInvalidatesPersistedRows(t *testing.T) {
 	if err := db.Model(&DBCacheMeta{}).Count(&metaCount).Error; err != nil {
 		t.Fatalf("count meta: %v", err)
 	}
-	if addonCount != 0 || categoryCount != 0 || metaCount != 0 {
-		t.Fatalf("cache rows remain after schema mismatch: addons=%d categories=%d meta=%d", addonCount, categoryCount, metaCount)
+	var snapshotCount int64
+	if err := db.Model(&DBRemoteCatalogSnapshot{}).Count(&snapshotCount).Error; err != nil {
+		t.Fatalf("count snapshots: %v", err)
+	}
+	if addonCount != 0 || categoryCount != 0 || metaCount != 0 || snapshotCount != 0 {
+		t.Fatalf("cache rows remain after schema mismatch: addons=%d categories=%d meta=%d snapshots=%d", addonCount, categoryCount, metaCount, snapshotCount)
 	}
 }
 
@@ -212,6 +461,15 @@ func newCacheTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("OpenDB: %v", err)
 	}
 	return db
+}
+
+func mustJSON(t *testing.T, value any) string {
+	t.Helper()
+	payload, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("marshal json: %v", err)
+	}
+	return string(payload)
 }
 
 func rawPragmaString(t *testing.T, db *gorm.DB, name string) string {

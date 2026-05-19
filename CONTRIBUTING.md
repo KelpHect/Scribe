@@ -75,7 +75,7 @@ Wails generates `frontend/wailsjs/` and `frontend/dist/`.
 
 ## Local data reset
 
-User-facing settings live in `Scribe/settings.toml` under the OS user config directory. The app database is `Scribe/esoui_cache.db`; it stores ESOUI cache rows, search preset rows, scanner cache, and install MD5 records. Neither file contains addon files.
+User-facing settings live in `Scribe/settings.toml` under the OS user config directory. The app database is `Scribe/esoui_cache.db`; it stores the ESOUI catalog custom-binary snapshot with JSON fallback for old caches, compatibility cache rows, search preset rows, scanner cache, and install MD5 records. Neither file contains addon files.
 
 For local troubleshooting, close Scribe and rename or delete only `settings.toml` and/or the database file:
 
