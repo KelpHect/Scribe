@@ -230,16 +230,16 @@ func (dm *DownloadManager) processNext() {
 			})
 		}
 	} else {
+		if dm.OnComplete != nil && task.md5 != "" {
+			dm.OnComplete(task.uid, task.md5)
+		}
+
 		dm.emitStatusLocked(task.uid, &TaskProgress{
 			UID:     task.uid,
 			Name:    task.name,
 			State:   StateComplete,
 			Percent: 100,
 		})
-
-		if dm.OnComplete != nil && task.md5 != "" {
-			dm.OnComplete(task.uid, task.md5)
-		}
 	}
 }
 

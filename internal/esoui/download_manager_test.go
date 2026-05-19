@@ -1,10 +1,13 @@
 package esoui
 
 import (
+	"crypto/md5" //nolint:gosec // test mirrors ESOUI MD5 integrity field
+	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -89,6 +92,51 @@ func TestDownloadManagerCancelDuringExtractionReportsCancelled(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(dest, "Addon")); !os.IsNotExist(err) {
 		t.Fatalf("cancelled install left addon folder behind or stat failed unexpectedly: %v", err)
+	}
+}
+
+func TestDownloadManagerRunsOnCompleteBeforeCompleteEvent(t *testing.T) {
+	zipPath := createTestZip(t, map[string]string{
+		"Addon/Addon.txt": "## Title: Addon\n## Version: 1.0\n",
+	})
+	zipBytes, err := os.ReadFile(zipPath)
+	if err != nil {
+		t.Fatalf("read zip: %v", err)
+	}
+	sum := md5.Sum(zipBytes)
+	md5Hex := hex.EncodeToString(sum[:])
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, zipPath)
+	}))
+	defer server.Close()
+
+	var completedCallbackRan atomic.Bool
+	completeEventObserved := make(chan bool, 1)
+	dm := NewDownloadManager(1, func(_ string, data any) {
+		status, ok := data.(TaskProgress)
+		if !ok || status.UID != "addon" || status.State != StateComplete {
+			return
+		}
+		completeEventObserved <- completedCallbackRan.Load()
+	})
+	dm.OnComplete = func(uid, md5Hash string) {
+		if uid == "addon" && md5Hash == md5Hex {
+			completedCallbackRan.Store(true)
+		}
+	}
+
+	dm.Enqueue("addon", "Addon", server.URL, md5Hex, t.TempDir())
+	waitForTaskState(t, dm, "addon", StateComplete)
+	shutdownWithin(t, dm)
+
+	select {
+	case ranBeforeComplete := <-completeEventObserved:
+		if !ranBeforeComplete {
+			t.Fatal("StateComplete event was emitted before OnComplete persisted install metadata")
+		}
+	default:
+		t.Fatal("did not observe StateComplete event")
 	}
 }
 

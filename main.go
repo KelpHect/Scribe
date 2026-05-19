@@ -4,6 +4,7 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"runtime"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -25,6 +26,7 @@ func main() {
 	app.version = version
 	app.commit = commit
 	app.buildDate = date
+	customTitleBar := runtime.GOOS != "linux"
 
 	err := wails.Run(&options.App{
 		Title:     "Scribe",
@@ -32,7 +34,7 @@ func main() {
 		Height:    768,
 		MinWidth:  800,
 		MinHeight: 600,
-		Frameless: true,
+		Frameless: customTitleBar,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},

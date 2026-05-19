@@ -117,7 +117,9 @@
       {#if isLoading}
         <div class="flex flex-col gap-1.5">
           {#each { length: 4 } as _, i (i)}
-            <div class="border-border bg-card flex items-center gap-3 rounded-lg border px-3 py-2.5">
+            <div
+              class="border-border bg-card flex items-center gap-3 rounded-lg border px-3 py-2.5"
+            >
               <Skeleton class="h-10 w-10 shrink-0 rounded-md" />
               <div class="flex flex-1 flex-col gap-1.5">
                 <Skeleton class="h-4 w-48" />
@@ -137,8 +139,8 @@
             </div>
             <h3 class="text-lg font-medium">All up to date</h3>
             <p class="text-muted-foreground max-w-sm text-sm">
-              No updates available. Addon updates will appear here when newer versions are detected on
-              ESOUI.
+              No updates available. Addon updates will appear here when newer versions are detected
+              on ESOUI.
             </p>
           </div>
         </div>

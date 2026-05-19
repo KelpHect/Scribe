@@ -25,6 +25,7 @@
   } from '$lib/services/runtime-service';
   import { applyTheme } from '$lib/services/theme-service';
   import { getSettings } from '$lib/services/settings-service';
+  import { fetchAppInfo } from '$lib/services/app-info-service';
   import { navigation, getDownloadStore } from '$lib/stores';
   import { queryClient } from '$lib/db/client';
   import { addonDetailsQueryRoot } from '$lib/db/addon-detail-cache';
@@ -89,6 +90,7 @@
   let contextMenuItems = $state<ContextMenuEntry[]>([]);
   let memoryLimitMb = $state(150);
   let memoryCleanupRunning = false;
+  let useCustomTitleBar = $state(false);
 
   function closeContextMenu() {
     contextMenuOpen = false;
@@ -125,6 +127,15 @@
     }
   }
 
+  async function loadWindowChrome() {
+    try {
+      const info = await fetchAppInfo();
+      useCustomTitleBar = info.customTitleBar;
+    } catch {
+      useCustomTitleBar = false;
+    }
+  }
+
   async function maybeCleanupMemory() {
     if (memoryCleanupRunning || memoryLimitMb <= 0) return;
     const diagnostics = await fetchDiagnostics();
@@ -145,6 +156,7 @@
     downloads.startListening();
     navigation.setPreload(preloadPage);
     void loadMemoryLimit();
+    void loadWindowChrome();
     const handleGlobalKeydown = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
       const mod = e.ctrlKey || e.metaKey;
@@ -347,7 +359,9 @@
 
 <QueryClientProvider client={queryClient}>
   <Toaster richColors position="top-right" />
-  <TitleBar />
+  {#if useCustomTitleBar}
+    <TitleBar />
+  {/if}
 
   <div class="flex min-h-0 flex-1 overflow-hidden">
     <Sidebar />

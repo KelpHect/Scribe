@@ -916,12 +916,13 @@ func (a *App) GetDiagnostics() DiagnosticsSnapshot {
 }
 
 type AppInfo struct {
-	Version   string `json:"version"`
-	Commit    string `json:"commit"`
-	BuildDate string `json:"buildDate"`
-	GoVersion string `json:"goVersion"`
-	OS        string `json:"os"`
-	Arch      string `json:"arch"`
+	Version        string `json:"version"`
+	Commit         string `json:"commit"`
+	BuildDate      string `json:"buildDate"`
+	GoVersion      string `json:"goVersion"`
+	OS             string `json:"os"`
+	Arch           string `json:"arch"`
+	CustomTitleBar bool   `json:"customTitleBar"`
 }
 
 func (a *App) GetAppInfo() AppInfo {
@@ -932,6 +933,9 @@ func (a *App) GetAppInfo() AppInfo {
 		GoVersion: stdRuntime.Version(),
 		OS:        stdRuntime.GOOS,
 		Arch:      stdRuntime.GOARCH,
+		// GTK/KDE can still draw native chrome around a frameless Wails window.
+		// Prefer the platform titlebar on Linux to avoid duplicate controls.
+		CustomTitleBar: stdRuntime.GOOS != "linux",
 	}
 }
 
