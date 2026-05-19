@@ -12,7 +12,6 @@ import (
 	"sort"
 	"sync"
 	"time"
-	"unsafe"
 
 	"gorm.io/gorm"
 )
@@ -666,9 +665,7 @@ func (r *snapshotReader) readString() (string, error) {
 	}
 	start := r.pos
 	r.pos += size
-	// Snapshot blobs are immutable after SQLite returns them. Avoiding a copy here
-	// keeps warm catalog loads from allocating one string per decoded field.
-	return unsafe.String(unsafe.SliceData(r.data[start:r.pos]), size), nil
+	return string(r.data[start:r.pos]), nil
 }
 
 func (r *snapshotReader) readStringSlice() ([]string, error) {

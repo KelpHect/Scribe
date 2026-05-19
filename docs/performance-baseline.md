@@ -35,47 +35,47 @@ Use the resulting `build/reports/desktop-profile/desktop.cpu.pprof` as optional 
 
 | Benchmark | Result |
 | --- | ---: |
-| `BenchmarkScanLargeAddOnsDirectory` | `3,109,151 ns/op`, `6,050,225 B/op`, `31,487 allocs/op` |
-| `BenchmarkSQLiteOpenDB` | `1,092,093 ns/op`, `270,269 B/op`, `3,908 allocs/op` |
-| `BenchmarkMatchLargeCatalog` | `1,040,818 ns/op`, `1,405,279 B/op`, `23,037 allocs/op` |
-| `BenchmarkCachedCatalogLoad` | `1,791,611 ns/op`, `4,752,663 B/op`, `28,111 allocs/op` |
-| `BenchmarkSQLiteSaveRemoteCatalog` unchanged | `10,665,252 ns/op`, `11,311,168 B/op`, `98,100 allocs/op` |
-| `BenchmarkSQLiteSaveRemoteCatalogChangedOne` | `28,324,695 ns/op`, `23,294,851 B/op`, `385,007 allocs/op` |
-| `BenchmarkSQLiteSaveRemoteCatalogInitial` | `149,916,354 ns/op`, `25,806,882 B/op`, `258,962 allocs/op` |
-| `BenchmarkSQLiteSaveScannerCache` | `5,520,206 ns/op`, `1,366,181 B/op`, `8,317 allocs/op` |
-| `BenchmarkSQLiteQueryInstallMD5s` | `1,649,477 ns/op`, `463,931 B/op`, `12,085 allocs/op` |
-| `BenchmarkRemoteSearchLargeCatalog` | `492,973 ns/op`, `300,992 B/op`, `13,908 allocs/op` |
+| `BenchmarkScanLargeAddOnsDirectory` | `3,890,009 ns/op`, `6,061,742 B/op`, `31,488 allocs/op` |
+| `BenchmarkSQLiteOpenDB` | `1,097,164 ns/op`, `270,075 B/op`, `3,907 allocs/op` |
+| `BenchmarkMatchLargeCatalog` | `1,054,216 ns/op`, `1,401,816 B/op`, `23,037 allocs/op` |
+| `BenchmarkCachedCatalogLoad` | `2,812,270 ns/op`, `6,096,616 B/op`, `105,105 allocs/op` |
+| `BenchmarkSQLiteSaveRemoteCatalog` unchanged | `10,710,884 ns/op`, `10,497,577 B/op`, `98,097 allocs/op` |
+| `BenchmarkSQLiteSaveRemoteCatalogChangedOne` | `28,093,800 ns/op`, `22,639,804 B/op`, `385,004 allocs/op` |
+| `BenchmarkSQLiteSaveRemoteCatalogInitial` | `150,900,757 ns/op`, `25,781,408 B/op`, `258,959 allocs/op` |
+| `BenchmarkSQLiteSaveScannerCache` | `5,425,126 ns/op`, `1,365,996 B/op`, `8,316 allocs/op` |
+| `BenchmarkSQLiteQueryInstallMD5s` | `1,695,380 ns/op`, `463,908 B/op`, `12,085 allocs/op` |
+| `BenchmarkRemoteSearchLargeCatalog` | `485,992 ns/op`, `300,992 B/op`, `13,908 allocs/op` |
 
 Snapshot codec benchmark for the 7k-addon fixture:
 
 | Benchmark | Result |
 | --- | ---: |
-| `BenchmarkRemoteCatalogSnapshotCodecs/JSONDecode` | `20,327,855 ns/op`, `9,569,075 B/op`, `105,025 allocs/op` |
-| `BenchmarkRemoteCatalogSnapshotCodecs/GobDecode` | `4,040,195 ns/op`, `6,140,640 B/op`, `140,450 allocs/op` |
-| `BenchmarkRemoteCatalogSnapshotCodecs/BinaryDecode` | `973,736 ns/op`, `2,354,144 B/op`, `28,002 allocs/op` |
-| `BenchmarkRemoteCatalogSnapshotCodecs/JSONEncode` | `2,905,049 ns/op`, `3,085,404 B/op`, `4 allocs/op` |
-| `BenchmarkRemoteCatalogSnapshotCodecs/GobEncode` | `2,351,200 ns/op`, `7,948,608 B/op`, `75 allocs/op` |
-| `BenchmarkRemoteCatalogSnapshotCodecs/BinaryEncode` | `780,722 ns/op`, `2,048,080 B/op`, `2 allocs/op` |
+| `BenchmarkRemoteCatalogSnapshotCodecs/JSONDecode` | `20,736,466 ns/op`, `9,569,073 B/op`, `105,025 allocs/op` |
+| `BenchmarkRemoteCatalogSnapshotCodecs/GobDecode` | `4,027,554 ns/op`, `6,140,640 B/op`, `140,450 allocs/op` |
+| `BenchmarkRemoteCatalogSnapshotCodecs/BinaryDecode` | `1,832,840 ns/op`, `3,698,208 B/op`, `104,996 allocs/op` |
+| `BenchmarkRemoteCatalogSnapshotCodecs/JSONEncode` | `2,840,958 ns/op`, `2,998,596 B/op`, `4 allocs/op` |
+| `BenchmarkRemoteCatalogSnapshotCodecs/GobEncode` | `2,748,694 ns/op`, `7,948,608 B/op`, `75 allocs/op` |
+| `BenchmarkRemoteCatalogSnapshotCodecs/BinaryEncode` | `907,512 ns/op`, `2,048,080 B/op`, `2 allocs/op` |
 
 SQLite file-size metrics captured during the DB benchmarks:
 
 | Benchmark | DB | WAL | SHM |
 | --- | ---: | ---: | ---: |
 | `BenchmarkCachedCatalogLoad` | `4,096` | `3,366,072` | `32,768` |
-| `BenchmarkSQLiteSaveRemoteCatalog` unchanged | `4,403,200` | `5,141,792` | `32,768` |
-| `BenchmarkSQLiteSaveRemoteCatalogChangedOne` | `4,403,200` | `5,290,112` | `32,768` |
+| `BenchmarkSQLiteSaveRemoteCatalog` unchanged | `4,403,200` | `5,034,672` | `32,768` |
+| `BenchmarkSQLiteSaveRemoteCatalogChangedOne` | `4,403,200` | `5,347,792` | `32,768` |
 | `BenchmarkSQLiteSaveScannerCache` | `528,384` | `4,573,232` | `32,768` |
 | `BenchmarkSQLiteQueryInstallMD5s` | `126,976` | `4,136,512` | `32,768` |
 
-The remote catalog save benchmark now separates refresh cases. `BenchmarkSQLiteSaveRemoteCatalog` is the common unchanged-refresh path and should stay low because it updates only fetched metadata after hashing. `BenchmarkSQLiteSaveRemoteCatalogInitial` is the first full custom-binary snapshot plus compatibility-row write. `BenchmarkSQLiteSaveRemoteCatalogChangedOne` represents a mostly unchanged catalog where one addon row changed and the versioned snapshot is rewritten. Existing JSON snapshots remain readable and are upgraded to the binary format on the next unchanged refresh. Binary snapshot decoding uses immutable snapshot bytes for zero-copy strings; do not mutate decoded snapshot blobs.
+The remote catalog save benchmark now separates refresh cases. `BenchmarkSQLiteSaveRemoteCatalog` is the common unchanged-refresh path and should stay low because it updates only fetched metadata after hashing. `BenchmarkSQLiteSaveRemoteCatalogInitial` is the first full custom-binary snapshot plus compatibility-row write. `BenchmarkSQLiteSaveRemoteCatalogChangedOne` represents a mostly unchanged catalog where one addon row changed and the versioned snapshot is rewritten. Existing JSON snapshots remain readable and are upgraded to the binary format on the next unchanged refresh.
 
 ## Frontend Catalog Benchmarks
 
 | Benchmark | Result |
 | --- | ---: |
-| `remote search score over large cached catalog` | `863.99 hz`, `1.1574 ms mean`, `2.1965 ms p99` |
-| `remote filter metadata preparation` | `331.29 hz`, `3.0185 ms mean`, `4.3226 ms p99` |
-| `remote catalog indexed filter/sort` | `1,763.78 hz`, `0.5670 ms mean`, `0.6865 ms p99` |
+| `remote search score over large cached catalog` | `900.89 hz`, `1.1100 ms mean`, `1.5898 ms p99` |
+| `remote filter metadata preparation` | `304.30 hz`, `3.2862 ms mean`, `3.5004 ms p99` |
+| `remote catalog indexed filter/sort` | `1,732.54 hz`, `0.5772 ms mean`, `0.5954 ms p99` |
 
 ## Bundle Report Snapshot
 

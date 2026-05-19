@@ -78,7 +78,7 @@
 - Cache TTL is 4 hours and schema-versioned (`cacheSchemaVersion`); cache schema changes must intentionally migrate or invalidate SQLite data.
 - Do not store settings in frontend-only state when they must survive restart; persist through `settings.Manager`/`SaveSettings`, which writes `settings.toml` atomically.
 - Remote catalog cache uses a versioned custom-binary snapshot row for whole-catalog load, a normalized `catalog_hash` to skip unchanged large writes, JSON snapshot fallback for old caches, and compatibility addon/category row tables for existing query/debug paths.
-- Binary snapshot decode intentionally uses zero-copy strings from immutable SQLite blob bytes; do not mutate snapshot blobs or reuse that pattern outside measured cache hot paths.
+- Binary snapshot decode intentionally avoids `unsafe`; do not reintroduce zero-copy strings or unsafe blob aliasing without a bounded desktop memory repro and measurements across supported platforms.
 - Search presets, scanner cache, and install MD5 records share the app DB; keep migrations compatible with GORM `AutoMigrate`.
 - SQLite cache DB connections intentionally use WAL, `synchronous=NORMAL`, `busy_timeout`, `journal_size_limit`, a negative-KiB `cache_size` budget, and `PRAGMA optimize` on open/shutdown; preserve or benchmark changes to those PRAGMAs.
 - `SCRIBE_SQLITE_MMAP_MB` is an opt-in local experiment for SQLite `mmap_size`; do not enable mmap by default without desktop measurements across supported platforms.

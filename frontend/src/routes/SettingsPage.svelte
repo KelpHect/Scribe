@@ -35,7 +35,8 @@
   import {
     addonPathQueryKey,
     installedAddonsQueryKey,
-    refreshInstalledState
+    refreshInstalledState,
+    rescanInstalledState
   } from '$lib/db/query-state';
   import { queryClient } from '$lib/db/client';
   import { getAddonDetailCacheStats } from '$lib/db/addon-detail-cache';
@@ -299,7 +300,7 @@
   }
 
   async function rescan() {
-    await refreshInstalledState();
+    await rescanInstalledState();
     if (installedAddons.length > 0) {
       toast.success('Scan complete', { description: `Found ${installedAddons.length} addons` });
     } else {

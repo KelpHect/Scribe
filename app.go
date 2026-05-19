@@ -728,7 +728,7 @@ func (a *App) beginAddonScan() bool {
 	return true
 }
 
-func (a *App) finishAddonScan(count int, err error) string {
+func (a *App) finishAddonScan(reason string, count int, err error) string {
 	safeErr := ""
 	if err != nil {
 		safeErr = privacySafePersistenceError(err)
@@ -740,9 +740,10 @@ func (a *App) finishAddonScan(count int, err error) string {
 	a.lastScanErr = safeErr
 	a.scanMu.Unlock()
 
-	if a.ctx != nil && !a.shutdownRequested() {
+	if shouldEmitInstalledScanComplete(reason) && a.ctx != nil && !a.shutdownRequested() {
 		payload := map[string]any{
-			"count": count,
+			"count":  count,
+			"reason": reason,
 		}
 		if err != nil {
 			payload["error"] = a.lastScanErr
@@ -750,6 +751,15 @@ func (a *App) finishAddonScan(count int, err error) string {
 		wailsRuntime.EventsEmit(a.ctx, "installed:scan-complete", payload)
 	}
 	return safeErr
+}
+
+func shouldEmitInstalledScanComplete(reason string) bool {
+	switch reason {
+	case "startup", "set-addon-path", "save-settings", "manual-refresh":
+		return true
+	default:
+		return false
+	}
 }
 
 func (a *App) scanAddons(reason string) ([]*addon.Addon, error) {
@@ -772,7 +782,7 @@ func (a *App) scanAddonsLocked(reason string) ([]*addon.Addon, error) {
 	if a.shutdownRequested() {
 		return addons, err
 	}
-	safeErr := a.finishAddonScan(len(addons), err)
+	safeErr := a.finishAddonScan(reason, len(addons), err)
 	if err != nil && a.ctx != nil {
 		wailsRuntime.LogErrorf(a.ctx, "[scanner] scan %s failed: %s", reason, safeErr)
 	}
@@ -798,9 +808,11 @@ func (a *App) GetInstalledAddons() ([]*addon.Addon, error) {
 	if a.scanner == nil {
 		return []*addon.Addon{}, nil
 	}
-	cached := a.scanner.GetAddons()
-	a.startBackgroundAddonScan("get-installed")
-	return cached, nil
+	return a.scanner.GetAddons(), nil
+}
+
+func (a *App) RefreshInstalledAddons() ([]*addon.Addon, error) {
+	return a.scanAddons("manual-refresh")
 }
 
 func (a *App) GetAddonPath() string {

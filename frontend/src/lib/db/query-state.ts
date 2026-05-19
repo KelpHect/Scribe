@@ -1,4 +1,9 @@
-import { fetchAddonPath, fetchInstalledAddons, type Addon } from '$lib/services/addon-service';
+import {
+  fetchAddonPath,
+  fetchInstalledAddons,
+  refreshInstalledAddons,
+  type Addon
+} from '$lib/services/addon-service';
 import {
   fetchCategories,
   fetchMatchedAddons,
@@ -36,6 +41,15 @@ export function refreshInstalledState(): Promise<void> {
     queryClient.refetchQueries({ queryKey: addonPathQueryKey, exact: true }),
     queryClient.refetchQueries({ queryKey: matchedAddonsQueryKey, exact: true })
   ]).then(() => undefined);
+}
+
+export async function rescanInstalledState(): Promise<void> {
+  const addons = await refreshInstalledAddons();
+  queryClient.setQueryData(installedAddonsQueryKey, addons);
+  await Promise.all([
+    queryClient.refetchQueries({ queryKey: addonPathQueryKey, exact: true }),
+    queryClient.refetchQueries({ queryKey: matchedAddonsQueryKey, exact: true })
+  ]);
 }
 
 export function fetchAddonPathQuery(): Promise<string> {

@@ -25,6 +25,10 @@ export async function fetchInstalledAddons(): Promise<Addon[]> {
   }
 }
 
+export async function refreshInstalledAddons(): Promise<Addon[]> {
+  return await callWails('RefreshInstalledAddons');
+}
+
 export async function fetchAddonPath(): Promise<string> {
   try {
     return await callWails('GetAddonPath');

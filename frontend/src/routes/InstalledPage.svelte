@@ -47,7 +47,8 @@
     installedAddonsQueryKey,
     matchedAddonsQueryKey,
     remoteAddonsQueryKey,
-    refreshInstalledState
+    refreshInstalledState,
+    rescanInstalledState
   } from '$lib/db/query-state';
   import {
     buildInstalledAddonIndex,
@@ -439,7 +440,7 @@
       {/if}
       <button
         onclick={() => {
-          void refreshInstalledState();
+          void rescanInstalledState();
           void checkMissingDeps();
         }}
         class="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border border-[var(--color-toolbar-border)] bg-[var(--color-toolbar-input)] text-[var(--color-toolbar-muted)] transition-colors hover:bg-[var(--color-toolbar-accent)] hover:text-[var(--color-toolbar-foreground)]"
