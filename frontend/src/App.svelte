@@ -49,13 +49,25 @@
   async function preloadPage(page: Page) {
     switch (page) {
       case 'find-more':
-        await loadLazyRoute(findMoreRoute, () => import('./routes/FindMorePage.svelte'), 'Failed to load Find More.');
+        await loadLazyRoute(
+          findMoreRoute,
+          () => import('./routes/FindMorePage.svelte'),
+          'Failed to load Find More.'
+        );
         break;
       case 'updates':
-        await loadLazyRoute(updatesRoute, () => import('./routes/UpdatesPage.svelte'), 'Failed to load Updates.');
+        await loadLazyRoute(
+          updatesRoute,
+          () => import('./routes/UpdatesPage.svelte'),
+          'Failed to load Updates.'
+        );
         break;
       case 'settings':
-        await loadLazyRoute(settingsRoute, () => import('./routes/SettingsPage.svelte'), 'Failed to load Settings.');
+        await loadLazyRoute(
+          settingsRoute,
+          () => import('./routes/SettingsPage.svelte'),
+          'Failed to load Settings.'
+        );
         break;
     }
   }
@@ -83,7 +95,9 @@
     contextMenuItems = [];
   }
 
-  function getTextInputTarget(target: EventTarget | null): HTMLInputElement | HTMLTextAreaElement | null {
+  function getTextInputTarget(
+    target: EventTarget | null
+  ): HTMLInputElement | HTMLTextAreaElement | null {
     const node = target instanceof HTMLElement ? target.closest('input, textarea') : null;
     if (node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement) return node;
     return null;
@@ -168,7 +182,10 @@
     const handleContextMenu = (e: MouseEvent) => {
       if (e.defaultPrevented) return;
       const input = getTextInputTarget(e.target);
-      const link = e.target instanceof HTMLElement ? (e.target.closest('a[href]') as HTMLAnchorElement | null) : null;
+      const link =
+        e.target instanceof HTMLElement
+          ? (e.target.closest('a[href]') as HTMLAnchorElement | null)
+          : null;
       const selectionText = input
         ? getInputSelection(input).text
         : window.getSelection?.()?.toString().trim() || '';
@@ -176,7 +193,11 @@
       const items: ContextMenuEntry[] = [];
 
       if (link?.href) {
-        items.push({ label: 'Open Link', icon: ExternalLink, action: () => openExternalURL(link.href) });
+        items.push({
+          label: 'Open Link',
+          icon: ExternalLink,
+          action: () => openExternalURL(link.href)
+        });
         items.push({ type: 'separator' });
         items.push({
           label: 'Copy Link',
@@ -311,7 +332,10 @@
       scanCompleteOff?.();
       window.removeEventListener('keydown', handleGlobalKeydown);
       window.removeEventListener('contextmenu', handleContextMenu);
-      window.removeEventListener('scribe:open-context-menu', handleCustomContextMenu as EventListener);
+      window.removeEventListener(
+        'scribe:open-context-menu',
+        handleCustomContextMenu as EventListener
+      );
       window.removeEventListener('scribe:settings-updated', handleSettingsUpdated as EventListener);
       window.removeEventListener('resize', closeMenu);
       window.removeEventListener('scroll', closeMenu, true);
@@ -322,12 +346,12 @@
 </script>
 
 <QueryClientProvider client={queryClient}>
-  <Toaster richColors position="bottom-right" />
+  <Toaster richColors position="top-right" />
   <TitleBar />
 
-  <div class="flex flex-1 overflow-hidden">
+  <div class="flex min-h-0 flex-1 overflow-hidden">
     <Sidebar />
-    <main class="flex-1 overflow-hidden">
+    <main class="min-w-0 flex-1 overflow-hidden">
       <div class="h-full" class:hidden={navigation.current !== 'installed'}>
         <svelte:boundary>
           <InstalledPage />

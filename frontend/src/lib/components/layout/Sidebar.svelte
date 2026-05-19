@@ -26,10 +26,12 @@
   const downloads = getDownloadStore();
 </script>
 
-<nav class="bg-sidebar border-sidebar-border flex h-full w-52 shrink-0 flex-col border-r">
+<nav
+  class="bg-sidebar border-sidebar-border flex h-full w-52 shrink-0 flex-col border-r max-[760px]:w-16"
+>
   <div class="flex flex-col gap-1 p-2 pt-3">
     <div
-      class="text-sidebar-muted px-3 pt-2 pb-1 text-[10px] font-semibold tracking-widest uppercase"
+      class="text-sidebar-muted px-3 pt-2 pb-1 text-[10px] font-semibold tracking-widest uppercase max-[760px]:sr-only"
     >
       Addons
     </div>
@@ -41,7 +43,7 @@
         onmouseenter={() => navigation.preload(item.id)}
         onfocus={() => navigation.preload(item.id)}
         class={cn(
-          'group relative flex w-full cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+          'group relative flex w-full cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors max-[760px]:justify-center max-[760px]:px-0',
           active
             ? 'bg-sidebar-accent text-sidebar-accent-foreground'
             : 'text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'
@@ -58,7 +60,7 @@
           size={17}
           class={active ? 'text-[var(--color-sidebar-primary)]' : 'text-sidebar-foreground'}
         />
-        <span>{item.label}</span>
+        <span class="truncate max-[760px]:sr-only">{item.label}</span>
 
         {#if item.id === 'updates' && remote.updateCount > 0}
           <span
@@ -75,7 +77,7 @@
           </span>
         {:else if item.shortcut}
           <span
-            class="text-sidebar-muted ml-auto text-[10px] opacity-60 transition-opacity group-hover:opacity-100"
+            class="text-sidebar-muted ml-auto text-[10px] opacity-60 transition-opacity group-hover:opacity-100 max-[760px]:hidden"
           >
             {item.shortcut}
           </span>
@@ -91,7 +93,7 @@
       onmouseenter={() => navigation.preload('settings')}
       onfocus={() => navigation.preload('settings')}
       class={cn(
-        'group relative flex w-full cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+        'group relative flex w-full cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors max-[760px]:justify-center max-[760px]:px-0',
         navigation.isCurrent('settings')
           ? 'bg-sidebar-accent text-sidebar-accent-foreground'
           : 'text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'
@@ -108,7 +110,7 @@
           ? 'text-[var(--color-sidebar-primary)]'
           : 'text-sidebar-foreground'}
       />
-      <span>Settings</span>
+      <span class="truncate max-[760px]:sr-only">Settings</span>
     </button>
   </div>
 </nav>

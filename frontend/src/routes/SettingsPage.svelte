@@ -14,10 +14,7 @@
   import Wand2 from 'lucide-svelte/icons/wand-2';
   import { Button } from '$lib/components/ui';
   import { PageToolbar } from '$lib/components/layout';
-  import {
-    fetchDiagnostics,
-    type DiagnosticsSnapshot
-  } from '$lib/services/diagnostics-service';
+  import { fetchDiagnostics, type DiagnosticsSnapshot } from '$lib/services/diagnostics-service';
   import { fetchAppInfo, type AppInfo } from '$lib/services/app-info-service';
   import {
     browseForFolder,
@@ -138,7 +135,14 @@
       v.pipe(
         v.string(),
         v.trim(),
-        v.check((path) => path === '' || path.startsWith('/') || /^[A-Za-z]:[\\/]/.test(path) || path.startsWith('\\\\'), 'Use an absolute AddOns folder path'),
+        v.check(
+          (path) =>
+            path === '' ||
+            path.startsWith('/') ||
+            /^[A-Za-z]:[\\/]/.test(path) ||
+            path.startsWith('\\\\'),
+          'Use an absolute AddOns folder path'
+        ),
         v.check((path) => !path.includes('\0'), 'AddOns folder path contains invalid characters')
       ),
       val
@@ -434,24 +438,24 @@
                   <div>
                     <p class="text-sm font-medium">Theme</p>
                     <p class="text-muted-foreground text-xs">
-                      Pick the app palette. Scribe keeps the warm default, Neutral keeps the content light with dark chrome, and Dark stays fully dark.
+                      Pick the app palette. Scribe keeps the warm default, Neutral keeps the content
+                      light with dark chrome, and Dark stays fully dark.
                     </p>
                   </div>
                   <div class="grid shrink-0 gap-2 sm:grid-cols-3">
-                    {#each [
-                      { value: 'scribe', label: 'Scribe', swatch: 'from-amber-800 via-stone-800 to-amber-200' },
-                      { value: 'neutral', label: 'Neutral', swatch: 'from-zinc-900 via-zinc-500 to-white' },
-                      { value: 'dark', label: 'Dark', swatch: 'from-zinc-950 via-zinc-700 to-zinc-400' }
-                    ] as option (option.value)}
+                    {#each [{ value: 'scribe', label: 'Scribe', swatch: 'from-amber-800 via-stone-800 to-amber-200' }, { value: 'neutral', label: 'Neutral', swatch: 'from-zinc-900 via-zinc-500 to-white' }, { value: 'dark', label: 'Dark', swatch: 'from-zinc-950 via-zinc-700 to-zinc-400' }] as option (option.value)}
                       <button
                         type="button"
                         onclick={() => applyThemeSelection(option.value as AppTheme)}
                         class={[
                           'border-border bg-background hover:bg-accent flex min-w-24 flex-col items-start gap-2 rounded-lg border px-3 py-2 text-left transition-colors',
-                          field.state.value === option.value ? 'ring-2 ring-[var(--color-ring)]' : ''
+                          field.state.value === option.value
+                            ? 'ring-2 ring-[var(--color-ring)]'
+                            : ''
                         ].join(' ')}
                       >
-                        <span class={`h-3 w-full rounded-full bg-linear-to-r ${option.swatch}`}></span>
+                        <span class={`h-3 w-full rounded-full bg-linear-to-r ${option.swatch}`}
+                        ></span>
                         <span class="text-sm font-medium">{option.label}</span>
                       </button>
                     {/each}
@@ -493,7 +497,8 @@
                       min="0"
                       step="10"
                       value={field.state.value}
-                      oninput={(e) => field.handleChange(Number((e.target as HTMLInputElement).value || 0))}
+                      oninput={(e) =>
+                        field.handleChange(Number((e.target as HTMLInputElement).value || 0))}
                       class="border-border bg-background w-24 rounded-md border px-2 py-1 text-right text-sm"
                     />
                     <span class="text-muted-foreground text-xs">MB</span>
@@ -553,10 +558,26 @@
                     </span>
                   </p>
                   <div class="text-muted-foreground space-y-1 text-xs">
-                    <p>Startup: <span class="text-foreground font-mono">{diagnostics.startupMs} ms</span></p>
-                    <p>DOM ready: <span class="text-foreground font-mono">{diagnostics.domReadyMs} ms</span></p>
-                    <p>Frontend ready: <span class="text-foreground font-mono">{diagnostics.frontendReadyMs} ms</span> <span class="text-muted-foreground">(target &lt;1s)</span></p>
-                    <p>Remote ready: <span class="text-foreground font-mono">{diagnostics.remoteReadyMs} ms</span></p>
+                    <p>
+                      Startup: <span class="text-foreground font-mono"
+                        >{diagnostics.startupMs} ms</span
+                      >
+                    </p>
+                    <p>
+                      DOM ready: <span class="text-foreground font-mono"
+                        >{diagnostics.domReadyMs} ms</span
+                      >
+                    </p>
+                    <p>
+                      Frontend ready: <span class="text-foreground font-mono"
+                        >{diagnostics.frontendReadyMs} ms</span
+                      > <span class="text-muted-foreground">(target &lt;1s)</span>
+                    </p>
+                    <p>
+                      Remote ready: <span class="text-foreground font-mono"
+                        >{diagnostics.remoteReadyMs} ms</span
+                      >
+                    </p>
                   </div>
                 </div>
 
@@ -568,32 +589,101 @@
                     </span>
                   </p>
                   <div class="text-muted-foreground space-y-1 text-xs">
-                    <p>Heap alloc: <span class="text-foreground font-mono">{diagnostics.heapAllocMb} MB</span></p>
-                    <p>Heap in-use: <span class="text-foreground font-mono">{diagnostics.heapInUseMb} MB</span></p>
-                    <p>Sys: <span class="text-foreground font-mono">{diagnostics.sysMb} MB</span> <span class="text-muted-foreground">(target &lt;150MB)</span></p>
-                    <p>Stack in-use: <span class="text-foreground font-mono">{diagnostics.stackInUseMb} MB</span></p>
-                    <p>Total alloc: <span class="text-foreground font-mono">{diagnostics.totalAllocMb} MB</span></p>
-                    <p>Goroutines: <span class="text-foreground font-mono">{diagnostics.goroutines}</span></p>
-                    <p>GC runs: <span class="text-foreground font-mono">{diagnostics.numGc}</span></p>
+                    <p>
+                      Heap alloc: <span class="text-foreground font-mono"
+                        >{diagnostics.heapAllocMb} MB</span
+                      >
+                    </p>
+                    <p>
+                      Heap in-use: <span class="text-foreground font-mono"
+                        >{diagnostics.heapInUseMb} MB</span
+                      >
+                    </p>
+                    <p>
+                      Sys: <span class="text-foreground font-mono">{diagnostics.sysMb} MB</span>
+                      <span class="text-muted-foreground">(target &lt;150MB)</span>
+                    </p>
+                    <p>
+                      Stack in-use: <span class="text-foreground font-mono"
+                        >{diagnostics.stackInUseMb} MB</span
+                      >
+                    </p>
+                    <p>
+                      Total alloc: <span class="text-foreground font-mono"
+                        >{diagnostics.totalAllocMb} MB</span
+                      >
+                    </p>
+                    <p>
+                      Goroutines: <span class="text-foreground font-mono"
+                        >{diagnostics.goroutines}</span
+                      >
+                    </p>
+                    <p>
+                      GC runs: <span class="text-foreground font-mono">{diagnostics.numGc}</span>
+                    </p>
                   </div>
                 </div>
 
-	                <div class="bg-muted/40 rounded-md border p-3">
-	                  <p class="mb-2 text-xs font-medium">Dataset</p>
-	                  <div class="text-muted-foreground space-y-1 text-xs">
-                    <p>Remote addons: <span class="text-foreground font-mono">{diagnostics.remoteAddons}</span></p>
-                    <p>Remote categories: <span class="text-foreground font-mono">{diagnostics.remoteCategories}</span></p>
-                    <p>Installed addons: <span class="text-foreground font-mono">{diagnostics.installedAddons}</span></p>
-	                    <p>Cached state ready: <span class="text-foreground font-mono">{diagnostics.cachedStateReadyMs ?? 0} ms</span></p>
-	                    <p>Scan started: <span class="text-foreground font-mono">{diagnostics.scanStartedMs ?? 0} ms</span></p>
-	                    <p>Scan ready: <span class="text-foreground font-mono">{diagnostics.scanReadyMs ?? 0} ms</span></p>
-	                    <p>Scan running: <span class="text-foreground font-mono">{diagnostics.scanInFlight ? 'yes' : 'no'}</span></p>
-                    <p>Temp artifacts removed: <span class="text-foreground font-mono">{diagnostics.tempCleanupRemoved ?? 0}</span></p>
-                    <p>Temp artifacts retained: <span class="text-foreground font-mono">{diagnostics.tempCleanupRetained ?? 0}</span></p>
-                    <p>Cache stale: <span class="text-foreground font-mono">{diagnostics.remoteCacheStale ? 'yes' : 'no'}</span></p>
+                <div class="bg-muted/40 rounded-md border p-3">
+                  <p class="mb-2 text-xs font-medium">Dataset</p>
+                  <div class="text-muted-foreground space-y-1 text-xs">
+                    <p>
+                      Remote addons: <span class="text-foreground font-mono"
+                        >{diagnostics.remoteAddons}</span
+                      >
+                    </p>
+                    <p>
+                      Remote categories: <span class="text-foreground font-mono"
+                        >{diagnostics.remoteCategories}</span
+                      >
+                    </p>
+                    <p>
+                      Installed addons: <span class="text-foreground font-mono"
+                        >{diagnostics.installedAddons}</span
+                      >
+                    </p>
+                    <p>
+                      Cached state ready: <span class="text-foreground font-mono"
+                        >{diagnostics.cachedStateReadyMs ?? 0} ms</span
+                      >
+                    </p>
+                    <p>
+                      Scan started: <span class="text-foreground font-mono"
+                        >{diagnostics.scanStartedMs ?? 0} ms</span
+                      >
+                    </p>
+                    <p>
+                      Scan ready: <span class="text-foreground font-mono"
+                        >{diagnostics.scanReadyMs ?? 0} ms</span
+                      >
+                    </p>
+                    <p>
+                      Scan running: <span class="text-foreground font-mono"
+                        >{diagnostics.scanInFlight ? 'yes' : 'no'}</span
+                      >
+                    </p>
+                    <p>
+                      Temp artifacts removed: <span class="text-foreground font-mono"
+                        >{diagnostics.tempCleanupRemoved ?? 0}</span
+                      >
+                    </p>
+                    <p>
+                      Temp artifacts retained: <span class="text-foreground font-mono"
+                        >{diagnostics.tempCleanupRetained ?? 0}</span
+                      >
+                    </p>
+                    <p>
+                      Cache stale: <span class="text-foreground font-mono"
+                        >{diagnostics.remoteCacheStale ? 'yes' : 'no'}</span
+                      >
+                    </p>
                     <p>
                       Persistence:
-                      <span class={diagnostics.persistenceStatus === 'degraded' ? 'text-destructive font-mono' : 'text-foreground font-mono'}>
+                      <span
+                        class={diagnostics.persistenceStatus === 'degraded'
+                          ? 'text-destructive font-mono'
+                          : 'text-foreground font-mono'}
+                      >
                         {diagnostics.persistenceStatus ?? 'unknown'}
                       </span>
                     </p>
@@ -612,10 +702,26 @@
                 <div class="bg-muted/40 rounded-md border p-3 md:col-span-2 xl:col-span-1">
                   <p class="mb-2 text-xs font-medium">Detail Fetches</p>
                   <div class="text-muted-foreground space-y-1 text-xs">
-                    <p>Total backend calls: <span class="text-foreground font-mono">{diagnostics.detailRequests}</span></p>
-                    <p>Unique UIDs: <span class="text-foreground font-mono">{diagnostics.detailUniqueUids}</span></p>
-                    <p>Last UID: <span class="text-foreground font-mono">{diagnostics.lastDetailUid || 'n/a'}</span></p>
-                    <p>Last at: <span class="text-foreground font-mono">{diagnostics.lastDetailAt || 'n/a'}</span></p>
+                    <p>
+                      Total backend calls: <span class="text-foreground font-mono"
+                        >{diagnostics.detailRequests}</span
+                      >
+                    </p>
+                    <p>
+                      Unique UIDs: <span class="text-foreground font-mono"
+                        >{diagnostics.detailUniqueUids}</span
+                      >
+                    </p>
+                    <p>
+                      Last UID: <span class="text-foreground font-mono"
+                        >{diagnostics.lastDetailUid || 'n/a'}</span
+                      >
+                    </p>
+                    <p>
+                      Last at: <span class="text-foreground font-mono"
+                        >{diagnostics.lastDetailAt || 'n/a'}</span
+                      >
+                    </p>
                   </div>
                   {#if diagnostics.detailTop.length > 0}
                     <div class="mt-3 space-y-1 text-xs">
@@ -629,36 +735,81 @@
                   {/if}
                 </div>
 
-	                <div class="bg-muted/40 rounded-md border p-3 md:col-span-2 xl:col-span-2">
-	                  <p class="mb-2 text-xs font-medium">Frontend Detail Query Cache</p>
-	                  <div class="text-muted-foreground grid gap-1 text-xs md:grid-cols-2">
-                    <p>Total queries: <span class="text-foreground font-mono">{frontendDiagnostics.addonDetailQueries}</span></p>
-                    <p>With data: <span class="text-foreground font-mono">{frontendDiagnostics.addonDetailQueriesWithData}</span></p>
-                    <p>Max queries: <span class="text-foreground font-mono">{frontendDiagnostics.addonDetailMaxQueries}</span></p>
-                    <p>Fresh (5m): <span class="text-foreground font-mono">{frontendDiagnostics.addonDetailFresh}</span></p>
-                    <p>Stale: <span class="text-foreground font-mono">{frontendDiagnostics.addonDetailStale}</span></p>
-                    <p>Screenshot URLs: <span class="text-foreground font-mono">{frontendDiagnostics.addonDetailScreenshotUrls}</span></p>
-                    <p>Max screenshots/detail: <span class="text-foreground font-mono">{frontendDiagnostics.addonDetailMaxScreenshots}</span></p>
-                    <p>Remote refreshes: <span class="text-foreground font-mono">{diagnostics.remoteRefreshCount}</span></p>
-                    <p>Last refresh: <span class="text-foreground font-mono">{diagnostics.lastRemoteRefreshAt || 'n/a'}</span></p>
-                    <p class="md:col-span-2">Last refresh duration: <span class="text-foreground font-mono">{diagnostics.lastRemoteRefreshMs} ms</span></p>
+                <div class="bg-muted/40 rounded-md border p-3 md:col-span-2 xl:col-span-2">
+                  <p class="mb-2 text-xs font-medium">Frontend Detail Query Cache</p>
+                  <div class="text-muted-foreground grid gap-1 text-xs md:grid-cols-2">
+                    <p>
+                      Total queries: <span class="text-foreground font-mono"
+                        >{frontendDiagnostics.addonDetailQueries}</span
+                      >
+                    </p>
+                    <p>
+                      With data: <span class="text-foreground font-mono"
+                        >{frontendDiagnostics.addonDetailQueriesWithData}</span
+                      >
+                    </p>
+                    <p>
+                      Max queries: <span class="text-foreground font-mono"
+                        >{frontendDiagnostics.addonDetailMaxQueries}</span
+                      >
+                    </p>
+                    <p>
+                      Fresh (5m): <span class="text-foreground font-mono"
+                        >{frontendDiagnostics.addonDetailFresh}</span
+                      >
+                    </p>
+                    <p>
+                      Stale: <span class="text-foreground font-mono"
+                        >{frontendDiagnostics.addonDetailStale}</span
+                      >
+                    </p>
+                    <p>
+                      Screenshot URLs: <span class="text-foreground font-mono"
+                        >{frontendDiagnostics.addonDetailScreenshotUrls}</span
+                      >
+                    </p>
+                    <p>
+                      Max screenshots/detail: <span class="text-foreground font-mono"
+                        >{frontendDiagnostics.addonDetailMaxScreenshots}</span
+                      >
+                    </p>
+                    <p>
+                      Remote refreshes: <span class="text-foreground font-mono"
+                        >{diagnostics.remoteRefreshCount}</span
+                      >
+                    </p>
+                    <p>
+                      Last refresh: <span class="text-foreground font-mono"
+                        >{diagnostics.lastRemoteRefreshAt || 'n/a'}</span
+                      >
+                    </p>
+                    <p class="md:col-span-2">
+                      Last refresh duration: <span class="text-foreground font-mono"
+                        >{diagnostics.lastRemoteRefreshMs} ms</span
+                      >
+                    </p>
                   </div>
                   {#if frontendDiagnostics.cachedUIDs.length > 0}
                     <div class="mt-3 flex flex-wrap gap-1.5">
                       {#each frontendDiagnostics.cachedUIDs as uid (uid)}
-                        <span class="rounded-md border px-2 py-0.5 font-mono text-[11px]">{uid}</span>
+                        <span class="rounded-md border px-2 py-0.5 font-mono text-[11px]"
+                          >{uid}</span
+                        >
                       {/each}
-	                    </div>
-	                  {/if}
-	                </div>
+                    </div>
+                  {/if}
+                </div>
 
                 <div class="bg-muted/40 rounded-md border p-3 md:col-span-2 xl:col-span-2">
                   <p class="mb-2 text-xs font-medium">Frontend Interaction Timings</p>
                   <div class="text-muted-foreground grid gap-1 text-xs md:grid-cols-2">
                     {#each frontendDiagnostics.performance.timings as timing (timing.name)}
                       <p>
-                        {timing.name}: <span class="text-foreground font-mono">{timing.lastMs} ms</span>
-                        <span class="text-muted-foreground">(avg {timing.avgMs}, p95 {timing.p95Ms}, n={timing.count})</span>
+                        {timing.name}:
+                        <span class="text-foreground font-mono">{timing.lastMs} ms</span>
+                        <span class="text-muted-foreground"
+                          >(avg {timing.avgMs}, p95 {timing.p95Ms}, n={timing.count})</span
+                        >
                       </p>
                     {:else}
                       <p>No interaction timings captured yet.</p>
@@ -667,31 +818,44 @@
                       <p>
                         {gauge.name}: <span class="text-foreground font-mono">{gauge.value}</span>
                         {#if typeof gauge.meta.resultCount === 'number'}
-                          <span class="text-muted-foreground"> / {gauge.meta.resultCount} results</span>
+                          <span class="text-muted-foreground">
+                            / {gauge.meta.resultCount} results</span
+                          >
                         {/if}
                       </p>
                     {/each}
                     <p>
                       Progress events:
-                      <span class="text-foreground font-mono">{frontendDiagnostics.performance.progressEvents.totalEvents}</span>
-                      <span class="text-muted-foreground">({frontendDiagnostics.performance.progressEvents.lastMinuteEvents}/min)</span>
+                      <span class="text-foreground font-mono"
+                        >{frontendDiagnostics.performance.progressEvents.totalEvents}</span
+                      >
+                      <span class="text-muted-foreground"
+                        >({frontendDiagnostics.performance.progressEvents
+                          .lastMinuteEvents}/min)</span
+                      >
                     </p>
                     <p>
                       Progress errors:
-                      <span class="text-foreground font-mono">{frontendDiagnostics.performance.progressEvents.errorEvents}</span>
+                      <span class="text-foreground font-mono"
+                        >{frontendDiagnostics.performance.progressEvents.errorEvents}</span
+                      >
                     </p>
                     <p>
                       Last progress state:
-                      <span class="text-foreground font-mono">{frontendDiagnostics.performance.progressEvents.lastState || 'n/a'}</span>
+                      <span class="text-foreground font-mono"
+                        >{frontendDiagnostics.performance.progressEvents.lastState || 'n/a'}</span
+                      >
                     </p>
                     <p>
                       Active task count:
-                      <span class="text-foreground font-mono">{frontendDiagnostics.performance.progressEvents.lastActiveCount}</span>
+                      <span class="text-foreground font-mono"
+                        >{frontendDiagnostics.performance.progressEvents.lastActiveCount}</span
+                      >
                     </p>
                   </div>
                 </div>
-	              </div>
-	            {:else if diagnosticsLoading}
+              </div>
+            {:else if diagnosticsLoading}
               <div class="text-muted-foreground flex items-center gap-2 text-sm">
                 <Loader2 size={14} class="animate-spin" />
                 Loading diagnostics...
@@ -768,7 +932,8 @@
           <div class="card-elevated bg-card border-border rounded-lg border p-4">
             <h3 class="text-sm font-medium">About Scribe</h3>
             <div class="text-muted-foreground mt-2 space-y-1 text-xs">
-              <p>Version: <span class="text-foreground font-mono">{appInfo.version}</span>
+              <p>
+                Version: <span class="text-foreground font-mono">{appInfo.version}</span>
                 {#if appInfo.commit !== 'none'}
                   (<span class="font-mono">{appInfo.commit}</span>)
                 {/if}
@@ -776,7 +941,10 @@
               {#if appInfo.buildDate && appInfo.buildDate !== 'unknown'}
                 <p>Built: <span class="text-foreground font-mono">{appInfo.buildDate}</span></p>
               {/if}
-              <p>Runtime: <span class="text-foreground font-mono">{appInfo.goVersion}</span> · <span class="font-mono">{appInfo.os}/{appInfo.arch}</span></p>
+              <p>
+                Runtime: <span class="text-foreground font-mono">{appInfo.goVersion}</span> ·
+                <span class="font-mono">{appInfo.os}/{appInfo.arch}</span>
+              </p>
             </div>
           </div>
         {/if}
@@ -792,24 +960,25 @@
                 type="button"
                 onclick={() => void openExternalURL('https://www.esoui.com')}
                 class="text-primary cursor-pointer underline-offset-2 hover:underline"
-              >ESOUI.com</button>
+                >ESOUI.com</button
+              >
               via the public
               <button
                 type="button"
                 onclick={() => void openExternalURL('https://api.mmoui.com')}
                 class="text-primary cursor-pointer underline-offset-2 hover:underline"
-              >MMOUI API</button>.
-              All addon content remains the property of its respective authors.
-              Scribe does not redistribute or mirror any addon files.
+                >MMOUI API</button
+              >. All addon content remains the property of its respective authors. Scribe does not
+              redistribute or mirror any addon files.
             </p>
           </div>
 
           <div class="border-border mt-3 border-t pt-3">
             <p class="text-xs font-medium">Trademark Notice</p>
             <p class="text-muted-foreground mt-1 text-xs leading-relaxed">
-              <em>The Elder Scrolls Online</em> is a registered trademark of ZeniMax Media Inc.
-              Scribe is an independent community tool and is not affiliated with,
-              endorsed by, or connected to ZeniMax Media Inc. or Bethesda Softworks LLC.
+              <em>The Elder Scrolls Online</em> is a registered trademark of ZeniMax Media Inc. Scribe
+              is an independent community tool and is not affiliated with, endorsed by, or connected to
+              ZeniMax Media Inc. or Bethesda Softworks LLC.
             </p>
           </div>
 
@@ -826,37 +995,25 @@
             </div>
             {#if showLibraries}
               <div class="mt-3 flex flex-col gap-1.5">
-                {#each [
-                  { name: 'Wails',            license: 'MIT',       url: 'https://github.com/wailsapp/wails' },
-                  { name: 'Svelte',           license: 'MIT',       url: 'https://github.com/sveltejs/svelte' },
-                  { name: 'Tailwind CSS',     license: 'MIT',       url: 'https://github.com/tailwindlabs/tailwindcss' },
-                  { name: 'TanStack Query',   license: 'MIT',       url: 'https://github.com/TanStack/query' },
-                  { name: 'TanStack Form',    license: 'MIT',       url: 'https://github.com/TanStack/form' },
-                  { name: 'TanStack Virtual', license: 'MIT',       url: 'https://github.com/TanStack/virtual' },
-                  { name: 'Lucide',           license: 'ISC',       url: 'https://github.com/lucide-icons/lucide' },
-                  { name: 'svelte-sonner',    license: 'MIT',       url: 'https://github.com/wobsoriano/svelte-sonner' },
-                  { name: 'Valibot',          license: 'MIT',       url: 'https://github.com/fabian-hiller/valibot' },
-                  { name: 'GORM',             license: 'MIT',       url: 'https://github.com/go-gorm/gorm' },
-                  { name: 'glebarez/sqlite',  license: 'MIT',       url: 'https://github.com/glebarez/sqlite' },
-                  { name: 'google/uuid',      license: 'BSD-3',     url: 'https://github.com/google/uuid' },
-                  { name: 'go-toast',         license: 'MIT',       url: 'https://git.sr.ht/~jackmordaunt/go-toast' },
-                  { name: 'Vite',             license: 'MIT',       url: 'https://github.com/vitejs/vite' },
-                ] as lib (lib.name)}
+                {#each [{ name: 'Wails', license: 'MIT', url: 'https://github.com/wailsapp/wails' }, { name: 'Svelte', license: 'MIT', url: 'https://github.com/sveltejs/svelte' }, { name: 'Tailwind CSS', license: 'MIT', url: 'https://github.com/tailwindlabs/tailwindcss' }, { name: 'TanStack Query', license: 'MIT', url: 'https://github.com/TanStack/query' }, { name: 'TanStack Form', license: 'MIT', url: 'https://github.com/TanStack/form' }, { name: 'TanStack Virtual', license: 'MIT', url: 'https://github.com/TanStack/virtual' }, { name: 'Lucide', license: 'ISC', url: 'https://github.com/lucide-icons/lucide' }, { name: 'svelte-sonner', license: 'MIT', url: 'https://github.com/wobsoriano/svelte-sonner' }, { name: 'Valibot', license: 'MIT', url: 'https://github.com/fabian-hiller/valibot' }, { name: 'GORM', license: 'MIT', url: 'https://github.com/go-gorm/gorm' }, { name: 'glebarez/sqlite', license: 'MIT', url: 'https://github.com/glebarez/sqlite' }, { name: 'google/uuid', license: 'BSD-3', url: 'https://github.com/google/uuid' }, { name: 'go-toast', license: 'MIT', url: 'https://git.sr.ht/~jackmordaunt/go-toast' }, { name: 'Vite', license: 'MIT', url: 'https://github.com/vitejs/vite' }] as lib (lib.name)}
                   <div class="flex items-center justify-between gap-2">
                     <button
                       type="button"
                       onclick={() => void openExternalURL(lib.url)}
                       class="text-primary cursor-pointer text-xs underline-offset-2 hover:underline"
-                    >{lib.name}</button>
-                    <span class="text-muted-foreground bg-muted rounded px-1.5 py-0.5 font-mono text-[10px]">{lib.license}</span>
+                      >{lib.name}</button
+                    >
+                    <span
+                      class="text-muted-foreground bg-muted rounded px-1.5 py-0.5 font-mono text-[10px]"
+                      >{lib.license}</span
+                    >
                   </div>
                 {/each}
               </div>
             {/if}
           </div>
         </div>
-
-       </form>
-     {/if}
-   </div>
- </div>
+      </form>
+    {/if}
+  </div>
+</div>

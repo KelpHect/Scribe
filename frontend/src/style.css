@@ -233,6 +233,11 @@
     border-color: var(--color-border);
   }
 
+  *:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
   body {
     font-family: var(--font-sans);
     background-color: var(--color-background);
@@ -249,6 +254,7 @@
     width: 100vw;
     display: flex;
     flex-direction: column;
+    min-width: 0;
   }
 
   ::-webkit-scrollbar {
@@ -497,7 +503,6 @@
     background: var(--color-primary);
     opacity: 0.6;
   }
-
 }
 
 @media (prefers-reduced-motion: reduce) {

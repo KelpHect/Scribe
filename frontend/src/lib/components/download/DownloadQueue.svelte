@@ -19,7 +19,7 @@
 
 {#if hasTasks}
   <div
-    class="border-border bg-popover fixed right-4 bottom-4 z-50 flex w-80 flex-col overflow-hidden rounded-lg border shadow-lg"
+    class="border-border bg-popover/98 fixed right-4 bottom-4 z-50 flex w-88 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg border shadow-2xl backdrop-blur"
     aria-label="Task center"
   >
     <div class="border-border bg-muted/50 flex items-center gap-2 border-b px-3 py-2">
@@ -59,7 +59,7 @@
     </div>
 
     {#if !collapsed}
-      <div class="flex max-h-72 flex-col gap-1.5 overflow-y-auto p-2">
+      <div class="flex max-h-[min(24rem,calc(100vh-8rem))] flex-col gap-1.5 overflow-y-auto p-2">
         {#each downloads.tasks as task (task.uid)}
           <DownloadItem
             {task}
@@ -70,11 +70,11 @@
       </div>
 
       {#if downloads.isDownloading}
-        <div class="border-border border-t px-3 py-1.5">
+        <div class="border-border flex justify-end border-t px-3 py-1.5">
           <button
             type="button"
             onclick={() => downloads.cancelAllInstalls()}
-            class="text-muted-foreground hover:text-destructive cursor-pointer text-xs"
+            class="hover:bg-destructive/10 hover:text-destructive text-muted-foreground cursor-pointer rounded-md px-2 py-1 text-xs transition-colors"
           >
             Cancel all
           </button>
@@ -87,7 +87,7 @@
           <button
             type="button"
             onclick={() => downloads.retryFailedInstalls()}
-            class="text-muted-foreground hover:text-foreground cursor-pointer text-xs"
+            class="hover:bg-accent text-muted-foreground hover:text-foreground cursor-pointer rounded-md px-2 py-1 text-xs transition-colors"
           >
             Retry failed
           </button>

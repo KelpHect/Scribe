@@ -32,7 +32,11 @@
 </script>
 
 {#if open}
-  <div class="fixed inset-0 z-50 flex items-center justify-center" onkeydown={onKeydown} {...rest}>
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center p-4"
+    onkeydown={onKeydown}
+    {...rest}
+  >
     <!-- Backdrop click closes the dialog; keyboard users use Escape from focused dialog content. -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div class="fixed inset-0 bg-black/60" onclick={onclose} role="button" tabindex="-1"></div>
