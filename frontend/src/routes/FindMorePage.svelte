@@ -38,7 +38,7 @@
     sortGameVersionsDescending
   } from '$lib/perf/remote-catalog-index';
   import {
-    measureFrontendTiming,
+    recordFrontendTiming,
     recordFrontendGauge
   } from '$lib/diagnostics/frontend-perf';
   import { getCatalogStatusView } from '$lib/catalog/status';
@@ -58,8 +58,17 @@
     remoteAddonsQueryKey,
     matchedAddonsQueryKey,
     categoriesQueryKey,
+    remoteCatalogStatusQueryKey,
     refreshInstalledState
   } from '$lib/db/query-state';
+  import {
+    queryClient,
+    REMOTE_CATALOG_GC_MS,
+    REMOTE_CATALOG_STALE_MS,
+    REMOTE_STATUS_GC_MS,
+    REMOTE_STATUS_STALE_MS
+  } from '$lib/db/client';
+  import { getRuntime } from '$lib/services/runtime-service';
 
   type CategorySection = 'Stand-Alone Addons' | 'Class & Role Specific' | 'Utilities' | 'Optional';
 
@@ -103,16 +112,33 @@
 
     const closeModal = () => (detailOpen = false);
     window.addEventListener('scribe:close-modal', closeModal);
+    let mounted = true;
+    let unsubscribeStatus: (() => void) | undefined;
+    void getRuntime()
+      .then((runtime) => {
+        if (!mounted) return;
+        unsubscribeStatus = runtime.EventsOn?.(
+          'remote-catalog:status',
+          (status: RemoteCatalogStatus) => {
+            queryClient.setQueryData(remoteCatalogStatusQueryKey, status);
+          }
+        );
+      })
+      .catch(() => undefined);
 
     return () => {
+      mounted = false;
       window.removeEventListener('scribe:focus-search', focusSearch);
       window.removeEventListener('scribe:close-modal', closeModal);
+      unsubscribeStatus?.();
     };
   });
 
   const remoteAddonsQuery = createQuery(() => ({
     queryKey: remoteAddonsQueryKey,
-    queryFn: async (): Promise<RemoteAddon[]> => fetchRemoteAddons()
+    queryFn: async (): Promise<RemoteAddon[]> => fetchRemoteAddons(),
+    staleTime: REMOTE_CATALOG_STALE_MS,
+    gcTime: REMOTE_CATALOG_GC_MS
   }));
   const matchedQuery = createQuery(() => ({
     queryKey: matchedAddonsQueryKey,
@@ -123,9 +149,10 @@
     queryFn: async (): Promise<Category[]> => fetchCategories()
   }));
   const remoteStatusQuery = createQuery(() => ({
-    queryKey: ['remote-catalog-status'] as const,
+    queryKey: remoteCatalogStatusQueryKey,
     queryFn: async (): Promise<RemoteCatalogStatus> => fetchRemoteCatalogStatus(),
-    refetchInterval: 5000
+    staleTime: REMOTE_STATUS_STALE_MS,
+    gcTime: REMOTE_STATUS_GC_MS
   }));
 
   const remoteAddons = $derived((remoteAddonsQuery.data as RemoteAddon[]) ?? []);
@@ -203,21 +230,22 @@
     { value: 'libraries', label: 'Libraries & Dependencies' }
   ];
 
-  const filterResult = $derived.by(() => {
-    return measureFrontendTiming(
-      'findMore.filterSort',
-      () =>
-        filterRemoteCatalog(indexedRemoteAddons, {
-          query: remote.searchQuery,
-          contentFilter,
-          hideInstalled: remote.hideInstalled,
-          installedUIDs,
-          versionFilter,
-          categoryFilter: remote.categoryFilter,
-          sortKey: remote.sortBy,
-          sortDirection: remote.sortDirection
-        }),
-      (result) => ({
+  const filterResultWithTiming = $derived.by(() => {
+    const start = performance.now();
+    const result = filterRemoteCatalog(indexedRemoteAddons, {
+      query: remote.searchQuery,
+      contentFilter,
+      hideInstalled: remote.hideInstalled,
+      installedUIDs,
+      versionFilter,
+      categoryFilter: remote.categoryFilter,
+      sortKey: remote.sortBy,
+      sortDirection: remote.sortDirection
+    });
+    return {
+      result,
+      durationMs: performance.now() - start,
+      meta: {
         sourceCount: indexedRemoteAddons.length,
         resultCount: result.list.length,
         categoryCount: result.countMap.size,
@@ -228,7 +256,17 @@
         hideInstalled: remote.hideInstalled,
         sortKey: result.sortKey,
         sortDirection: result.sortDirection
-      })
+      }
+    };
+  });
+
+  const filterResult = $derived(filterResultWithTiming.result);
+
+  $effect(() => {
+    recordFrontendTiming(
+      'findMore.filterSort',
+      filterResultWithTiming.durationMs,
+      filterResultWithTiming.meta
     );
   });
 

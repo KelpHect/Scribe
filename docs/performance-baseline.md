@@ -1,6 +1,6 @@
 # Scribe Performance Baseline
 
-Last baseline refresh: 2026-05-18
+Last baseline refresh: 2026-05-19
 
 This file records the current measured baseline before additional P9 performance work. Do not treat these numbers as hard pass/fail thresholds yet; use them to compare local changes and decide where optimization is justified.
 
@@ -22,21 +22,31 @@ The full verification gate for the accompanying task is:
 ./scripts/verify.sh
 ```
 
+Real desktop captures use the opt-in pprof server:
+
+```bash
+SCRIBE_PPROF=1 ./build/bin/Scribe &
+./scripts/profile-desktop.sh
+```
+
+Use the resulting `build/reports/desktop-profile/desktop.cpu.pprof` as optional `SCRIBE_PGO_PROFILE` input only after the profile covers a representative Scribe session.
+
 ## Go Fixture Benchmarks
 
 | Benchmark | Result |
 | --- | ---: |
-| `BenchmarkScanLargeAddOnsDirectory` | `2,348,036 ns/op`, `5,745,848 B/op`, `33,434 allocs/op` |
-| `BenchmarkMatchLargeCatalog` | `1,194,742 ns/op`, `1,422,838 B/op`, `23,039 allocs/op` |
-| `BenchmarkCachedCatalogLoad` | `42,168,042 ns/op`, `24,694,148 B/op`, `588,110 allocs/op` |
-| `BenchmarkRemoteSearchLargeCatalog` | `555,851 ns/op`, `300,992 B/op`, `13,908 allocs/op` |
+| `BenchmarkScanLargeAddOnsDirectory` | `3,549,085 ns/op`, `6,028,464 B/op`, `31,483 allocs/op` |
+| `BenchmarkMatchLargeCatalog` | `1,782,351 ns/op`, `1,425,139 B/op`, `23,039 allocs/op` |
+| `BenchmarkCachedCatalogLoad` | `41,588,164 ns/op`, `24,694,533 B/op`, `588,112 allocs/op` |
+| `BenchmarkRemoteSearchLargeCatalog` | `593,538 ns/op`, `300,992 B/op`, `13,908 allocs/op` |
 
 ## Frontend Catalog Benchmarks
 
 | Benchmark | Result |
 | --- | ---: |
-| `remote search score over large cached catalog` | `856.75 hz`, `1.1672 ms mean`, `2.2569 ms p99` |
-| `remote filter metadata preparation` | `304.87 hz`, `3.2801 ms mean`, `3.8714 ms p99` |
+| `remote search score over large cached catalog` | `880.23 hz`, `1.1361 ms mean`, `2.2420 ms p99` |
+| `remote filter metadata preparation` | `301.88 hz`, `3.3125 ms mean`, `3.7690 ms p99` |
+| `remote catalog indexed filter/sort` | `1,750.80 hz`, `0.5712 ms mean`, `0.8982 ms p99` |
 
 ## Bundle Report Snapshot
 
@@ -44,20 +54,20 @@ Current generated build report:
 
 | Metric | Bytes |
 | --- | ---: |
-| Total JS | `382,406` |
-| Total CSS | `68,684` |
-| Total assets | `451,090` |
+| Total JS | `405,706` |
+| Total CSS | `70,595` |
+| Total assets | `476,301` |
 | Gzip budget | `500,000` |
 
 Largest generated chunks:
 
 | Chunk | Bytes |
 | --- | ---: |
-| `route-find-more` JS | `231,287` |
-| `route-settings` JS | `77,683` |
-| `index` CSS | `54,055` |
-| `vendor-ui` JS | `20,110` |
-| `route-installed` JS | `19,798` |
+| `route-find-more` JS | `244,715` |
+| `route-settings` JS | `82,404` |
+| `index` CSS | `55,966` |
+| `index` JS | `23,623` |
+| `route-installed` JS | `20,427` |
 
 ## Interactive Diagnostics Capture
 

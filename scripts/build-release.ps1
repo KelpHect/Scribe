@@ -11,6 +11,15 @@ $buildDate  = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
 
 $ldflags = "-s -w -X main.version=$gitVersion -X main.commit=$gitCommit -X main.date=$buildDate"
 
+if ($env:SCRIBE_PGO_PROFILE) {
+  if (-not (Test-Path $env:SCRIBE_PGO_PROFILE)) {
+    Write-Host "SCRIBE_PGO_PROFILE does not exist: $env:SCRIBE_PGO_PROFILE" -ForegroundColor Red
+    exit 1
+  }
+  $env:GOFLAGS = "$env:GOFLAGS -pgo=$env:SCRIBE_PGO_PROFILE".Trim()
+  Write-Host "using Go PGO profile: $env:SCRIBE_PGO_PROFILE" -ForegroundColor Cyan
+}
+
 Write-Host "building Scribe $gitVersion ($gitCommit) $buildDate" -ForegroundColor Cyan
 
 $buildArgs = @(

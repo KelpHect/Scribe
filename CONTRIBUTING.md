@@ -75,7 +75,7 @@ Wails generates `frontend/wailsjs/` and `frontend/dist/`.
 
 ## Local data reset
 
-User-facing settings live in `Scribe/settings.toml` under the OS user config directory. The app database is `Scribe/esoui_cache.db`; it stores ESOUI cache rows, search presets, scanner cache, and install MD5 records. Neither file contains addon files.
+User-facing settings live in `Scribe/settings.toml` under the OS user config directory. The app database is `Scribe/esoui_cache.db`; it stores ESOUI cache rows, search preset rows, scanner cache, and install MD5 records. Neither file contains addon files.
 
 For local troubleshooting, close Scribe and rename or delete only `settings.toml` and/or the database file:
 
@@ -115,6 +115,15 @@ For backend hot-path profiling, run:
 
 It captures CPU and memory profiles for scanner scans, cached catalog load, matching/search, and dependency resolution under `build/reports/profiles/`. The output is ignored by git; summarize the top costs in the PR or issue before optimizing.
 
+For real desktop profiles, start Scribe with pprof enabled, exercise the UI, then capture profiles:
+
+```bash
+SCRIBE_PPROF=1 ./build/bin/Scribe &
+./scripts/profile-desktop.sh
+```
+
+This writes CPU, heap, goroutine, and trace captures under `build/reports/desktop-profile/`. If a release build should use Go PGO, set `SCRIBE_PGO_PROFILE` to a representative CPU profile when running the release script; do not use fixture microbenchmarks as PGO input.
+
 For frontend workflow smoke/profile reports, run:
 
 ```bash
@@ -123,13 +132,13 @@ For frontend workflow smoke/profile reports, run:
 
 It runs fixture-backed frontend workflow tests, catalog benchmarks, and a production frontend build, then writes an ignored report under `build/reports/ui-profile/`. Use it for changes that affect Installed, Find More, Updates, Settings, addon detail data, dependency banners, task center, or failure/retry flows. Still perform a real Wails desktop smoke pass before release.
 
-For local profiling, start the app with `SCRIBE_PPROF=1` to expose pprof on `localhost:6060`. The old `SCRIBEEGO_PPROF=1` spelling still works for compatibility.
+For local profiling, `SCRIBE_PPROF=1` exposes pprof on `localhost:6060`. The old `SCRIBEEGO_PPROF=1` spelling still works for compatibility.
 
 If you touch release workflows or packaging, say that clearly in the PR body.
 
 Release tagging is manual. The tag-release workflow reads `frontend/package.json`, creates `vX.Y.Z`, and dispatches the release only when a maintainer runs it.
 
-Release builds require the Windows portable exe, Linux binary, and macOS universal zip. The Windows NSIS installer is optional and is uploaded only if Wails produces it.
+When GitHub Actions are available, the release workflow validates the tag/version pair and stages Windows, Linux, and macOS artifacts. When releasing locally with `gh`, only upload artifacts built and smoke-tested locally; the current local fallback set is Windows amd64, Linux amd64, Fedora 44 Linux amd64, and `SHA256SUMS.txt`. macOS assets require a macOS runner or build host. The Windows NSIS installer is optional and is uploaded only if Wails produces it.
 
 Strong Windows signing and macOS notarization are not part of the current release flow. Do not add signing/notarization automation unless maintainer certificates, Apple credentials, secret handling, and release approval are already defined.
 

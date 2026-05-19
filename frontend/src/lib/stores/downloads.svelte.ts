@@ -233,6 +233,13 @@ function handleProgressUpdate(data: TaskProgress) {
   scheduleProgressFlush();
 }
 
+function handleProgressBatch(data: TaskProgress[] | TaskProgress) {
+  const updates = Array.isArray(data) ? data : [data];
+  for (const update of updates) {
+    handleProgressUpdate(update);
+  }
+}
+
 async function runMissingDepCheck() {
   const missing = await fetchMissingDependencies();
   const installable = missing.filter((d) => d.canInstall && !d.optional);
@@ -263,14 +270,21 @@ export async function startListening(): Promise<void> {
   const runtime = await getRuntime().catch(() => null);
   if (!runtime?.EventsOn) return;
 
-  const unsubscribe = runtime.EventsOn('download:progress', (data: TaskProgress) => {
+  const unsubscribeProgress = runtime.EventsOn('download:progress', (data: TaskProgress) => {
     handleProgressUpdate(data);
   });
+  const unsubscribeBatch = runtime.EventsOn(
+    'download:progress-batch',
+    (data: TaskProgress[] | TaskProgress) => {
+      handleProgressBatch(data);
+    }
+  );
 
   listenerActive = true;
 
   cleanupFn = () => {
-    unsubscribe?.();
+    unsubscribeProgress?.();
+    unsubscribeBatch?.();
     listenerActive = false;
     cleanupFn = null;
   };

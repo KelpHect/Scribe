@@ -169,7 +169,7 @@ Purpose: make setup, verification, release expectations, and generated-file reco
 - [x] Prune unused frontend scaffold modules.
   - Evidence: the frontend contained unused empty/barrel/schema/constant modules from earlier IndexedDB/hotkey/form scaffolding that no route, service, store, or component imported.
   - Acceptance criteria: remove only modules proven unused by repository search and keep live ownership folders for routes, services, stores, diagnostics, install helpers, perf helpers, and components.
-  - Completed: removed dead `frontend/src/lib/index.ts`, `frontend/src/lib/forms`, `frontend/src/lib/hotkeys`, `frontend/src/lib/schemas`, and stale `frontend/src/lib/db/index.ts` while keeping live `db` query/cache modules.
+  - Completed: removed stale frontend helper folders and barrel exports while keeping live `db` query/cache modules.
   - Verification: `npm --prefix frontend run check` and `npm --prefix frontend run lint:check` pass.
 
 ## P5 — Release/distribution, compatibility, and operations hardening
@@ -185,7 +185,7 @@ Purpose: harden the path from version to user-installable artifacts after the ap
   - Completed: `tag-release.yml` is now manual-only via `workflow_dispatch`; README and CONTRIBUTING document that release tagging is a maintainer-controlled action, not an automatic side effect of routine `main` pushes.
   - Verification: `git diff --check` passes.
 - [x] Verify packaged artifact names and installer expectations across platforms.
-  - Completed: release docs now classify Windows portable, Linux binary, and macOS universal zip as mandatory and the Windows NSIS installer as optional; `release.yml` validates mandatory staged assets with `test -s` and logs whether the optional installer was produced.
+  - Completed: release docs now distinguish hosted workflow artifacts from the local `gh` fallback release path. The hosted release workflow validates Windows portable, Linux binary, and macOS universal zip when GitHub Actions are available; local releases publish only artifacts built and smoke-tested locally. The Windows NSIS installer remains optional.
   - Verification: `git diff --check` passes.
 
 ### Compatibility/operations
@@ -195,7 +195,7 @@ Purpose: harden the path from version to user-installable artifacts after the ap
   - Verification: `go test ./internal/scanner` and `./scripts/verify.sh` pass.
 - [x] Document or test Linux build dependency requirements against current Wails/WebKit tags.
   - Completed: README and CONTRIBUTING document Linux Wails packages for Debian/Ubuntu and Fedora, including the `webkit2_41` local build tag.
-  - Verification: CI and release workflows install the same full Ubuntu native toolchain set before Linux Wails builds.
+  - Verification: CI and release workflows install the full Ubuntu native toolchain set before Linux Wails builds; Fedora 44 local builds use `gtk3-devel` and `webkit2gtk4.1-devel`.
 
 ## P6 — Performance, observability, and maintainability improvements
 
@@ -241,7 +241,7 @@ Purpose: record explicitly deferred ideas so they are not confused with current 
   - Decision: keep the current Wails/app.go/internal package boundary and require a separate accepted design before reconsidering plugin APIs or large architecture changes.
 - [x] Strong distribution signing/notarization.
   - Closed as not implementable in this repo session: strong Windows signing and macOS notarization require maintainer-owned certificates, Apple credentials, secret handling, and release approval that are intentionally unavailable to normal implementation work.
-  - Evidence: README documents unsigned Windows builds and ad-hoc/non-notarized macOS builds; release workflow performs ad-hoc macOS signing only; CONTRIBUTING now blocks signing/notarization automation without defined credentials and release approval.
+  - Evidence: README documents unsigned Windows builds and ad-hoc/non-notarized macOS builds when macOS assets are produced; release workflow performs ad-hoc macOS signing only; CONTRIBUTING blocks signing/notarization automation without defined credentials and release approval.
   - Decision: keep current unsigned/ad-hoc distribution disclosure until maintainers provide credentials, secret-management rules, and an explicit release-scope implementation request.
 
 ## P8 — Next app-quality backlog (open)
@@ -319,6 +319,10 @@ Purpose: improve the app without replacing Wails/Svelte/Go: fewer crashes, smoot
   - Acceptance criteria: pprof or benchmark evidence identifies top costs, optimizations are targeted, and tests prove behavior is unchanged.
   - Completed: `scripts/profile-backend.sh` captures CPU and memory pprof output for scanner scans, cached catalog load, matching/search, and dependency resolution into ignored `build/reports/profiles/` files, and prints top costs for review before any optimization work.
   - Verification: the script runs against deterministic benchmark fixtures and avoids live ESOUI, real AddOns folders, or committed profile artifacts.
+- [x] Add real desktop pprof capture and optional release PGO input path.
+  - Evidence: fixture benchmarks do not represent Wails/WebKit bridge, real AddOns scanning, image browsing, or install/update workflows.
+  - Completed: `scripts/profile-desktop.sh` captures CPU, heap, goroutine, and trace files from a running `SCRIBE_PPROF=1` app; release scripts accept `SCRIBE_PGO_PROFILE` for explicit Go PGO builds.
+  - Verification: `bash -n scripts/profile-desktop.sh scripts/build-release.sh` passes.
 - [x] Expand frontend smoke tests around real user flows.
   - Evidence: current Vitest coverage is intentionally small; next UX work needs guardrails for store/service interactions.
   - Acceptance criteria: tests cover install/update queue guards, dependency plan confirmation, task retry, stale-cache messaging, error recovery, and route-state preservation with mocked Wails services.
@@ -487,15 +491,15 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
   - Evidence: `TestScanAddonDir_FallsBackToAlphabetical` covers a non-canonical manifest fallback in a temp addon directory.
 - [x] Remote catalog cache is SQLite-backed and schema-versioned.
   - Evidence: `internal/esoui/cache.go` stores addons/categories/meta in `esoui_cache.db` under the historical `Scribe` config dir with `cacheSchemaVersion = "2"`.
-- [x] Settings use TOML while cache/search presets/scanner cache/install MD5 records stay SQLite-backed.
-  - Evidence: `internal/settings` reads and writes `settings.toml`; `OpenDB` automigrates remote addons, categories, cache meta, legacy settings, search presets, scanner cache, and install records.
+- [x] Settings use TOML while cache/search preset rows/scanner cache/install MD5 records stay SQLite-backed.
+  - Evidence: `internal/settings` reads and writes `settings.toml`; `OpenDB` automigrates remote addons, categories, cache meta, legacy settings, search preset rows, scanner cache, and install records.
 - [x] Frontend uses generated Wails bindings through thin service wrappers.
   - Evidence: services under `frontend/src/lib/services` call `callWails`/dynamic Wails imports; `frontend/wailsjs` is absent and treated as generated.
 - [x] Route components are dynamically loaded except the initial Installed page.
   - Evidence: `frontend/src/App.svelte` imports `InstalledPage` directly and lazy-loads Find More, Updates, and Settings with dynamic imports.
 - [x] Sticky desktop query caching is configured.
   - Evidence: `frontend/src/lib/db/client.ts` sets long `staleTime`/`gcTime` and disables focus/reconnect refetch loops.
-- [x] Basic release automation builds Windows, Linux, and macOS assets from version tags.
-  - Evidence: `.github/workflows/release.yml` validates `RELEASE_TAG` against `frontend/package.json` and builds a matrix for Windows, Linux, and macOS; manual `.github/workflows/tag-release.yml` reads `frontend/package.json` version as `vX.Y.Z`.
+- [x] Release paths are documented for both hosted workflows and local fallback publishing.
+  - Evidence: `.github/workflows/release.yml` validates `RELEASE_TAG` against `frontend/package.json` and builds a Windows/Linux/macOS matrix when GitHub Actions are available; manual `.github/workflows/tag-release.yml` reads `frontend/package.json` version as `vX.Y.Z`; README and CONTRIBUTING document the local `gh` fallback asset set used for v1.0.4.
 - [x] Docs disclose important current distribution limitations.
-  - Evidence: README notes unsigned Windows builds, Linux UPX use, ad-hoc/non-notarized macOS builds, ESOUI/MMOUI dependency, and intentionally excluded sources/cloud/plugin scope.
+  - Evidence: README notes unsigned Windows builds, Linux CI/local compression differences, ad-hoc/non-notarized macOS builds when produced, ESOUI/MMOUI dependency, and intentionally excluded sources/cloud/plugin scope.

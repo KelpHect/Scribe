@@ -14,6 +14,8 @@ import (
 	"Scribe/internal/addon"
 )
 
+const maxScanWorkers = 8
+
 type Scanner struct {
 	mu        sync.RWMutex
 	addons    map[string]*addon.Addon
@@ -107,10 +109,18 @@ func (s *Scanner) Scan() ([]*addon.Addon, error) {
 		return nil, fmt.Errorf("failed to read addon directory: %w", err)
 	}
 
+	dirs := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			dirs = append(dirs, entry.Name())
+		}
+	}
+
 	var wg sync.WaitGroup
-	results := make(chan *addon.Addon, len(entries))
-	errors := make(chan error, len(entries))
-	cacheEntries := make(chan CachedAddon, len(entries))
+	jobs := make(chan string)
+	results := make(chan *addon.Addon, len(dirs))
+	errors := make(chan error, len(dirs))
+	cacheEntries := make(chan CachedAddon, len(dirs))
 	cached := map[string]CachedAddon{}
 	if cache != nil {
 		if loaded, err := cache.LoadScanCache(addonPath); err == nil {
@@ -118,46 +128,51 @@ func (s *Scanner) Scan() ([]*addon.Addon, error) {
 		}
 	}
 
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
+	workers := scanWorkerCount(len(dirs))
+	for range workers {
 		wg.Add(1)
-		go func(name string) {
+		go func() {
 			defer wg.Done()
-			dir := filepath.Join(addonPath, name)
-			fingerprint := ""
-			if cache != nil {
-				var err error
-				fingerprint, err = addonDirFingerprint(dir)
+			for name := range jobs {
+				dir := filepath.Join(addonPath, name)
+				fingerprint := ""
+				if cache != nil {
+					var err error
+					fingerprint, err = addonDirFingerprint(dir)
+					if err != nil {
+						errors <- err
+						continue
+					}
+					if cachedAddon, ok := cached[name]; ok && cachedAddon.Fingerprint == fingerprint && cachedAddon.Addon != nil {
+						results <- cachedAddon.Addon
+						cacheEntries <- cachedAddon
+						continue
+					}
+				}
+
+				a, err := s.scanAddonDir(dir)
 				if err != nil {
 					errors <- err
-					return
+					continue
 				}
-				if cachedAddon, ok := cached[name]; ok && cachedAddon.Fingerprint == fingerprint && cachedAddon.Addon != nil {
-					results <- cachedAddon.Addon
-					cacheEntries <- cachedAddon
-					return
-				}
-			}
-
-			a, err := s.scanAddonDir(dir)
-			if err != nil {
-				errors <- err
-				return
-			}
-			if a != nil {
-				results <- a
-				if cache != nil {
-					cacheEntries <- CachedAddon{
-						FolderName:  name,
-						Fingerprint: fingerprint,
-						Addon:       a,
+				if a != nil {
+					results <- a
+					if cache != nil {
+						cacheEntries <- CachedAddon{
+							FolderName:  name,
+							Fingerprint: fingerprint,
+							Addon:       a,
+						}
 					}
 				}
 			}
-		}(entry.Name())
+		}()
 	}
+
+	for _, name := range dirs {
+		jobs <- name
+	}
+	close(jobs)
 
 	wg.Wait()
 	close(results)
@@ -185,6 +200,23 @@ func (s *Scanner) Scan() ([]*addon.Addon, error) {
 		_ = cache.SaveScanCache(addonPath, entries)
 	}
 	return list, nil
+}
+
+func scanWorkerCount(dirCount int) int {
+	if dirCount <= 0 {
+		return 0
+	}
+	workers := runtime.GOMAXPROCS(0)
+	if workers < 2 {
+		workers = 2
+	}
+	if workers > maxScanWorkers {
+		workers = maxScanWorkers
+	}
+	if dirCount < workers {
+		return dirCount
+	}
+	return workers
 }
 
 func addonDirFingerprint(dir string) (string, error) {

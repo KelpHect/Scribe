@@ -2,7 +2,7 @@
 
 ## Scope
 - Make small, focused changes for Scribe, a Wails desktop app that manages ESO addons from ESOUI/MMOUI.
-- Do not commit, tag, push, publish releases, dispatch workflows, or perform release automation; RusticTools/user owns git operations.
+- Do not commit, tag, push, publish releases, dispatch workflows, or perform release automation unless the user explicitly requests that exact operation. Release operations require a clean version/tag match and already-available authentication.
 - Do not add alternate addon sources, account/cloud sync, telemetry, plugin APIs, signing/notarization, or broad rewrites unless explicitly requested and backed by an accepted plan.
 - Do not delete, move, or bulk-modify user addon folders except for the explicitly named install/update/uninstall action.
 - Treat `frontend/wailsjs/`, `frontend/dist/`, `build/bin/`, `node_modules/`, `frontend/tsconfig.tsbuildinfo`, build reports, and packaged binaries as generated; do not hand-edit or commit them.
@@ -32,7 +32,8 @@
 - Clean-checkout caveat: root `go test ./...` fails if `frontend/dist` is absent because `main.go` embeds `all:frontend/dist`; run Wails/build first.
 - Clean-checkout caveat: frontend type checks fail if `frontend/wailsjs` is absent/stale; regenerate via `wails dev`/`wails build`, never by authoring generated bindings.
 - `npm --prefix frontend run check` is expected to pass after bindings are regenerated; rerun it before claiming frontend package or type-check changes are clean.
-- For performance-sensitive changes, run the relevant benchmark path: `./scripts/benchmarks.sh`, `scripts/profile-backend.sh`, `npm --prefix frontend run bench -- --run`, or a narrower package benchmark when appropriate.
+- For performance-sensitive changes, run the relevant benchmark path: `./scripts/benchmarks.sh`, `scripts/profile-backend.sh`, `./scripts/profile-desktop.sh`, `npm --prefix frontend run bench -- --run`, or a narrower package benchmark when appropriate.
+- For real desktop profiling, launch with `SCRIBE_PPROF=1` and run `./scripts/profile-desktop.sh`; optional release PGO is controlled by `SCRIBE_PGO_PROFILE` and should use representative desktop CPU profiles only.
 - For docs-only AGENTS/TODO audits, at minimum run `git diff --check`; do not run heavyweight app builds unless code/config behavior changed.
 
 ## Priorities
@@ -55,7 +56,7 @@
 ## Documentation paths
 - Keep `README.md`, `CONTRIBUTING.md`, and `frontend/README.md` synchronized with setup, checks, generated-file recovery, packaging, and release-process changes.
 - Keep `TODO.md` as the durable audit/backlog ledger; update it when audits reveal or close safety, baseline, or workflow gaps.
-- Keep `frontend/package.json` version accurate when requested; tag-release workflow creates tags from it.
+- Keep `frontend/package.json` version accurate when requested; tag-release workflow creates tags from it only when explicitly dispatched.
 - Update this file when a new invariant, generated-file rule, required check, blocker, baseline caveat, or regression lesson is discovered.
 
 ## Architecture boundaries
@@ -91,6 +92,7 @@
 - Remote addon/list artwork should use fixed-size boxes, lazy loading, async decoding, and failure fallbacks so image fetches do not resize virtual rows or leave broken image chrome.
 - Addon detail data and screenshot rails are intentionally bounded; use the `addon-detail-cache` helpers instead of open-ended TanStack detail queries or unbounded screenshot rendering.
 - Coalesce high-frequency bridge events before writing to reactive stores; state transitions can be immediate, byte/progress updates should not force avoidable re-render loops.
+- Keep Go-to-JS progress bridge batching intact: queued/planning/complete/failed/cancelled transitions should remain prompt, while repeated download/extraction counters should cross the Wails bridge in batches.
 - Download progress store updates intentionally apply state transitions immediately but batch same-state byte/file progress through animation-frame flushing; preserve this split when changing task-center behavior.
 - Backend download/extraction progress is intentionally throttled separately from task state changes; queued/planning/downloading/extracting/complete/failed/cancelled transitions should stay immediate while byte/file counters use the adaptive progress interval.
 - Install preflight UI should use the shared helpers in `frontend/src/lib/install/preflight.ts` so task center, update rows, and addon detail dialogs explain add/replace folders and rollback behavior consistently.
@@ -104,6 +106,7 @@
 
 ## Performance rules
 - Measure before optimizing and record the baseline in the task notes when the change is performance-motivated.
+- Use a single profiler at a time for desktop captures; CPU, heap, goroutine, and trace outputs live under ignored `build/reports/`.
 - Treat startup scan, remote catalog load, Find More filtering/sorting, virtual list scrolling, image/detail loading, download progress updates, and install extraction as the main hot paths.
 - Prefer cache reuse, incremental work, batching, throttling, and pure helper optimization over broad rewrites.
 - Avoid adding dependencies for small utilities when a small local helper is clearer and cheaper.
@@ -126,11 +129,12 @@
 - Prefer ESOUI fixture data or mocked clients for remote behavior; stop and ask if expected MMOUI behavior cannot be inferred safely.
 
 ## Release/deployment rules
-- CI builds Windows, Linux, and macOS on `main`/PR, then runs frontend type checks and `go test ./...`.
-- Release workflow validates `RELEASE_TAG` against `frontend/package.json`, then publishes mandatory assets: Windows portable, Linux binary, and macOS universal zip. The Windows NSIS installer is optional.
-- Tag-release workflow is manual-only; it reads `frontend/package.json` version, validates `X.Y.Z`, creates `vX.Y.Z`, and dispatches release; do not trigger it.
+- CI/release workflows target `main` and version tags when GitHub Actions are available; do not assume hosted automation is available for every release.
+- Release workflow validates `RELEASE_TAG` against `frontend/package.json`, then publishes validated Windows, Linux, and macOS artifacts from the build matrix. The Windows NSIS installer is optional.
+- Tag-release workflow is manual-only; it reads `frontend/package.json` version, validates `X.Y.Z`, creates `vX.Y.Z`, and dispatches release only when explicitly requested.
+- Local `gh` releases are allowed only on explicit user request; publish only artifacts built and smoke-tested locally. The current local fallback set is Windows amd64, Linux amd64, Fedora 44 Linux amd64, and `SHA256SUMS.txt`; macOS requires a macOS runner or build host.
 - Local release scripts inject version/commit/date ldflags and may use UPX if installed; do not assume UPX exists.
-- Windows builds are unsigned, Linux CI builds use UPX, and macOS builds are ad-hoc signed/not notarized; do not claim stronger distribution guarantees.
+- Windows builds are unsigned, Linux CI builds use UPX while local builds may not, and macOS builds are ad-hoc signed/not notarized when produced; do not claim stronger distribution guarantees.
 
 ## Lessons learned
 - `frontend/wailsjs` absence causes frontend type/check failures; regenerate with Wails instead of committing generated files.
@@ -145,7 +149,7 @@
 
 ## Blockers: stop and ask
 - A request would delete, move, or bulk-modify user addon directories beyond the named install/update/uninstall action.
-- A feature requires a new remote addon source, account/cloud sync, telemetry, signing/notarization, release publishing, or maintainer credentials.
-- You need secrets, certificates, GitHub tokens, workflow dispatch/publish rights, or access to a user's real AddOns directory.
+- A feature requires a new remote addon source, account/cloud sync, telemetry, signing/notarization, release publishing, or maintainer credentials without an explicit user request and available auth.
+- You need secrets, certificates, GitHub tokens, workflow dispatch/publish rights, or access to a user's real AddOns directory and the user has not explicitly provided/authorized that path.
 - Required checks fail for reasons unrelated to your change and fixing them is outside scope.
 - You cannot reproduce or safely infer expected ESOUI/MMOUI API behavior without network access or fixture data.

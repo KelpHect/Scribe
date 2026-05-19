@@ -26,6 +26,11 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	progressBridgeFlushInterval = 50 * time.Millisecond
+	progressBridgeBatchMax      = 16
+)
+
 type App struct {
 	ctx     context.Context
 	scanner *scanner.Scanner
@@ -55,6 +60,7 @@ type App struct {
 	scanReadyAt        time.Time
 	scanInFlight       bool
 	lastScanErr        string
+	scanRequestMu      sync.Mutex
 
 	frontendReadyOff func()
 	perfCaptureOff   func()
@@ -74,6 +80,10 @@ type App struct {
 	downloads *esoui.DownloadManager
 
 	settingsMgr *settings.Manager
+
+	progressBridgeMu    sync.Mutex
+	progressBridgeBatch []esoui.TaskProgress
+	progressBridgeTimer *time.Timer
 
 	tempCleanupMu       sync.RWMutex
 	tempCleanupRemoved  int
@@ -162,6 +172,7 @@ func (a *App) shutdown(ctx context.Context) {
 	if a.downloads != nil {
 		a.downloads.Shutdown()
 	}
+	a.flushDownloadProgress()
 
 	a.initWg.Wait()
 	a.refreshWg.Wait()
@@ -176,16 +187,69 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 }
 
-func (a *App) startup(ctx context.Context) {
-	a.ctx = ctx
-
-	a.downloads = esoui.NewDownloadManager(3, func(eventName string, data any) {
-		wailsRuntime.EventsEmit(ctx, eventName, data)
-	})
-	a.downloads.OnComplete = func(uid, md5Hash string) {
-		if a.db != nil {
-			_ = esoui.SaveInstallMD5(a.db, uid, md5Hash)
+func (a *App) emitEvent(eventName string, data any) {
+	if eventName == "download:progress" {
+		if progress, ok := data.(esoui.TaskProgress); ok && a.queueDownloadProgress(progress) {
+			return
 		}
+		a.flushDownloadProgress()
+	}
+	if a.ctx == nil || a.shutdownRequested() {
+		return
+	}
+	wailsRuntime.EventsEmit(a.ctx, eventName, data)
+}
+
+func shouldBatchDownloadProgress(progress esoui.TaskProgress) bool {
+	return (progress.State == esoui.StateDownloading && progress.BytesDownloaded > 0) ||
+		(progress.State == esoui.StateExtracting && progress.TotalFiles > 0)
+}
+
+func (a *App) queueDownloadProgress(progress esoui.TaskProgress) bool {
+	if !shouldBatchDownloadProgress(progress) {
+		return false
+	}
+
+	a.progressBridgeMu.Lock()
+	a.progressBridgeBatch = append(a.progressBridgeBatch, progress)
+	shouldFlush := len(a.progressBridgeBatch) >= progressBridgeBatchMax
+	if !shouldFlush && a.progressBridgeTimer == nil {
+		a.progressBridgeTimer = time.AfterFunc(progressBridgeFlushInterval, a.flushDownloadProgress)
+	}
+	a.progressBridgeMu.Unlock()
+
+	if shouldFlush {
+		a.flushDownloadProgress()
+	}
+	return true
+}
+
+func (a *App) flushDownloadProgress() {
+	a.progressBridgeMu.Lock()
+	if a.progressBridgeTimer != nil {
+		a.progressBridgeTimer.Stop()
+		a.progressBridgeTimer = nil
+	}
+	if len(a.progressBridgeBatch) == 0 {
+		a.progressBridgeMu.Unlock()
+		return
+	}
+	batch := append([]esoui.TaskProgress(nil), a.progressBridgeBatch...)
+	a.progressBridgeBatch = a.progressBridgeBatch[:0]
+	a.progressBridgeMu.Unlock()
+
+	if a.ctx == nil || a.shutdownRequested() {
+		return
+	}
+	wailsRuntime.EventsEmit(a.ctx, "download:progress-batch", batch)
+}
+
+func (a *App) registerRuntimeListeners(ctx context.Context) {
+	if a.frontendReadyOff != nil {
+		a.frontendReadyOff()
+	}
+	if a.perfCaptureOff != nil {
+		a.perfCaptureOff()
 	}
 	a.frontendReadyOff = wailsRuntime.EventsOn(ctx, "perf:frontend-ready", func(optionalData ...interface{}) {
 		a.markFrontendReady()
@@ -199,7 +263,19 @@ func (a *App) startup(ctx context.Context) {
 		}
 		a.logPerformanceSnapshot(label)
 	})
+}
 
+func (a *App) startup(ctx context.Context) {
+	a.ctx = ctx
+
+	a.downloads = esoui.NewDownloadManager(3, func(eventName string, data any) {
+		a.emitEvent(eventName, data)
+	})
+	a.downloads.OnComplete = func(uid, md5Hash string) {
+		if a.db != nil {
+			_ = esoui.SaveInstallMD5(a.db, uid, md5Hash)
+		}
+	}
 	detectedPath := scanner.DetectAddonPath()
 	a.scanner = scanner.New(detectedPath)
 
@@ -297,6 +373,7 @@ func (a *App) initESOUI() {
 			a.remoteCategories = cats
 			a.lastRefreshErr = ""
 			a.remoteMu.Unlock()
+			a.emitRemoteCatalogStatus()
 			a.markRemoteReady()
 			return
 		}
@@ -314,12 +391,15 @@ func (a *App) initESOUI() {
 }
 
 func (a *App) domReady(ctx context.Context) {
+	a.ctx = ctx
+	a.registerRuntimeListeners(ctx)
 	a.perfMu.Lock()
 	if a.domReadyAt.IsZero() {
 		a.domReadyAt = time.Now()
 	}
 	a.perfMu.Unlock()
 	a.logPerformanceSnapshot("dom-ready")
+	a.emitRemoteCatalogStatus()
 }
 
 func (a *App) markFrontendReady() {
@@ -608,6 +688,7 @@ func (a *App) applyRemoteCatalog(addons []esoui.RemoteAddon, cats []esoui.Catego
 	a.remoteCategories = cats
 	a.lastRefreshErr = ""
 	a.remoteMu.Unlock()
+	a.emitRemoteCatalogStatus()
 	return true
 }
 
@@ -670,20 +751,44 @@ func (a *App) finishAddonScan(count int, err error) string {
 	return safeErr
 }
 
-func (a *App) startBackgroundAddonScan(reason string) bool {
+func (a *App) scanAddons(reason string) ([]*addon.Addon, error) {
+	a.scanRequestMu.Lock()
+	defer a.scanRequestMu.Unlock()
+	return a.scanAddonsLocked(reason)
+}
+
+func (a *App) scanAddonsLocked(reason string) ([]*addon.Addon, error) {
+	if a.scanner == nil {
+		return []*addon.Addon{}, nil
+	}
+	if a.scanner.GetAddonPath() == "" {
+		return nil, fmt.Errorf("addon path not configured")
+	}
 	if !a.beginAddonScan() {
+		return a.scanner.GetAddons(), nil
+	}
+	addons, err := a.scanner.Scan()
+	if a.shutdownRequested() {
+		return addons, err
+	}
+	safeErr := a.finishAddonScan(len(addons), err)
+	if err != nil && a.ctx != nil {
+		wailsRuntime.LogErrorf(a.ctx, "[scanner] scan %s failed: %s", reason, safeErr)
+	}
+	return addons, err
+}
+
+func (a *App) startBackgroundAddonScan(reason string) bool {
+	if a.scanner == nil || a.scanner.GetAddonPath() == "" {
+		return false
+	}
+	if !a.scanRequestMu.TryLock() {
 		return false
 	}
 
 	go func() {
-		addons, err := a.scanner.Scan()
-		if a.shutdownRequested() {
-			return
-		}
-		safeErr := a.finishAddonScan(len(addons), err)
-		if err != nil && a.ctx != nil {
-			wailsRuntime.LogErrorf(a.ctx, "[scanner] background scan %s failed: %s", reason, safeErr)
-		}
+		defer a.scanRequestMu.Unlock()
+		_, _ = a.scanAddonsLocked(reason)
 	}()
 	return true
 }
@@ -711,7 +816,7 @@ func (a *App) SetAddonPath(path string) error {
 		a.scanner.SetAddonPath(path)
 	}
 	a.configureScannerCache()
-	if _, err := a.scanner.Scan(); err != nil {
+	if _, err := a.scanAddons("set-addon-path"); err != nil {
 		return err
 	}
 	if a.settingsMgr == nil {
@@ -846,13 +951,15 @@ func (a *App) GetRemoteAddons() ([]esoui.RemoteAddon, error) {
 
 func (a *App) beginRemoteRefresh() bool {
 	a.remoteMu.Lock()
-	defer a.remoteMu.Unlock()
 	if a.refreshInFlight {
+		a.remoteMu.Unlock()
 		return false
 	}
 	a.refreshInFlight = true
 	a.refreshStarted = time.Now()
 	a.lastRefreshErr = ""
+	a.remoteMu.Unlock()
+	a.emitRemoteCatalogStatus()
 	return true
 }
 
@@ -860,11 +967,10 @@ func (a *App) endRemoteRefresh() {
 	a.remoteMu.Lock()
 	a.refreshInFlight = false
 	a.remoteMu.Unlock()
+	a.emitRemoteCatalogStatus()
 }
 
-func (a *App) GetRemoteCatalogStatus() RemoteCatalogStatus {
-	<-a.initDone
-
+func (a *App) remoteCatalogStatusSnapshot() RemoteCatalogStatus {
 	a.remoteMu.RLock()
 	hasData := len(a.remoteList) > 0
 	lastErr := a.lastRefreshErr
@@ -881,6 +987,15 @@ func (a *App) GetRemoteCatalogStatus() RemoteCatalogStatus {
 	}
 }
 
+func (a *App) emitRemoteCatalogStatus() {
+	a.emitEvent("remote-catalog:status", a.remoteCatalogStatusSnapshot())
+}
+
+func (a *App) GetRemoteCatalogStatus() RemoteCatalogStatus {
+	<-a.initDone
+	return a.remoteCatalogStatusSnapshot()
+}
+
 func (a *App) RefreshRemoteAddons() ([]esoui.RemoteAddon, error) {
 	if !a.beginRemoteRefresh() {
 		return a.getRemoteList(), nil
@@ -890,6 +1005,10 @@ func (a *App) RefreshRemoteAddons() ([]esoui.RemoteAddon, error) {
 		a.esoCache.Invalidate()
 	}
 	if err := a.refreshRemoteList(); err != nil {
+		a.remoteMu.Lock()
+		a.lastRefreshErr = err.Error()
+		a.remoteMu.Unlock()
+		a.emitRemoteCatalogStatus()
 		return nil, fmt.Errorf("refresh remote addons: %w", err)
 	}
 	return a.getRemoteList(), nil
@@ -950,7 +1069,7 @@ func (a *App) CheckForUpdates() ([]esoui.MatchedAddon, error) {
 	if a.scanner == nil {
 		return nil, nil
 	}
-	locals, err := a.scanner.Scan()
+	locals, err := a.scanAddons("check-updates")
 	if err != nil {
 		return nil, err
 	}
@@ -978,7 +1097,7 @@ func (a *App) GetMatchedAddons() ([]esoui.MatchedAddon, error) {
 	if a.scanner == nil {
 		return nil, nil
 	}
-	locals, err := a.scanner.Scan()
+	locals, err := a.scanAddons("matched-addons")
 	if err != nil {
 		return nil, err
 	}
@@ -1214,7 +1333,7 @@ func (a *App) GetMissingDependencies() ([]esoui.MissingDepInfo, error) {
 	if a.scanner == nil {
 		return nil, nil
 	}
-	locals, err := a.scanner.Scan()
+	locals, err := a.scanAddons("missing-dependencies")
 	if err != nil {
 		return nil, fmt.Errorf("scan addons: %w", err)
 	}
@@ -1370,7 +1489,7 @@ func (a *App) SaveSettings(s settings.AppSettings) error {
 		} else {
 			a.scanner.SetAddonPath(s.AddonPath)
 		}
-		_, _ = a.scanner.Scan()
+		_, _ = a.scanAddons("save-settings")
 	}
 	return a.settingsMgr.SaveSettings(s)
 }

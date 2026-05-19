@@ -10,6 +10,15 @@ BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 echo "building Scribe $GIT_VERSION ($GIT_COMMIT) $BUILD_DATE"
 
+if [ -n "${SCRIBE_PGO_PROFILE:-}" ]; then
+  if [ ! -f "$SCRIBE_PGO_PROFILE" ]; then
+    echo "SCRIBE_PGO_PROFILE does not exist: $SCRIBE_PGO_PROFILE" >&2
+    exit 1
+  fi
+  export GOFLAGS="${GOFLAGS:-} -pgo=$SCRIBE_PGO_PROFILE"
+  echo "using Go PGO profile: $SCRIBE_PGO_PROFILE"
+fi
+
 wails build -trimpath -ldflags "-s -w -X main.version=$GIT_VERSION -X main.commit=$GIT_COMMIT -X main.date=$BUILD_DATE" "$@"
 
 if [ -f build/bin/Scribe ]; then

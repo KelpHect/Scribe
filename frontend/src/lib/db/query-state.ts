@@ -15,6 +15,7 @@ export const addonPathQueryKey = ['addon-path'] as const;
 export const remoteAddonsQueryKey = ['remote-addons'] as const;
 export const categoriesQueryKey = ['categories'] as const;
 export const matchedAddonsQueryKey = ['matched-addons'] as const;
+export const remoteCatalogStatusQueryKey = ['remote-catalog-status'] as const;
 
 export async function refreshRemoteCatalog(): Promise<void> {
   const addons = await refreshRemoteAddons();

@@ -108,6 +108,31 @@ func TestScanReusesCachedAddonForUnchangedFolder(t *testing.T) {
 	}
 }
 
+func TestScanWorkerCountIsBounded(t *testing.T) {
+	tests := []struct {
+		name     string
+		dirCount int
+		wantMin  int
+		wantMax  int
+	}{
+		{name: "none", dirCount: 0, wantMin: 0, wantMax: 0},
+		{name: "one", dirCount: 1, wantMin: 1, wantMax: 1},
+		{name: "many", dirCount: 1000, wantMin: 1, wantMax: maxScanWorkers},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := scanWorkerCount(tt.dirCount)
+			if got < tt.wantMin || got > tt.wantMax {
+				t.Fatalf("scanWorkerCount(%d) = %d, want between %d and %d", tt.dirCount, got, tt.wantMin, tt.wantMax)
+			}
+			if got > tt.dirCount && tt.dirCount > 0 {
+				t.Fatalf("scanWorkerCount(%d) = %d, want no more than directory count", tt.dirCount, got)
+			}
+		})
+	}
+}
+
 type memoryScanCache struct {
 	entries map[string]CachedAddon
 }
