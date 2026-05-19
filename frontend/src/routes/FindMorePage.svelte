@@ -91,7 +91,7 @@
   const remote = getRemoteStore();
   const downloads = getDownloadStore();
   let searchValue = $state('');
-  let selectedAddon = $state<RemoteAddon | null>(null);
+  let selectedAddon = $state.raw<RemoteAddon | null>(null);
   let detailOpen = $state(false);
   let searchInputEl = $state<HTMLInputElement | undefined>();
 

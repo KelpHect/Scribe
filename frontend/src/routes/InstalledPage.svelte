@@ -49,11 +49,18 @@
     remoteAddonsQueryKey,
     refreshInstalledState
   } from '$lib/db/query-state';
+  import {
+    buildInstalledAddonIndex,
+    buildRemoteDependencyUIDMap,
+    filterInstalledAddons,
+    flattenInstalledGroups,
+    groupInstalledAddons
+  } from '$lib/perf/installed-addons-index';
 
   const remote = getRemoteStore();
   let searchValue = $state('');
   let searchQuery = $state('');
-  let selectedAddon = $state<Addon | null>(null);
+  let selectedAddon = $state.raw<Addon | null>(null);
   let detailOpen = $state(false);
   let searchInputEl = $state<HTMLInputElement | undefined>();
 
@@ -69,14 +76,14 @@
     }, 200);
   }
 
-  let missingDeps = $state<MissingDepInfo[]>([]);
+  let missingDeps = $state.raw<MissingDepInfo[]>([]);
   let dismissedRequiredDeps = $state(false);
   let dismissedOptionalDeps = $state(false);
   let batchInstalling = $state(false);
   const uninstallingFolders = new SvelteSet<string>();
   let bulkUninstalling = $state(false);
   let uninstallConfirmOpen = $state(false);
-  let pendingUninstallAddons = $state<Addon[]>([]);
+  let pendingUninstallAddons = $state.raw<Addon[]>([]);
   const selectedFolders = new SvelteSet<string>();
 
   const expandedCategories = new SvelteSet<string>();
@@ -174,20 +181,11 @@
   const remoteAddons = $derived((remoteAddonsQuery.data as RemoteAddon[]) ?? []);
   const addonPath = $derived((addonPathQuery.data as string) ?? '');
   const loading = $derived(installedQuery.isLoading && addons.length === 0);
-  const filteredAddons = $derived.by(() => {
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return addons;
-    return addons.filter(
-      (a) =>
-        a.title.toLowerCase().includes(q) ||
-        a.author.toLowerCase().includes(q) ||
-        a.folderName.toLowerCase().includes(q)
-    );
-  });
-  const libraryCount = $derived(addons.filter((a) => a.isLibrary).length);
-  const totalCount = $derived(addons.length);
-
-  const updatesAvailable = $derived(matchedAddons.filter((m: MatchedAddon) => m.updateAvailable));
+  const installedIndex = $derived(buildInstalledAddonIndex(addons, matchedAddons, categories));
+  const filteredAddons = $derived(filterInstalledAddons(installedIndex.addons, searchQuery));
+  const libraryCount = $derived(installedIndex.libraryCount);
+  const totalCount = $derived(installedIndex.totalCount);
+  const updatesAvailable = $derived(installedIndex.updatesAvailable);
   const healthSummary = $derived(buildAddonHealthSummary(addons, matchedAddons, missingDeps));
 
   $effect(() => {
@@ -212,8 +210,8 @@
   }
 
   function selectVisible() {
-    for (const addon of filteredAddons) {
-      selectedFolders.add(addon.folderName);
+    for (const item of filteredAddons) {
+      selectedFolders.add(item.addon.folderName);
     }
   }
 
@@ -299,30 +297,7 @@
     openContextMenuAt(rect ? rect.left + 12 : 0, rect ? rect.top + 12 : 0, items);
   }
 
-  const updateSet = $derived(
-    new Set(updatesAvailable.map((m: MatchedAddon) => m.folderName.toLowerCase()))
-  );
-
-  function hasUpdate(addon: Addon): boolean {
-    return updateSet.has(addon.folderName.toLowerCase());
-  }
-
-  function getUpdateAction(addon: Addon) {
-    const match = matchedMap.get(addon.folderName.toLowerCase());
-    return describeUpdateAction({
-      installed: true,
-      updateAvailable: match?.updateAvailable ?? false,
-      updateState: match?.updateState ?? (match?.remote ? 'up-to-date' : 'unmatched'),
-      updateReason: match?.updateReason ?? '',
-      localVersion: match?.localVersion ?? addon.version,
-      remoteVersion: match?.remoteVersion ?? match?.remote?.uiVersion,
-      folderName: addon.folderName
-    });
-  }
-
-  const matchedMap = $derived(
-    new Map(matchedAddons.map((m: MatchedAddon) => [m.folderName.toLowerCase(), m]))
-  );
+  const matchedMap = $derived(installedIndex.matchedMap);
 
   $effect(() => {
     const valid = new Set(addons.map((addon) => addon.folderName));
@@ -333,135 +308,12 @@
     }
   });
 
-  const categoryMap = $derived(
-    new Map<string, Category>(categories.map((c: Category) => [c.id, c]))
+  const categoryMap = $derived(installedIndex.categoryMap);
+  const depUIDMap = $derived(buildRemoteDependencyUIDMap(remoteAddons));
+  const installedFolderNamesSet = $derived(installedIndex.installedFolderNames);
+  const groupedAddons = $derived(
+    groupInstalledAddons(filteredAddons, installedIndex.libraryCategoryIconUrl)
   );
-
-  const libraryCategoryIconUrl = $derived.by(() => {
-    for (const addon of filteredAddons) {
-      if (!addon.isLibrary) continue;
-      const matched = matchedMap.get(addon.folderName.toLowerCase());
-      const categoryId = matched?.remote?.categoryId;
-      if (!categoryId) continue;
-      const iconUrl = categoryMap.get(categoryId)?.iconUrl;
-      if (iconUrl) return iconUrl;
-    }
-    return categories.find((c: Category) => /lib/i.test(c.name))?.iconUrl;
-  });
-
-  const depUIDMap = $derived.by(() => {
-    const map = new Map<string, string>();
-    for (const r of remoteAddons) {
-      for (const dir of r.uiDirs ?? []) {
-        const key = dir.toLowerCase();
-        if (!map.has(key)) map.set(key, r.uid);
-      }
-      if (r.uiName) {
-        const key = r.uiName.toLowerCase();
-        if (!map.has(key)) map.set(key, r.uid);
-      }
-    }
-    return map;
-  });
-
-  function getCategoryIconUrl(addon: Addon): string | undefined {
-    const matched = matchedMap.get(addon.folderName.toLowerCase());
-    const categoryId = matched?.remote?.categoryId;
-    const categoryIcon = categoryId ? categoryMap.get(categoryId)?.iconUrl : undefined;
-    if (addon.isLibrary) return categoryIcon || undefined;
-    const fullImg = matched?.remote?.uiIMGs?.[0];
-    if (fullImg) return fullImg;
-    return categoryIcon || undefined;
-  }
-
-  function getIsThumbnail(addon: Addon): boolean {
-    if (addon.isLibrary) return false;
-    const matched = matchedMap.get(addon.folderName.toLowerCase());
-    return !!matched?.remote?.uiIMGs?.[0];
-  }
-
-  const installedFolderNamesSet = $derived(new Set(addons.map((a) => a.folderName.toLowerCase())));
-
-  interface CategoryGroup {
-    id: string;
-    name: string;
-    iconUrl: string;
-    addons: Addon[];
-  }
-
-  const UNCATEGORIZED_ID = '__uncategorized__';
-  const LIBRARIES_ID = '__libraries__';
-
-  const groupedAddons = $derived.by(() => {
-    const groupMap = new Map<string, Addon[]>();
-    const libraries: Addon[] = [];
-
-    for (const addon of filteredAddons) {
-      if (addon.isLibrary) {
-        libraries.push(addon);
-        continue;
-      }
-
-      const matched = matchedMap.get(addon.folderName.toLowerCase());
-      const catId = matched?.remote?.categoryId;
-
-      if (catId && categoryMap.has(catId)) {
-        const existing = groupMap.get(catId);
-        if (existing) {
-          existing.push(addon);
-        } else {
-          groupMap.set(catId, [addon]);
-        }
-      } else {
-        const existing = groupMap.get(UNCATEGORIZED_ID);
-        if (existing) {
-          existing.push(addon);
-        } else {
-          groupMap.set(UNCATEGORIZED_ID, [addon]);
-        }
-      }
-    }
-
-    const sortAddons = (a: Addon, b: Addon) => a.title.localeCompare(b.title);
-
-    const groups: CategoryGroup[] = [];
-
-    const namedGroups: CategoryGroup[] = [];
-    for (const [catId, addons] of groupMap) {
-      if (catId === UNCATEGORIZED_ID) continue;
-      const cat = categoryMap.get(catId);
-      if (!cat) continue;
-      namedGroups.push({
-        id: catId,
-        name: cat.name,
-        iconUrl: cat.iconUrl,
-        addons: addons.sort(sortAddons)
-      });
-    }
-    namedGroups.sort((a, b) => a.name.localeCompare(b.name));
-    groups.push(...namedGroups);
-
-    const uncategorized = groupMap.get(UNCATEGORIZED_ID);
-    if (uncategorized && uncategorized.length > 0) {
-      groups.push({
-        id: UNCATEGORIZED_ID,
-        name: 'Uncategorized',
-        iconUrl: '',
-        addons: uncategorized.sort(sortAddons)
-      });
-    }
-
-      if (libraries.length > 0) {
-        groups.push({
-          id: LIBRARIES_ID,
-          name: 'Libraries',
-          iconUrl: libraryCategoryIconUrl ?? '',
-          addons: libraries.sort(sortAddons)
-        });
-      }
-
-    return groups;
-  });
 
   $effect(() => {
     if (!initialized && groupedAddons.length > 0) {
@@ -512,26 +364,11 @@
     expandedCategories.clear();
   }
 
-  type FlatRow =
-    | { type: 'header'; group: CategoryGroup }
-    | { type: 'addon'; addon: Addon; groupId: string };
-
   const HEADER_HEIGHT = 40;
   const ADDON_HEIGHT = 80;
   const LIST_OVERSCAN = 6;
 
-  const flatRows = $derived.by((): FlatRow[] => {
-    const rows: FlatRow[] = [];
-    for (const group of groupedAddons) {
-      rows.push({ type: 'header', group });
-      if (expandedCategories.has(group.id)) {
-        for (const addon of group.addons) {
-          rows.push({ type: 'addon', addon, groupId: group.id });
-        }
-      }
-    }
-    return rows;
-  });
+  const flatRows = $derived(flattenInstalledGroups(groupedAddons, expandedCategories));
 
   let scrollEl = $state<HTMLDivElement | undefined>();
 
@@ -556,7 +393,7 @@
       getItemKey: (index: number) => {
         const row = rows[index];
         if (!row) return index;
-        return row.type === 'header' ? `h:${row.group.id}` : `a:${row.addon.id}`;
+        return row.type === 'header' ? `h:${row.group.id}` : `a:${row.item.addon.id}`;
       }
     });
   });
@@ -758,26 +595,26 @@
                       expanded={expandedCategories.has(row.group.id)}
                       ontoggle={() => toggleCategory(row.group.id)}
                     />
-                  {:else}
-                    <div class="py-0.5 pl-2 pr-0">
-                      <AddonCard
-                        addon={row.addon}
-                        selected={selectedFolders.has(row.addon.folderName)}
-                        updateAvailable={hasUpdate(row.addon)}
-                        updateLabel={getUpdateAction(row.addon).label}
-                        updateReason={getUpdateAction(row.addon).reason}
-                        categoryIconUrl={getCategoryIconUrl(row.addon)}
-                        isThumbnail={getIsThumbnail(row.addon)}
-                        selectable={true}
-                        checked={selectedFolders.has(row.addon.folderName)}
-                        ontoggle={() => toggleSelected(row.addon.folderName)}
-                        onuninstall={() => requestUninstall(row.addon)}
-                        uninstalling={uninstallingFolders.has(row.addon.folderName)}
-                        onmenu={(e) => openInstalledContextMenu(e, row.addon)}
-                        onclick={() => openDetail(row.addon)}
-                      />
-                    </div>
-                  {/if}
+	                  {:else}
+	                    <div class="py-0.5 pl-2 pr-0">
+	                      <AddonCard
+	                        addon={row.item.addon}
+	                        selected={selectedFolders.has(row.item.addon.folderName)}
+	                        updateAvailable={row.item.hasUpdate}
+	                        updateLabel={row.item.updateAction.label}
+	                        updateReason={row.item.updateAction.reason}
+	                        categoryIconUrl={row.item.listIconUrl}
+	                        isThumbnail={row.item.listIconIsThumbnail}
+	                        selectable={true}
+	                        checked={selectedFolders.has(row.item.addon.folderName)}
+	                        ontoggle={() => toggleSelected(row.item.addon.folderName)}
+	                        onuninstall={() => requestUninstall(row.item.addon)}
+	                        uninstalling={uninstallingFolders.has(row.item.addon.folderName)}
+	                        onmenu={(e) => openInstalledContextMenu(e, row.item.addon)}
+	                        onclick={() => openDetail(row.item.addon)}
+	                      />
+	                    </div>
+	                  {/if}
                 </div>
               {/if}
             {/each}

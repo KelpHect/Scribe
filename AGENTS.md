@@ -78,6 +78,8 @@
 - Cache TTL is 4 hours and schema-versioned (`cacheSchemaVersion`); cache schema changes must intentionally migrate or invalidate SQLite data.
 - Do not store settings in frontend-only state when they must survive restart; persist through `settings.Manager`/`SaveSettings`, which writes `settings.toml` atomically.
 - Search presets, scanner cache, and install MD5 records share the app DB; keep migrations compatible with GORM `AutoMigrate`.
+- SQLite cache DB connections intentionally use WAL, `synchronous=NORMAL`, `busy_timeout`, `journal_size_limit`, a negative-KiB `cache_size` budget, and `PRAGMA optimize` on open/shutdown; preserve or benchmark changes to those PRAGMAs.
+- `SCRIBE_SQLITE_MMAP_MB` is an opt-in local experiment for SQLite `mmap_size`; do not enable mmap by default without desktop measurements across supported platforms.
 - ESOUI MD5 is for download integrity and suppressing update false positives only; never present it as cryptographic security.
 - Network behavior is MMOUI bootstrap (`https://api.mmoui.com/v3/globalconfig.json`) plus discovered ESO feeds; tests should not require live ESOUI unless explicitly marked/manual.
 
@@ -102,6 +104,9 @@
 - Failed install/update recovery guidance should use `frontend/src/lib/install/recovery.ts`; keep advice stage-specific and never suggest broad manual deletion of AddOns directories.
 - Keep search/filter/sort work indexed or memoized for large catalogs; do not repeatedly lowercase, parse versions, score search, or sort compatibility data inside hot render paths.
 - Keep Find More catalog indexing/filtering in the tested pure helpers under `frontend/src/lib/perf`; route components should pass state into those helpers instead of rebuilding search/sort logic inline.
+- Keep Installed page search/group/update/icon/dependency indexing in the tested pure helpers under `frontend/src/lib/perf`; route components should pass state into those helpers instead of rebuilding maps and lowercase fields inline.
+- Use `render-defer`/CSS containment for heavy offscreen settings or detail sections when it does not affect layout measurement, focus, or virtual-list sizing.
+- Detail screenshot rails should render a bounded visible batch with fixed image dimensions, lazy/async loading, and explicit failure-safe fallbacks; do not eagerly render every screenshot URL in a detail response.
 - Prefer native desktop-feeling utility UI over marketing layouts, decorative effects, or large animation-heavy surfaces.
 
 ## Performance rules
@@ -111,6 +116,7 @@
 - Prefer cache reuse, incremental work, batching, throttling, and pure helper optimization over broad rewrites.
 - Avoid adding dependencies for small utilities when a small local helper is clearer and cheaper.
 - Remove unused dependencies only after verifying usage and lockfile effects with npm; do not churn packages for aesthetics.
+- For SQLite/cache changes, keep or add benchmarks for DB open, cached catalog load, remote catalog save, scanner cache save, install-MD5 query, and DB/WAL/SHM size reporting.
 - A framework or shell migration must have a spike branch/plan with measured bundle size, startup time, memory, scroll/search latency, install-progress responsiveness, packaging impact, and regression risk.
 
 ## Security/safety rules

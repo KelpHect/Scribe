@@ -18,10 +18,10 @@
 </script>
 
 {#if hasTasks}
-  <div
-    class="border-border bg-popover/98 fixed right-4 bottom-4 z-50 flex w-88 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg border shadow-2xl backdrop-blur"
-    aria-label="Task center"
-  >
+	  <div
+	    class="border-border bg-popover/98 shadow-elevated fixed right-4 bottom-4 z-50 flex w-88 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg border"
+	    aria-label="Task center"
+	  >
     <div class="border-border bg-muted/50 flex items-center gap-2 border-b px-3 py-2">
       <div class="min-w-0 flex-1">
         <p class="text-sm font-medium">Task Center</p>

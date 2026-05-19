@@ -11,6 +11,30 @@ import (
 	"gorm.io/gorm"
 )
 
+func TestOpenDBConfiguresSQLitePragmas(t *testing.T) {
+	t.Setenv(sqliteMmapSizeEnv, "64")
+	db, err := OpenDB(filepath.Join(t.TempDir(), "pragma.db"))
+	if err != nil {
+		t.Fatalf("OpenDB: %v", err)
+	}
+
+	if got := rawPragmaString(t, db, "journal_mode"); got != "wal" {
+		t.Fatalf("journal_mode = %q, want wal", got)
+	}
+	if got := rawPragmaInt(t, db, "busy_timeout"); got != sqliteBusyTimeoutMS {
+		t.Fatalf("busy_timeout = %d, want %d", got, sqliteBusyTimeoutMS)
+	}
+	if got := rawPragmaInt(t, db, "journal_size_limit"); got != sqliteJournalSizeLimit {
+		t.Fatalf("journal_size_limit = %d, want %d", got, sqliteJournalSizeLimit)
+	}
+	if got := rawPragmaInt(t, db, "cache_size"); got != -sqliteCacheSizeKiB {
+		t.Fatalf("cache_size = %d, want %d", got, -sqliteCacheSizeKiB)
+	}
+	if got := rawPragmaInt64(t, db, "mmap_size"); got != 64*sqliteBytesPerMebiByte {
+		t.Fatalf("mmap_size = %d, want %d", got, 64*sqliteBytesPerMebiByte)
+	}
+}
+
 func TestCacheRoundTripPersistsFeedsAddonsAndCategories(t *testing.T) {
 	db := newCacheTestDB(t)
 	cache := NewCacheFromDB(db)
@@ -155,6 +179,29 @@ func TestScannerCacheStoreRoundTrip(t *testing.T) {
 	if entry.Fingerprint != "fingerprint" || entry.Addon == nil || entry.Addon.Title != "Lib Foo" {
 		t.Fatalf("cached entry = %+v", entry)
 	}
+
+	replacement := []scanner.CachedAddon{{
+		FolderName:  "LibBar",
+		Fingerprint: "next",
+		Addon: &addon.Addon{
+			ID:         "LibBar",
+			FolderName: "LibBar",
+			Title:      "Lib Bar",
+		},
+	}}
+	if err := store.SaveScanCache(addonPath, replacement); err != nil {
+		t.Fatalf("SaveScanCache replacement: %v", err)
+	}
+	got, err = store.LoadScanCache(addonPath)
+	if err != nil {
+		t.Fatalf("LoadScanCache replacement: %v", err)
+	}
+	if _, ok := got["LibFoo"]; ok {
+		t.Fatalf("stale entry remained after replacement save: %#v", got)
+	}
+	if got["LibBar"].Fingerprint != "next" {
+		t.Fatalf("replacement entry = %#v", got["LibBar"])
+	}
 }
 
 func newCacheTestDB(t *testing.T) *gorm.DB {
@@ -165,4 +212,31 @@ func newCacheTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("OpenDB: %v", err)
 	}
 	return db
+}
+
+func rawPragmaString(t *testing.T, db *gorm.DB, name string) string {
+	t.Helper()
+	var got string
+	if err := db.Raw("PRAGMA " + name).Scan(&got).Error; err != nil {
+		t.Fatalf("PRAGMA %s: %v", name, err)
+	}
+	return got
+}
+
+func rawPragmaInt(t *testing.T, db *gorm.DB, name string) int {
+	t.Helper()
+	var got int
+	if err := db.Raw("PRAGMA " + name).Scan(&got).Error; err != nil {
+		t.Fatalf("PRAGMA %s: %v", name, err)
+	}
+	return got
+}
+
+func rawPragmaInt64(t *testing.T, db *gorm.DB, name string) int64 {
+	t.Helper()
+	var got int64
+	if err := db.Raw("PRAGMA " + name).Scan(&got).Error; err != nil {
+		t.Fatalf("PRAGMA %s: %v", name, err)
+	}
+	return got
 }

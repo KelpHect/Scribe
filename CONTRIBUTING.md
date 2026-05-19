@@ -105,7 +105,15 @@ For repeatable fixture benchmarks, run:
 ./scripts/benchmarks.sh
 ```
 
-This covers large AddOns scanning, cached catalog load, backend remote search, frontend catalog filtering/ranking, and the documented cold/warm startup diagnostics capture path. Treat these fixture numbers as baselines to record before enforcement, not as release-blocking thresholds.
+This covers large AddOns scanning, SQLite DB open/cache save/cache load/install-record queries, backend remote search, frontend catalog filtering/ranking, and the documented cold/warm startup diagnostics capture path. Treat these fixture numbers as baselines to record before enforcement, not as release-blocking thresholds.
+
+SQLite mmap is intentionally opt-in for local profiling only:
+
+```bash
+SCRIBE_SQLITE_MMAP_MB=256 ./scripts/benchmarks.sh
+```
+
+Do not enable mmap by default without comparing desktop behavior across supported platforms.
 
 For backend hot-path profiling, run:
 

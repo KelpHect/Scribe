@@ -181,6 +181,7 @@ func (a *App) shutdown(ctx context.Context) {
 		a.esoClient.CloseIdleConnections()
 	}
 	if a.db != nil {
+		_ = esoui.OptimizeDB(a.db)
 		if sqlDB, err := a.db.DB(); err == nil {
 			_ = sqlDB.Close()
 		}

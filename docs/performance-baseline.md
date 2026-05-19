@@ -2,7 +2,7 @@
 
 Last baseline refresh: 2026-05-19
 
-This file records the current measured baseline before additional P9 performance work. Do not treat these numbers as hard pass/fail thresholds yet; use them to compare local changes and decide where optimization is justified.
+This file records the current measured baseline after the SQLite/cache and Installed page indexing pass. Do not treat these numbers as hard pass/fail thresholds yet; use them to compare local changes and decide where optimization is justified.
 
 ## Environment
 
@@ -35,18 +35,31 @@ Use the resulting `build/reports/desktop-profile/desktop.cpu.pprof` as optional 
 
 | Benchmark | Result |
 | --- | ---: |
-| `BenchmarkScanLargeAddOnsDirectory` | `3,549,085 ns/op`, `6,028,464 B/op`, `31,483 allocs/op` |
-| `BenchmarkMatchLargeCatalog` | `1,782,351 ns/op`, `1,425,139 B/op`, `23,039 allocs/op` |
-| `BenchmarkCachedCatalogLoad` | `41,588,164 ns/op`, `24,694,533 B/op`, `588,112 allocs/op` |
-| `BenchmarkRemoteSearchLargeCatalog` | `593,538 ns/op`, `300,992 B/op`, `13,908 allocs/op` |
+| `BenchmarkScanLargeAddOnsDirectory` | `3,370,432 ns/op`, `6,047,257 B/op`, `31,486 allocs/op` |
+| `BenchmarkSQLiteOpenDB` | `959,291 ns/op`, `233,039 B/op`, `3,372 allocs/op` |
+| `BenchmarkMatchLargeCatalog` | `1,034,231 ns/op`, `1,402,024 B/op`, `23,037 allocs/op` |
+| `BenchmarkCachedCatalogLoad` | `38,204,673 ns/op`, `24,665,221 B/op`, `588,044 allocs/op` |
+| `BenchmarkSQLiteSaveRemoteCatalog` | `319,059,876 ns/op`, `17,099,898 B/op`, `211,249 allocs/op` |
+| `BenchmarkSQLiteSaveScannerCache` | `6,853,946 ns/op`, `1,366,106 B/op`, `8,317 allocs/op` |
+| `BenchmarkSQLiteQueryInstallMD5s` | `1,750,717 ns/op`, `463,935 B/op`, `12,085 allocs/op` |
+| `BenchmarkRemoteSearchLargeCatalog` | `490,640 ns/op`, `300,992 B/op`, `13,908 allocs/op` |
+
+SQLite file-size metrics captured during the DB benchmarks:
+
+| Benchmark | DB | WAL | SHM |
+| --- | ---: | ---: | ---: |
+| `BenchmarkCachedCatalogLoad` | `4,096` | `2,117,712` | `32,768` |
+| `BenchmarkSQLiteSaveRemoteCatalog` | `1,998,848` | `6,064,672` | `32,768` |
+| `BenchmarkSQLiteSaveScannerCache` | `516,096` | `4,573,232` | `32,768` |
+| `BenchmarkSQLiteQueryInstallMD5s` | `114,688` | `4,124,152` | `32,768` |
 
 ## Frontend Catalog Benchmarks
 
 | Benchmark | Result |
 | --- | ---: |
-| `remote search score over large cached catalog` | `880.23 hz`, `1.1361 ms mean`, `2.2420 ms p99` |
-| `remote filter metadata preparation` | `301.88 hz`, `3.3125 ms mean`, `3.7690 ms p99` |
-| `remote catalog indexed filter/sort` | `1,750.80 hz`, `0.5712 ms mean`, `0.8982 ms p99` |
+| `remote search score over large cached catalog` | `878.72 hz`, `1.1380 ms mean`, `2.2006 ms p99` |
+| `remote filter metadata preparation` | `308.42 hz`, `3.2424 ms mean`, `3.4461 ms p99` |
+| `remote catalog indexed filter/sort` | `1,757.32 hz`, `0.5690 ms mean`, `0.5911 ms p99` |
 
 ## Bundle Report Snapshot
 
@@ -54,20 +67,20 @@ Current generated build report:
 
 | Metric | Bytes |
 | --- | ---: |
-| Total JS | `405,706` |
-| Total CSS | `70,595` |
-| Total assets | `476,301` |
+| Total JS | `406,670` |
+| Total CSS | `69,115` |
+| Total assets | `475,785` |
 | Gzip budget | `500,000` |
 
 Largest generated chunks:
 
 | Chunk | Bytes |
 | --- | ---: |
-| `route-find-more` JS | `244,715` |
-| `route-settings` JS | `82,404` |
-| `index` CSS | `55,966` |
-| `index` JS | `23,623` |
-| `route-installed` JS | `20,427` |
+| `route-find-more` JS | `245,357` |
+| `route-settings` JS | `82,476` |
+| `index` CSS | `54,486` |
+| `index` JS | `23,618` |
+| `route-installed` JS | `20,682` |
 
 ## Interactive Diagnostics Capture
 

@@ -5,11 +5,24 @@ import (
 	"Scribe/internal/scanner"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+)
+
+const (
+	sqliteBusyTimeoutMS      = 5000
+	sqliteJournalSizeLimit   = 16 * 1024 * 1024
+	sqliteCacheSizeKiB       = 8192
+	sqliteScannerBatchSize   = 250
+	sqliteMmapSizeEnv        = "SCRIBE_SQLITE_MMAP_MB"
+	sqliteMmapSizeMaxMiB     = 1024
+	sqliteBytesPerMebiByte   = 1024 * 1024
+	sqliteOptimizeOnOpenMode = "0x10002"
 )
 
 type DBRemoteAddon struct {
@@ -87,7 +100,16 @@ type DBScannerCache struct {
 func (DBScannerCache) TableName() string { return "scanner_cache" }
 
 func OpenDB(path string) (*gorm.DB, error) {
-	dsn := fmt.Sprintf("%s?_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)", path)
+	dsn := fmt.Sprintf(
+		"%s?_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(%d)&_pragma=journal_size_limit(%d)&_pragma=cache_size(-%d)",
+		path,
+		sqliteBusyTimeoutMS,
+		sqliteJournalSizeLimit,
+		sqliteCacheSizeKiB,
+	)
+	if mmapSize := configuredSQLiteMmapSize(); mmapSize > 0 {
+		dsn = fmt.Sprintf("%s&_pragma=mmap_size(%d)", dsn, mmapSize)
+	}
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
 		Logger:      logger.Default.LogMode(logger.Silent),
 		PrepareStmt: true,
@@ -106,7 +128,36 @@ func OpenDB(path string) (*gorm.DB, error) {
 	if err := db.AutoMigrate(&DBRemoteAddon{}, &DBCategory{}, &DBCacheMeta{}, &DBSetting{}, &DBSearchPreset{}, &DBInstallRecord{}, &DBScannerCache{}); err != nil {
 		return nil, fmt.Errorf("automigrate: %w", err)
 	}
+	if err := OptimizeDB(db, sqliteOptimizeOnOpenMode); err != nil {
+		return nil, fmt.Errorf("optimize sqlite db: %w", err)
+	}
 	return db, nil
+}
+
+func configuredSQLiteMmapSize() int64 {
+	raw := os.Getenv(sqliteMmapSizeEnv)
+	if raw == "" {
+		return 0
+	}
+	mb, err := strconv.Atoi(raw)
+	if err != nil || mb <= 0 {
+		return 0
+	}
+	if mb > sqliteMmapSizeMaxMiB {
+		mb = sqliteMmapSizeMaxMiB
+	}
+	return int64(mb) * sqliteBytesPerMebiByte
+}
+
+func OptimizeDB(db *gorm.DB, mode ...string) error {
+	if db == nil {
+		return nil
+	}
+	pragma := "PRAGMA optimize"
+	if len(mode) > 0 && mode[0] != "" {
+		pragma = fmt.Sprintf("%s=%s", pragma, mode[0])
+	}
+	return db.Exec(pragma).Error
 }
 
 type ScannerCacheStore struct {
@@ -144,6 +195,7 @@ func (s *ScannerCacheStore) SaveScanCache(addonPath string, entries []scanner.Ca
 			return err
 		}
 		now := time.Now().UTC().Format(time.RFC3339)
+		rows := make([]DBScannerCache, 0, len(entries))
 		for _, entry := range entries {
 			if entry.Addon == nil {
 				continue
@@ -152,18 +204,18 @@ func (s *ScannerCacheStore) SaveScanCache(addonPath string, entries []scanner.Ca
 			if err != nil {
 				continue
 			}
-			row := DBScannerCache{
+			rows = append(rows, DBScannerCache{
 				AddonPath:   addonPath,
 				FolderName:  entry.FolderName,
 				Fingerprint: entry.Fingerprint,
 				AddonJSON:   string(payload),
 				UpdatedAt:   now,
-			}
-			if err := tx.Save(&row).Error; err != nil {
-				return err
-			}
+			})
 		}
-		return nil
+		if len(rows) == 0 {
+			return nil
+		}
+		return tx.CreateInBatches(rows, sqliteScannerBatchSize).Error
 	})
 }
 

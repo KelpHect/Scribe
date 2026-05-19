@@ -60,13 +60,13 @@
   let isBrowsing = $state(false);
   let isApplyingDetected = $state(false);
   let loadingSettings = $state(false);
-  let diagnostics = $state<DiagnosticsSnapshot | null>(null);
+  let diagnostics = $state.raw<DiagnosticsSnapshot | null>(null);
   let diagnosticsLoading = $state(false);
-  let appInfo = $state<AppInfo | null>(null);
+  let appInfo = $state.raw<AppInfo | null>(null);
   let showShortcuts = $state(false);
   let showLibraries = $state(false);
   let diagnosticsExporting = $state(false);
-  let frontendDiagnostics = $state<FrontendDiagnostics>({
+  let frontendDiagnostics = $state.raw<FrontendDiagnostics>({
     addonDetailQueries: 0,
     addonDetailQueriesWithData: 0,
     addonDetailFresh: 0,
@@ -330,7 +330,7 @@
         }}
         class="flex flex-col gap-4"
       >
-        <div class="card-elevated bg-card border-border rounded-lg border p-4">
+        <div class="render-defer card-elevated bg-card border-border rounded-lg border p-4">
           <h3 class="text-sm font-medium">AddOns Folder</h3>
           <p class="text-muted-foreground mt-1 text-xs">
             The directory where ESO stores your installed addons.
@@ -398,7 +398,7 @@
           </form.Field>
         </div>
 
-        <div class="card-elevated bg-card border-border rounded-lg border p-4">
+        <div class="render-defer card-elevated bg-card border-border rounded-lg border p-4">
           <h3 class="mb-3 text-sm font-medium">Preferences</h3>
           <div class="flex flex-col gap-4">
             <form.Field name="autoUpdate">
@@ -513,7 +513,7 @@
         </div>
 
         {#if showDiagnostics}
-          <div class="card-elevated bg-card border-border rounded-lg border p-4">
+          <div class="render-defer card-elevated bg-card border-border rounded-lg border p-4">
             <div class="mb-3 flex items-center justify-between gap-3">
               <div>
                 <h3 class="text-sm font-medium">Diagnostics</h3>
@@ -892,7 +892,7 @@
           {/snippet}
         </form.Subscribe>
 
-        <div class="card-elevated bg-card border-border rounded-lg border p-4">
+        <div class="render-defer card-elevated bg-card border-border rounded-lg border p-4">
           <div class="flex items-center justify-between">
             <h3 class="text-sm font-medium">Keyboard Shortcuts</h3>
             <button
@@ -934,7 +934,7 @@
         </div>
 
         {#if appInfo}
-          <div class="card-elevated bg-card border-border rounded-lg border p-4">
+          <div class="render-defer card-elevated bg-card border-border rounded-lg border p-4">
             <h3 class="text-sm font-medium">About Scribe</h3>
             <div class="text-muted-foreground mt-2 space-y-1 text-xs">
               <p>
@@ -954,7 +954,7 @@
           </div>
         {/if}
 
-        <div class="card-elevated bg-card border-border rounded-lg border p-4">
+        <div class="render-defer card-elevated bg-card border-border rounded-lg border p-4">
           <h3 class="text-sm font-medium">Credits &amp; Attribution</h3>
 
           <div class="mt-3">

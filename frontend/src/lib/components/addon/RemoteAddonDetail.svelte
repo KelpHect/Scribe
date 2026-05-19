@@ -65,6 +65,8 @@
   let localInstallError = $state<string | null>(null);
 
   let lightboxIndex = $state<number | null>(null);
+  let visibleScreenshotCount = $state(4);
+  let detailResetKey = $state('');
 
   const detailsQuery = createQuery(() => ({
     queryKey: addonDetailsQueryKey(addon?.uid ?? ''),
@@ -86,13 +88,12 @@
   );
 
   $effect(() => {
-    if (!open || !addon) {
-      localInstallError = null;
-      lightboxIndex = null;
-      return;
-    }
+    const nextKey = open && addon ? addon.uid : '';
+    if (nextKey === detailResetKey) return;
+    detailResetKey = nextKey;
     localInstallError = null;
     lightboxIndex = null;
+    visibleScreenshotCount = 4;
   });
 
   $effect(() => {
@@ -150,6 +151,8 @@
       : full.map((img) => ({ thumb: img, full: img }));
     return available.slice(0, ADDON_DETAIL_MAX_SCREENSHOTS);
   });
+  const visibleScreenshots = $derived(screenshots.slice(0, visibleScreenshotCount));
+  const hiddenScreenshotCount = $derived(Math.max(0, screenshots.length - visibleScreenshots.length));
 
   const latestCompat = $derived(
     addon && addon.compatabilities && addon.compatabilities.length > 0
@@ -372,7 +375,7 @@
       {#if decision}
         <div class="bg-muted/20 border-border rounded-xl border p-4">
           <div class="flex flex-wrap items-start justify-between gap-2">
-            <div>
+	          <div class="render-defer">
               <p class="text-foreground text-sm font-semibold">Install decision</p>
               <p class="text-muted-foreground mt-1 text-xs">{decision.reason}</p>
             </div>
@@ -397,10 +400,10 @@
 
       {#if screenshots.length > 0}
         <div class="screenshot-rail -mx-1 flex gap-3 overflow-x-auto px-1 pb-2">
-          {#each screenshots as shot, i (i)}
+          {#each visibleScreenshots as shot, i (shot.thumb + i)}
             <button
               type="button"
-              class="shrink-0 cursor-zoom-in overflow-hidden rounded-lg border border-transparent text-left transition-all hover:-translate-y-0.5 hover:border-[var(--color-border)]"
+              class="shrink-0 cursor-zoom-in overflow-hidden rounded-lg border border-transparent text-left transition-colors hover:border-[var(--color-border)]"
               onclick={() => (lightboxIndex = i)}
               aria-label="View screenshot {i + 1}"
             >
@@ -410,13 +413,24 @@
                 width="256"
                 height="144"
                 class="h-36 w-auto max-w-none rounded-lg object-cover transition-opacity hover:opacity-90"
-                loading="lazy"
+                loading={i < 2 ? 'eager' : 'lazy'}
                 decoding="async"
+                fetchpriority={i === 0 ? 'high' : 'low'}
                 draggable="false"
                 referrerpolicy="no-referrer"
               />
             </button>
           {/each}
+          {#if hiddenScreenshotCount > 0}
+            <button
+              type="button"
+              class="border-border bg-background hover:bg-accent text-muted-foreground flex h-36 w-28 shrink-0 cursor-pointer items-center justify-center rounded-lg border text-xs font-medium transition-colors"
+              onclick={() =>
+                (visibleScreenshotCount = Math.min(screenshots.length, visibleScreenshotCount + 4))}
+            >
+              Show {hiddenScreenshotCount} more
+            </button>
+          {/if}
         </div>
       {:else}
         <div class="bg-muted/35 border-border flex h-28 w-full items-center justify-center rounded-xl border">
@@ -465,7 +479,7 @@
         {/if}
         {#if requiredLibraries.length > 0 || optionalLibraries.length > 0}
           <Separator />
-          <div class="bg-muted/20 border-border rounded-xl border p-4">
+	          <div class="render-defer bg-muted/20 border-border rounded-xl border p-4">
             <p class="text-foreground mb-3 text-sm font-semibold">Libraries</p>
 
             {#if requiredLibraries.length > 0}
@@ -519,7 +533,7 @@
         {/if}
         {#if changelogSections.length > 0}
           <Separator />
-          <details class="bg-muted/20 border-border rounded-xl border p-4">
+	          <details class="render-defer bg-muted/20 border-border rounded-xl border p-4">
             <summary class="text-foreground cursor-pointer list-none text-sm font-semibold">
               <div class="flex items-center justify-between gap-3">
                 <span>Changelog</span>

@@ -363,6 +363,11 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
   - Acceptance criteria: scanner stores safe per-folder metadata in the app DB or a cache table, reparses changed folders only, invalidates correctly on folder deletion/rename, and preserves canonical-manifest preference tests.
   - Completed: scanner now fingerprints addon manifest files per folder, reuses cached parsed addons when fingerprints match, persists the cache in the app SQLite DB through `scanner_cache`, and replaces cache rows for the active AddOns path on each successful scan.
   - Verification: scanner tests cover reuse for unchanged folders, cache round-trip tests cover the SQLite-backed scanner cache, and existing canonical/fallback manifest tests remain in place.
+- [x] Tune SQLite cache DB behavior and measure DB-specific paths.
+  - Evidence: the cache DB already used WAL and `synchronous=NORMAL`, but transient lock behavior, WAL growth, cache memory budget, optimizer stats, and scanner-cache write cost were not explicitly tuned or benchmarked.
+  - Acceptance criteria: configure `busy_timeout`, `journal_size_limit`, deliberate negative-KiB `cache_size`, opt-in measured `mmap_size`, `PRAGMA optimize` on open/shutdown, scanner-cache batch writes, and SQLite benchmarks for open/load/save/query paths plus DB/WAL/SHM size reporting.
+  - Completed: `OpenDB` now sets WAL, `synchronous=NORMAL`, 5s busy timeout, 16 MiB journal size limit, 8 MiB cache budget, optional `SCRIBE_SQLITE_MMAP_MB`, and optimizer pragmas; scanner cache saves now bulk insert after scoped replacement; DB benchmarks cover open, cached catalog load, full remote cache save, scanner cache save, and install-MD5 queries with file-size metrics.
+  - Verification: `cache_test.go` covers configured SQLite pragmas and scanner-cache replacement; `./scripts/benchmarks.sh` records the new SQLite benchmark lines in `docs/performance-baseline.md`.
 - [x] Make remote catalog refresh more visibly background-first.
   - Evidence: stale cache handling exists, but the UI should never feel empty or blocked when a usable cached ESOUI catalog exists.
   - Acceptance criteria: cached remote data appears immediately when available, stale/background refresh status remains visible, refresh failure keeps prior results, and manual refresh does not duplicate in-flight work.
@@ -391,6 +396,16 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
   - Acceptance criteria: detail queries/images use an explicit bounded cache or eviction policy, memory cleanup has deterministic behavior, and diagnostics expose detail cache size/count.
   - Completed: addon details now use shared cache helpers with a 24-query bound, 10-minute detail GC, old-query trimming after detail loads, and a 12-screenshot render cap per detail; screenshots/images now use async decoding and fixed intrinsic dimensions, and diagnostics/export report detail query, screenshot URL, and cache bound counts.
   - Verification: `addon-detail-cache.test.ts` covers oldest-query trimming and diagnostic stats, and diagnostics export tests cover the new frontend cache fields.
+- [x] Move Installed page filtering/grouping/update metadata into a tested pure index.
+  - Evidence: Find More had indexed helpers, but Installed still rebuilt lowercase search fields, matched maps, category groups, update flags, and dependency lookup maps inside the route component.
+  - Acceptance criteria: extract Installed search/group/flatten/dependency indexing into pure helpers, keep row dimensions stable, preserve category expansion and selection behavior, and test filtering, grouping, update metadata, and dependency lookup.
+  - Completed: `installed-addons-index.ts` now precomputes installed search fields, matched/category maps, update actions, icon metadata, library/category groups, flattened virtual rows, and remote dependency UID lookups; `InstalledPage.svelte` delegates hot transforms to those helpers.
+  - Verification: `installed-addons-index.test.ts` covers precomputed fields, search, grouping order, flattening, and dependency UID lookup; frontend checks and Vitest pass.
+- [x] Apply Svelte/CSS rendering polish to reduce avoidable WebKitGTK work.
+  - Evidence: several UI paths still used route-local derived transforms, component-local reset effects, eager detail screenshot rendering, expensive hover transforms, backdrop blur, and heavier shadows.
+  - Acceptance criteria: keep `$derived` side-effect free, use raw state for large replaced objects/arrays, avoid broad `will-change`, add `content-visibility` for heavy offscreen detail/settings sections, reduce blur/shadow/transform cost, and limit screenshot rail image rendering without breaking the lightbox.
+  - Completed: larger replaced state uses `$state.raw`, fixed addon image failure tracking no longer uses a reset effect, remote detail screenshots render in bounded batches with explicit image loading priorities, heavy settings/detail sections use `render-defer`, and task center/lightbox blur/shadow/hover-transform costs were reduced.
+  - Verification: `npm --prefix frontend run check`, `npm --prefix frontend run test`, `npm --prefix frontend run lint:check`, and `npm --prefix frontend run format:check` pass.
 
 ### Install, update, and task-center smoothness
 

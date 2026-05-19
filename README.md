@@ -101,7 +101,7 @@ Run repeatable local fixtures with:
 ./scripts/benchmarks.sh
 ```
 
-The script covers large AddOns scans, cached catalog load, backend remote search, frontend catalog filtering/ranking, and prints the cold/warm startup plus memory snapshot capture steps. Fixture benchmark numbers are recorded before enforcement; only the diagnostics budgets above are current targets.
+The script covers large AddOns scans, SQLite DB open/cache save/cache load/install-record queries, backend remote search, frontend catalog filtering/ranking, and prints the cold/warm startup plus memory snapshot capture steps. Fixture benchmark numbers are recorded before enforcement; only the diagnostics budgets above are current targets.
 
 Backend hot-path profiles can be captured with `./scripts/profile-backend.sh`. It writes CPU and memory profiles for scanner scans, cached catalog load, matching/search, and dependency resolution under `build/reports/profiles/`, which is ignored by git.
 
@@ -117,10 +117,11 @@ The script runs fixture-backed frontend workflow tests, catalog benchmarks, and 
 
 - Keep startup work background-first: render from cached state, then refresh scans/catalog data asynchronously.
 - Keep Find More search/filter/sort logic in tested indexed helpers instead of rebuilding lowercase/search/version work in route markup.
+- Keep Installed search/group/update/icon logic in tested indexed helpers instead of rebuilding maps and lowercase fields in the route.
 - Keep large lists virtualized with stable row dimensions, fixed image boxes, lazy image loading, async decoding, and bounded overscan.
 - Coalesce high-frequency Wails bridge progress events before reactive store writes; task state transitions stay immediate, byte/file counters can be batched.
 - Keep install/update presentation shared through small helpers for preflight, rollback language, update reasons, dependency display, and failure recovery.
-- Keep user settings in `settings.toml`, cache/state records in SQLite, and generated outputs out of hand-written changes.
+- Keep user settings in `settings.toml`, cache/state records in SQLite, and generated outputs out of hand-written changes. SQLite mmap is opt-in for local profiling with `SCRIBE_SQLITE_MMAP_MB`; it is not enabled by default.
 
 ## When not to use this
 

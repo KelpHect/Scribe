@@ -24,17 +24,12 @@
     fallbackClass = 'text-muted-foreground'
   }: Props = $props();
 
-  let failed = $state(false);
-
-  $effect(() => {
-    void src;
-    failed = false;
-  });
+  let failedSrc = $state<string | null>(null);
 
   const boxSizeClass = $derived(size === 'sm' ? 'h-4 w-4' : 'h-10 w-10');
   const imageSize = $derived(size === 'sm' ? 16 : 40);
   const fallbackSize = $derived(size === 'sm' ? 16 : 20);
-  const hasImage = $derived(!!src && !failed);
+  const hasImage = $derived(!!src && failedSrc !== src);
 </script>
 
 <div
@@ -54,10 +49,10 @@
       class={cn(thumbnail ? 'h-full w-full object-cover' : 'h-3/5 w-3/5 object-contain', imageClass)}
       loading="lazy"
       decoding="async"
-      draggable="false"
-      referrerpolicy="no-referrer"
-      onerror={() => (failed = true)}
-    />
+	      draggable="false"
+	      referrerpolicy="no-referrer"
+	      onerror={() => (failedSrc = src ?? null)}
+	    />
   {:else}
     <Package size={fallbackSize} class={fallbackClass} />
   {/if}
