@@ -17,16 +17,20 @@ export interface Addon {
   path: string;
 }
 
+function compactAddons(addons: (Addon | null)[] | null | undefined): Addon[] {
+  return addons?.filter((addon): addon is Addon => addon !== null) ?? [];
+}
+
 export async function fetchInstalledAddons(): Promise<Addon[]> {
   try {
-    return await callWails('GetInstalledAddons');
+    return compactAddons(await callWails('GetInstalledAddons'));
   } catch {
     return [];
   }
 }
 
 export async function refreshInstalledAddons(): Promise<Addon[]> {
-  return await callWails('RefreshInstalledAddons');
+  return compactAddons(await callWails('RefreshInstalledAddons'));
 }
 
 export async function fetchAddonPath(): Promise<string> {

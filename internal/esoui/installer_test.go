@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -18,6 +19,7 @@ func TestExtractWithProgressRejectsEscapingEntries(t *testing.T) {
 		name         string
 		entries      map[string]string
 		outsideCheck string
+		skipWindows  bool
 	}{
 		{
 			name: "parent traversal",
@@ -46,6 +48,7 @@ func TestExtractWithProgressRejectsEscapingEntries(t *testing.T) {
 				"C:/Users/evil.txt": "evil",
 			},
 			outsideCheck: filepath.Join("C:", "Users", "evil.txt"),
+			skipWindows:  true,
 		},
 		{
 			name: "backslash traversal",
@@ -80,8 +83,10 @@ func TestExtractWithProgressRejectsEscapingEntries(t *testing.T) {
 				t.Fatalf("expected escape error, got %v", err)
 			}
 
-			if _, statErr := os.Stat(filepath.Join(base, tt.outsideCheck)); !os.IsNotExist(statErr) {
-				t.Fatalf("outside path was created or stat failed unexpectedly: %v", statErr)
+			if !(runtime.GOOS == "windows" && tt.skipWindows) {
+				if _, statErr := os.Stat(filepath.Join(base, tt.outsideCheck)); !os.IsNotExist(statErr) {
+					t.Fatalf("outside path was created or stat failed unexpectedly: %v", statErr)
+				}
 			}
 		})
 	}

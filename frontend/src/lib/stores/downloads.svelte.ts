@@ -37,7 +37,7 @@ export interface TaskProgress {
 }
 
 async function getApp(): Promise<any> {
-  return import('wailsjs/go/main/App');
+  return import('../../../bindings/Scribe/app');
 }
 
 const tasks = new SvelteMap<string, TaskProgress>();

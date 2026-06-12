@@ -6,10 +6,8 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/options/windows"
+	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 //go:embed all:frontend/dist
@@ -26,30 +24,42 @@ func main() {
 	app.version = version
 	app.commit = commit
 	app.buildDate = date
-	customTitleBar := runtime.GOOS != "linux"
+	customTitleBar := useCustomTitleBarForGOOS(runtime.GOOS)
 
-	err := wails.Run(&options.App{
-		Title:     "Scribe",
-		Width:     1120,
-		Height:    768,
-		MinWidth:  800,
-		MinHeight: 600,
-		Frameless: customTitleBar,
-		AssetServer: &assetserver.Options{
-			Assets: assets,
+	wailsApp := application.New(application.Options{
+		Name:        "Scribe",
+		Description: "ESO addon manager",
+		Assets: application.AssetOptions{
+			Handler: application.AssetFileServerFS(assets),
 		},
-		BackgroundColour: &options.RGBA{R: 9, G: 9, B: 11, A: 255},
-		OnStartup:        app.startup,
-		OnDomReady:       app.domReady,
-		OnShutdown:       app.shutdown,
-		Windows: &windows.Options{
-			WebviewIsTransparent: false,
-			WindowIsTranslucent:  false,
+		Services: []application.Service{
+			application.NewService(app),
 		},
-		Bind: []interface{}{
-			app,
+		Mac: application.MacOptions{
+			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
 	})
+	app.setWailsApp(wailsApp)
+
+	mainWindow := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+		Name:             "main",
+		Title:            "Scribe",
+		Width:            1120,
+		Height:           768,
+		MinWidth:         800,
+		MinHeight:        600,
+		Frameless:        customTitleBar,
+		BackgroundColour: application.NewRGBA(9, 9, 11, 255),
+		URL:              "/",
+		Windows: application.WindowsWindow{
+			DisableFramelessWindowDecorations: false,
+		},
+	})
+	mainWindow.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
+		app.runtimeReady()
+	})
+
+	err := wailsApp.Run()
 
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Scribe fatal: %v\n", err)

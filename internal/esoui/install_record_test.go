@@ -60,6 +60,7 @@ func TestSaveInstallMD5UpdatesExistingUID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenDB: %v", err)
 	}
+	closeTestDB(t, db)
 
 	if err := SaveInstallMD5(db, "uid", "old"); err != nil {
 		t.Fatalf("SaveInstallMD5 old: %v", err)

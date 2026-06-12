@@ -32,7 +32,7 @@
           {/if}
           <span class="text-foreground text-sm">{dep}</span>
           {#if !installed}
-            <span class="text-muted-foreground text-xs">— not installed</span>
+            <span class="text-muted-foreground text-xs">not installed</span>
           {/if}
         </div>
       {/each}

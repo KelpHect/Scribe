@@ -1,0 +1,86 @@
+version: '3'
+
+includes:
+  common: ../Taskfile.yml
+
+tasks:
+  build:
+    summary: Builds the macOS desktop binary.
+    deps:
+      - task: common:go:mod:tidy
+      - task: common:build:frontend
+        vars:
+          BUILD_FLAGS: '{{.BUILD_FLAGS}}'
+          DEV: '{{.DEV}}'
+      - task: common:ensure:bin
+    cmds:
+      - go build {{.BUILD_FLAGS}} -o "{{.OUTPUT}}"
+    vars:
+      DEFAULT_OUTPUT: '{{.BIN_DIR}}/{{.APP_NAME}}'
+      OUTPUT: '{{.OUTPUT | default .DEFAULT_OUTPUT}}'
+      BUILD_TAGS: '{{if eq .DEV "true"}}{{.EXTRA_TAGS}}{{else}}production{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}}{{end}}'
+      DEFAULT_LD_FLAGS: '{{if eq .DEV "true"}}{{else}}-w -s{{end}}'
+      GO_LD_FLAGS: '{{.LD_FLAGS | default .DEFAULT_LD_FLAGS}}'
+      BUILD_FLAGS: '{{if .BUILD_TAGS}}-tags "{{.BUILD_TAGS}}" {{end}}{{if ne .DEV "true"}}-trimpath {{end}}-buildvcs=false {{if .GO_LD_FLAGS}}-ldflags "{{.GO_LD_FLAGS}}"{{end}}'
+    env:
+      GOOS: darwin
+      GOARCH: '{{.ARCH | default ARCH}}'
+      CGO_ENABLED: 1
+
+  build:universal:
+    summary: Builds a universal macOS binary.
+    deps:
+      - task: build
+        vars:
+          ARCH: amd64
+          OUTPUT: '{{.BIN_DIR}}/{{.APP_NAME}}-amd64'
+          EXTRA_TAGS: '{{.EXTRA_TAGS}}'
+          LD_FLAGS: '{{.LD_FLAGS}}'
+      - task: build
+        vars:
+          ARCH: arm64
+          OUTPUT: '{{.BIN_DIR}}/{{.APP_NAME}}-arm64'
+          EXTRA_TAGS: '{{.EXTRA_TAGS}}'
+          LD_FLAGS: '{{.LD_FLAGS}}'
+    cmds:
+      - lipo -create -output "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.BIN_DIR}}/{{.APP_NAME}}-amd64" "{{.BIN_DIR}}/{{.APP_NAME}}-arm64"
+      - rm -f "{{.BIN_DIR}}/{{.APP_NAME}}-amd64" "{{.BIN_DIR}}/{{.APP_NAME}}-arm64"
+
+  package:
+    summary: Creates a macOS app bundle.
+    deps:
+      - task: common:generate:icons
+      - task: build
+        vars:
+          ARCH: '{{.ARCH}}'
+          EXTRA_TAGS: '{{.EXTRA_TAGS}}'
+          LD_FLAGS: '{{.LD_FLAGS}}'
+    cmds:
+      - rm -rf "{{.BIN_DIR}}/{{.APP_NAME}}.app"
+      - mkdir -p "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/MacOS"
+      - mkdir -p "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/Resources"
+      - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/MacOS/{{.APP_NAME}}"
+      - cp build/darwin/icons.icns "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/Resources/icons.icns"
+      - cp build/darwin/Info.plist "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/Info.plist"
+      - codesign --force --deep --sign - "{{.BIN_DIR}}/{{.APP_NAME}}.app"
+
+  package:universal:
+    summary: Creates a universal macOS app bundle.
+    deps:
+      - task: common:generate:icons
+      - task: build:universal
+        vars:
+          EXTRA_TAGS: '{{.EXTRA_TAGS}}'
+          LD_FLAGS: '{{.LD_FLAGS}}'
+    cmds:
+      - rm -rf "{{.BIN_DIR}}/{{.APP_NAME}}.app"
+      - mkdir -p "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/MacOS"
+      - mkdir -p "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/Resources"
+      - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/MacOS/{{.APP_NAME}}"
+      - cp build/darwin/icons.icns "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/Resources/icons.icns"
+      - cp build/darwin/Info.plist "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/Info.plist"
+      - codesign --force --deep --sign - "{{.BIN_DIR}}/{{.APP_NAME}}.app"
+
+  run:
+    cmds:
+      - '{{.BIN_DIR}}/{{.APP_NAME}}'

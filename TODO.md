@@ -1,14 +1,14 @@
 # Scribe TODO Audit Ledger
 
-Last audit refresh: 2026-05-19
+Last audit refresh: 2026-06-12
 
 ## Audit scope inspected
 
 - Code: `app.go`, `main.go`, `pprof.go`, `internal/addon`, `internal/scanner`, `internal/esoui`, `internal/settings`, and the Svelte frontend under `frontend/src` including routes, components, stores, services, query helpers, theme/runtime/diagnostics flows, and utilities.
 - Tests: Go coverage now spans scanner parsing/path detection, ESOUI cache/client/install/download behavior, settings persistence, root app safety helpers, and missing-dependency/MD5 helpers; frontend smoke tests run through Vitest for store/service flows alongside `svelte-check`.
 - Docs/plans: `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, `frontend/README.md`, and the prior `TODO.md`. No `docs/`, `plan/`, `plans/`, `roadmap/`, `roadmaps/`, or `backlog/` directories/files were present outside this ledger.
-- Scripts/config: `go.mod`, `go.sum`, `wails.json`, `frontend/package.json`, `frontend/package-lock.json`, `frontend/vite.config.ts`, `frontend/svelte.config.js`, `frontend/.oxlintrc.json`, `frontend/.oxfmtrc.json`, `scripts/build-release.sh`, `scripts/build-release.ps1`, `.github/workflows/ci.yml`, `.github/workflows/release.yml`, and `.github/workflows/tag-release.yml`.
-- Generated/runtime surfaces: `frontend/wailsjs/`, `frontend/dist/`, `build/bin/`, build reports, and packaged binaries are treated as generated; Wails build/regeneration is the supported recovery path.
+- Scripts/config: `go.mod`, `go.sum`, `Taskfile.yml`, `build/config.yml`, platform Taskfiles, `frontend/package.json`, `frontend/package-lock.json`, `frontend/vite.config.ts`, `frontend/svelte.config.js`, `frontend/.oxlintrc.json`, `frontend/.oxfmtrc.json`, `scripts/build-release.sh`, `scripts/build-release.ps1`, `.github/workflows/ci.yml`, `.github/workflows/release.yml`, and `.github/workflows/tag-release.yml`.
+- Generated/runtime surfaces: `frontend/bindings/`, `frontend/dist/`, `bin/`, `.task/`, build reports, generated platform icon outputs, and packaged binaries are treated as generated; Wails build/regeneration is the supported recovery path.
 - Verification baseline: `./scripts/verify.sh` runs diff sanity, Wails build/regeneration, frontend type checks, Oxlint, Oxfmt check, frontend smoke tests, and Go tests without mutating lint/format commands.
 
 ## Current direction
@@ -19,7 +19,7 @@ Last audit refresh: 2026-05-19
 - Prioritize evidence from benchmarks, diagnostics, UI profiling, and real user workflows before large changes.
 - Keep Scribe local-first and ESOUI/MMOUI-only.
 
-## P0 — Safety, data-loss prevention, and shutdown correctness
+## P0 - Safety, data-loss prevention, and shutdown correctness
 
 Purpose: prevent corruption, deletion outside the configured AddOns directory, panics, hangs, and unsafe destructive operations. Risk level: critical because failures can damage user addon folders or crash during install/update/cancel. Scope guardrail: keep fixes narrow; do not bulk-modify addon folders beyond the explicitly named install/update/uninstall action.
 
@@ -44,7 +44,7 @@ Purpose: prevent corruption, deletion outside the configured AddOns directory, p
   - Completed: extraction and download-manager tests now cancel after the first extracted file and prove later files are not written.
   - Verification: `internal/esoui/installer_test.go` asserts `context.Canceled` from `ExtractWithProgress`; `internal/esoui/download_manager_test.go` cancels a running extraction and observes the task state become `cancelled`.
 
-## P1 — User-visible correctness, baseline health, and release confidence
+## P1 - User-visible correctness, baseline health, and release confidence
 
 Purpose: fix gaps users or contributors hit in normal settings, install, update, docs, and CI flows. Risk level: high because these issues make visible claims false or break a clean verification baseline. Scope guardrail: preserve ESOUI/MMOUI as the only addon source and avoid broad UI rewrites.
 
@@ -78,7 +78,7 @@ Purpose: fix gaps users or contributors hit in normal settings, install, update,
   - Completed: `SCRIBE_PPROF=1` is now the documented profiling switch, with `SCRIBEEGO_PPROF=1` retained as a legacy alias.
   - Verification: `pprof_test.go` covers both env names and the disabled default.
 
-## P2 — Backend correctness and data/persistence regression coverage
+## P2 - Backend correctness and data/persistence regression coverage
 
 Purpose: reduce update/matching/cache/settings regressions before broader distribution. Risk level: medium-high because most domain behavior is untested. Scope guardrail: use temp dirs/temp SQLite and mocked/fixture data; do not require live ESOUI or a real AddOns directory.
 
@@ -112,7 +112,7 @@ Purpose: reduce update/matching/cache/settings regressions before broader distri
   - Completed: `httptest` client fixtures cover active/inactive global config, inactive/missing ESO game, 5xx retry, non-200 failure, malformed JSON, date/count parsing, category parent IDs, and details URL formation.
   - Verification: `go test ./internal/esoui` passes.
 
-## P3 — Frontend UX/accessibility and interaction polish
+## P3 - Frontend UX/accessibility and interaction polish
 
 Purpose: improve user trust, accessibility, and clarity once critical correctness is stable. Risk level: medium. Scope guardrail: prefer focused UI changes; do not replace the route/store architecture.
 
@@ -137,17 +137,17 @@ Purpose: improve user trust, accessibility, and clarity once critical correctnes
   - Completed: Vitest is configured via `npm --prefix frontend run test`; smoke tests cover install UID dedupe/filtering and the remote catalog status service with mocked Wails wrappers and no live ESOUI dependency.
   - Verification: `npm --prefix frontend run test`, `npm --prefix frontend run check`, `npm --prefix frontend run build`, Linux Wails build, `go test ./...`, and `git diff --check` pass.
 
-## P4 — Documentation, contributor experience, and local tooling
+## P4 - Documentation, contributor experience, and local tooling
 
 Purpose: make setup, verification, release expectations, and generated-file recovery reliable for maintainers. Risk level: medium-low. Scope guardrail: docs should reflect implemented behavior only.
 
 ### Docs
 
 - [x] Document generated-file recovery in README/CONTRIBUTING/frontend README.
-  - Completed: README, CONTRIBUTING, and `frontend/README.md` now explain that `frontend/wailsjs/` and `frontend/dist/` are Wails-generated, when to use `wails dev`/`wails build` to recover them, and that generated files are not hand-edited.
+  - Completed: README, CONTRIBUTING, and `frontend/README.md` now explain that `frontend/bindings/` and `frontend/dist/` are Wails-generated, when to use `wails3 task common:generate:bindings` or `wails3 build` to recover them, and that generated files are not hand-edited.
   - Verification: `git diff --check` passes.
 - [x] Align documented check commands with actual project gates.
-  - Completed: README, CONTRIBUTING, and `frontend/README.md` now list the Go, frontend check/test/build, lint/format, Wails packaging, clean-checkout generated-file caveats, Linux `webkit2_41` build tag, and the mutating lint caveat.
+  - Completed: README, CONTRIBUTING, and `frontend/README.md` now list the Go, frontend check/test/build, lint/format, Wails packaging, clean-checkout generated-file caveats, Linux `gtk3` build tag, and the mutating lint caveat.
   - Verification: `git diff --check` passes.
 - [x] Document local database/cache location and reset behavior.
   - Completed: README and CONTRIBUTING now document `Scribe/esoui_cache.db` under the OS user config directory, what the database stores, that it is separate from ESO AddOns, and the safe close-and-rename/delete reset flow.
@@ -172,7 +172,7 @@ Purpose: make setup, verification, release expectations, and generated-file reco
   - Completed: removed stale frontend helper folders and barrel exports while keeping live `db` query/cache modules.
   - Verification: `npm --prefix frontend run check` and `npm --prefix frontend run lint:check` pass.
 
-## P5 — Release/distribution, compatibility, and operations hardening
+## P5 - Release/distribution, compatibility, and operations hardening
 
 Purpose: harden the path from version to user-installable artifacts after the app is stable. Risk level: medium-low but important for production distribution. Scope guardrail: do not publish, tag, dispatch workflows, sign, notarize, or require maintainer credentials during implementation unless explicitly requested.
 
@@ -194,10 +194,10 @@ Purpose: harden the path from version to user-installable artifacts after the ap
   - Completed: `scanner.DetectAddonPath` now delegates to an injected helper for home/GOOS/filesystem/glob behavior; tests cover Windows live/liveeu precedence and OneDrive glob matches, macOS Documents live, Linux Steam compatdata precedence/fallback, and unsupported or missing paths without using real user directories.
   - Verification: `go test ./internal/scanner` and `./scripts/verify.sh` pass.
 - [x] Document or test Linux build dependency requirements against current Wails/WebKit tags.
-  - Completed: README and CONTRIBUTING document Linux Wails packages for Debian/Ubuntu and Fedora, including the `webkit2_41` local build tag.
+  - Completed: README and CONTRIBUTING document Linux Wails packages for Debian/Ubuntu and Fedora, including the Wails v3 `gtk3` local build tag.
   - Verification: CI and release workflows install the full Ubuntu native toolchain set before Linux Wails builds; Fedora 44 local builds use `gtk3-devel` and `webkit2gtk4.1-devel`.
 
-## P6 — Performance, observability, and maintainability improvements
+## P6 - Performance, observability, and maintainability improvements
 
 Purpose: keep startup/memory responsive and make performance/debug data actionable after functional gaps are closed. Risk level: low-to-medium. Scope guardrail: measure before optimizing; keep existing sticky TanStack Query behavior unless intentionally changed.
 
@@ -219,7 +219,7 @@ Purpose: keep startup/memory responsive and make performance/debug data actionab
   - Completed: missing dependency aggregation now lives in the pure `findMissingDependencies` helper, while `GetMissingDependencies` remains the Wails-facing scanner wrapper; existing MD5 suppression already uses the pure `suppressMD5Matches` helper.
   - Verification: `missing_dependencies_test.go` covers the pure helper and the App wrapper without changing the Wails binding surface; `go test .` and `./scripts/verify.sh` pass.
 
-## P7 — Deferred/future scope (not active production-readiness work)
+## P7 - Deferred/future scope (not active production-readiness work)
 
 Purpose: record explicitly deferred ideas so they are not confused with current commitments. Risk level: intentionally deferred/out of scope. Scope guardrail: do not implement unless the maintainer explicitly requests a scoped change.
 
@@ -244,7 +244,7 @@ Purpose: record explicitly deferred ideas so they are not confused with current 
   - Evidence: README documents unsigned Windows builds and ad-hoc/non-notarized macOS builds when macOS assets are produced; release workflow performs ad-hoc macOS signing only; CONTRIBUTING blocks signing/notarization automation without defined credentials and release approval.
   - Decision: keep current unsigned/ad-hoc distribution disclosure until maintainers provide credentials, secret-management rules, and an explicit release-scope implementation request.
 
-## P8 — Next app-quality backlog (open)
+## P8 - Next app-quality backlog (open)
 
 Purpose: improve the app without replacing Wails/Svelte/Go: fewer crashes, smoother UX, better install/update/dependency outcomes, stronger discovery, and measurable performance. Risk level: medium because these affect core workflows. Scope guardrail: keep improvements incremental, local-first, ESOUI/MMOUI-only, and compatible with current generated-file and release rules.
 
@@ -329,7 +329,7 @@ Purpose: improve the app without replacing Wails/Svelte/Go: fewer crashes, smoot
   - Completed: frontend smoke coverage now includes install/update queue dedupe and retry guards, missing dependency plan normalization, matched update-state normalization, stale-cache/no-cache catalog state classification, recoverable route errors, and independent route state preservation using mocked Wails calls or pure helpers.
   - Verification: Vitest covers the added service/catalog/route cases without live ESOUI or generated Wails bindings.
 
-## P9 — Wails-first performance, stability, and desktop experience backlog (complete)
+## P9 - Wails-first performance, stability, and desktop experience backlog (complete)
 
 Purpose: make the current app lighter, smoother, less crash-prone, and more predictable before considering any framework or desktop-shell migration. Risk level: medium-high because these touch core install, catalog, startup, and rendering paths. Scope guardrail: keep changes incremental, measured, ESOUI/MMOUI-only, and compatible with the current Wails app.
 
@@ -519,7 +519,7 @@ Purpose: make the current app lighter, smoother, less crash-prone, and more pred
 - [x] Settings use TOML while cache/search preset rows/scanner cache/install MD5 records stay SQLite-backed.
   - Evidence: `internal/settings` reads and writes `settings.toml`; `OpenDB` automigrates remote addons, categories, cache meta, legacy settings, search preset rows, scanner cache, and install records.
 - [x] Frontend uses generated Wails bindings through thin service wrappers.
-  - Evidence: services under `frontend/src/lib/services` call `callWails`/dynamic Wails imports; `frontend/wailsjs` is absent and treated as generated.
+  - Evidence: services under `frontend/src/lib/services` call `callWails`/dynamic Wails imports; `frontend/bindings` is absent from source control and treated as generated.
 - [x] Route components are dynamically loaded except the initial Installed page.
   - Evidence: `frontend/src/App.svelte` imports `InstalledPage` directly and lazy-loads Find More, Updates, and Settings with dynamic imports.
 - [x] Sticky desktop query caching is configured.

@@ -147,6 +147,20 @@ func OpenDB(path string) (*gorm.DB, error) {
 	return db, nil
 }
 
+func CloseDB(db *gorm.DB) error {
+	if db == nil {
+		return nil
+	}
+	if stmtDB, ok := db.ConnPool.(*gorm.PreparedStmtDB); ok {
+		stmtDB.Close()
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Close()
+}
+
 func configuredSQLiteMmapSize() int64 {
 	raw := os.Getenv(sqliteMmapSizeEnv)
 	if raw == "" {

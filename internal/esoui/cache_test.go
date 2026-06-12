@@ -18,6 +18,7 @@ func TestOpenDBConfiguresSQLitePragmas(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenDB: %v", err)
 	}
+	closeTestDB(t, db)
 
 	if got := rawPragmaString(t, db, "journal_mode"); got != "wal" {
 		t.Fatalf("journal_mode = %q, want wal", got)
@@ -460,7 +461,17 @@ func newCacheTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("OpenDB: %v", err)
 	}
+	closeTestDB(t, db)
 	return db
+}
+
+func closeTestDB(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	t.Cleanup(func() {
+		if err := CloseDB(db); err != nil {
+			t.Errorf("CloseDB: %v", err)
+		}
+	})
 }
 
 func mustJSON(t *testing.T, value any) string {

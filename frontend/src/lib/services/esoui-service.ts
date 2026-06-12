@@ -1,5 +1,5 @@
 import { callWails } from '$lib/services/wails-service';
-import type { esoui as WailsEsoui } from '../../../wailsjs/go/models';
+import type * as WailsEsoui from '../../../bindings/Scribe/internal/esoui/models';
 
 export interface GameVersion {
   version: string;

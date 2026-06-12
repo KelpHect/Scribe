@@ -1,11 +1,12 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
+import wails from '@wailsio/runtime/plugins/vite';
 import path from 'node:path';
 import { defineConfig } from 'vite';
 import buildReportPlugin from './vite-plugin-build-report.js';
 
 export default defineConfig({
-  plugins: [svelte(), tailwindcss(), buildReportPlugin()],
+  plugins: [wails('./bindings'), svelte(), tailwindcss(), buildReportPlugin()],
   build: {
     target: 'esnext',
     reportCompressedSize: true,
@@ -72,8 +73,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      $lib: path.resolve('./src/lib'),
-      wailsjs: path.resolve('./wailsjs')
+      $lib: path.resolve('./src/lib')
     }
   }
 });

@@ -4,15 +4,15 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-if command -v wails >/dev/null 2>&1; then
-  WAILS=(wails)
+if command -v wails3 >/dev/null 2>&1; then
+  WAILS=(wails3)
 else
-  WAILS=(go run github.com/wailsapp/wails/v2/cmd/wails@v2.12.0)
+  WAILS=(go run github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.99)
 fi
 
 build_args=(build)
 if [ "$(go env GOOS)" = "linux" ]; then
-  build_args+=(-tags webkit2_41)
+  build_args+=(-tags gtk3)
 fi
 
 git diff --check

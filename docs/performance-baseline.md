@@ -1,6 +1,6 @@
 # Scribe Performance Baseline
 
-Last baseline refresh: 2026-05-19
+Last baseline refresh: 2026-06-12
 
 This file records the current measured baseline after the SQLite custom-binary snapshot/hash/diff cache pass and Installed page indexing pass. Do not treat these numbers as hard pass/fail thresholds yet; use them to compare local changes and decide where optimization is justified.
 
@@ -25,7 +25,7 @@ The full verification gate for the accompanying task is:
 Real desktop captures use the opt-in pprof server:
 
 ```bash
-SCRIBE_PPROF=1 ./build/bin/Scribe &
+SCRIBE_PPROF=1 ./bin/Scribe &
 ./scripts/profile-desktop.sh
 ```
 
@@ -83,20 +83,21 @@ Current generated build report:
 
 | Metric | Bytes |
 | --- | ---: |
-| Total JS | `406,670` |
+| Total JS | `451,311` |
 | Total CSS | `69,115` |
-| Total assets | `475,785` |
+| Total assets | `520,426` |
 | Gzip budget | `500,000` |
 
 Largest generated chunks:
 
 | Chunk | Bytes |
 | --- | ---: |
-| `route-find-more` JS | `245,357` |
-| `route-settings` JS | `82,476` |
+| `route-find-more` JS | `246,318` |
+| `route-settings` JS | `82,527` |
 | `index` CSS | `54,486` |
-| `index` JS | `23,618` |
-| `route-installed` JS | `20,682` |
+| Wails runtime JS | `47,071` |
+| `index` JS | `23,658` |
+| `route-installed` JS | `20,684` |
 
 ## Interactive Diagnostics Capture
 

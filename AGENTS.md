@@ -5,7 +5,7 @@
 - Do not commit, tag, push, publish releases, dispatch workflows, or perform release automation unless the user explicitly requests that exact operation. Release operations require a clean version/tag match and already-available authentication.
 - Do not add alternate addon sources, account/cloud sync, telemetry, plugin APIs, signing/notarization, or broad rewrites unless explicitly requested and backed by an accepted plan.
 - Do not delete, move, or bulk-modify user addon folders except for the explicitly named install/update/uninstall action.
-- Treat `frontend/wailsjs/`, `frontend/dist/`, `build/bin/`, `node_modules/`, `frontend/tsconfig.tsbuildinfo`, build reports, and packaged binaries as generated; do not hand-edit or commit them.
+- Treat `frontend/bindings/`, `frontend/dist/`, `bin/`, `.task/`, `node_modules/`, `frontend/tsconfig.tsbuildinfo`, build reports, generated platform icon outputs, and packaged binaries as generated; do not hand-edit or commit them.
 
 ## Project
 - Default branch and CI/release workflows target `main`.
@@ -22,7 +22,7 @@
 - Prefer improving the current data flow, bridge traffic, cache behavior, install pipeline, and UI rendering before replacing the shell or framework.
 
 ## Completion gates
-- For Go/app changes, run `wails build` and `go test ./...` from the repo root.
+- For Go/app changes, run `wails3 build` and `go test ./...` from the repo root.
 - For frontend changes, also run `npm --prefix frontend run check` and `npm --prefix frontend run test`; run `npm --prefix frontend run build` when touching bundling, styling, assets, Wails bindings, or route/component loading.
 - Use `npm --prefix frontend install` to restore frontend deps; do not use another package manager.
 - Use `npm --prefix frontend run lint:check` for non-mutating lint verification when lint rules/config or broad frontend code shape changes.
@@ -30,7 +30,7 @@
 - Avoid `npm --prefix frontend run lint` unless intentionally applying Oxlint autofixes; review the diff afterwards.
 - `npm --prefix frontend run format` uses Oxfmt for supported TS/JS/CSS files. Oxfmt does not replace Svelte component formatting, so keep Svelte markup edits small and readable.
 - Clean-checkout caveat: root `go test ./...` fails if `frontend/dist` is absent because `main.go` embeds `all:frontend/dist`; run Wails/build first.
-- Clean-checkout caveat: frontend type checks fail if `frontend/wailsjs` is absent/stale; regenerate via `wails dev`/`wails build`, never by authoring generated bindings.
+- Clean-checkout caveat: frontend type checks fail if `frontend/bindings` is absent/stale; regenerate via `wails3 task common:generate:bindings` or `wails3 build`, never by authoring generated bindings.
 - `npm --prefix frontend run check` is expected to pass after bindings are regenerated; rerun it before claiming frontend package or type-check changes are clean.
 - For performance-sensitive changes, run the relevant benchmark path: `./scripts/benchmarks.sh`, `scripts/profile-backend.sh`, `./scripts/profile-desktop.sh`, `npm --prefix frontend run bench -- --run`, or a narrower package benchmark when appropriate.
 - For real desktop profiling, launch with `SCRIBE_PPROF=1` and run `./scripts/profile-desktop.sh`; optional release PGO is controlled by `SCRIBE_PGO_PROFILE` and should use representative desktop CPU profiles only.
@@ -45,13 +45,13 @@
 6. Prefer smallest correct changes over broad refactors.
 
 ## Stack
-- Go 1.26.3, Wails v2.12, Node.js 24/npm 11, Svelte 5 runes, TypeScript 6, Vite 8, Tailwind CSS v4.
+- Go 1.26.3, Wails v3.0.0-alpha.99, Node.js 24/npm 11, Svelte 5 runes, TypeScript 6, Vite 8, Tailwind CSS v4.
 - Frontend lint/format tooling is Oxlint/Oxfmt; do not reintroduce ESLint or Prettier without a measured reason and an accepted tooling decision.
 - SQLite uses GORM with `glebarez/sqlite`; cache/state live in `Scribe/esoui_cache.db`, while user-facing settings live in `Scribe/settings.toml`.
 - Echo is only an indirect Wails dependency; the app has no application HTTP server except opt-in pprof.
 - Wails binds methods on `App` in `app.go`; frontend calls them through thin service wrappers and dynamic imports.
 - This is not SvelteKit: no SSR, file router, server endpoints, load functions, or SvelteKit APIs.
-- Linux Wails builds require `webkit2_41` tags plus GTK/WebKit system dependencies. Debian/Ubuntu use `build-essential pkg-config npm libgtk-3-dev libwebkit2gtk-4.1-dev`; Fedora uses `gcc-c++ pkgconf-pkg-config npm gtk3-devel webkit2gtk4.1-devel`.
+- Linux Wails v3 builds currently use the `gtk3` tag plus GTK/WebKit system dependencies. Debian/Ubuntu use `build-essential pkg-config npm libgtk-3-dev libwebkit2gtk-4.1-dev`; Fedora uses `gcc-c++ pkgconf-pkg-config npm gtk3-devel webkit2gtk4.1-devel`.
 
 ## Documentation paths
 - Keep `README.md`, `CONTRIBUTING.md`, and `frontend/README.md` synchronized with setup, checks, generated-file recovery, packaging, and release-process changes.
@@ -90,7 +90,7 @@
 - Preserve dynamic route imports and manual chunks unless intentionally changing startup/bundle behavior; frontend build reports warn on budget violations but do not fail.
 - TanStack Query caching is intentionally sticky (`staleTime`, long `gcTime`, no focus refetch); do not add focus-driven refetch loops.
 - Keep mounted route state stable across navigation where current UX relies on it.
-- `frontend/wailsjs` imports are generated; frontend services should use `callWails`/runtime wrappers instead of duplicating binding logic.
+- `frontend/bindings` imports are generated; frontend services should use `callWails`/runtime wrappers instead of duplicating binding logic.
 - Global hotkeys/context menus and memory cleanup live in `App.svelte`; avoid page-level listeners that leak or conflict with global behavior.
 - Keep large lists virtualized with stable item dimensions, fixed image boxes, and bounded overscan.
 - Remote addon/list artwork should use fixed-size boxes, lazy loading, async decoding, and failure fallbacks so image fetches do not resize virtual rows or leave broken image chrome.
@@ -142,10 +142,10 @@
 - Tag-release workflow is manual-only; it reads `frontend/package.json` version, validates `X.Y.Z`, creates `vX.Y.Z`, and dispatches release only when explicitly requested.
 - Local `gh` releases are allowed only on explicit user request; publish only artifacts built and smoke-tested locally. The current local fallback set is Windows amd64, Linux amd64, Fedora 44 Linux amd64, and `SHA256SUMS.txt`; macOS requires a macOS runner or build host.
 - Local release scripts inject version/commit/date ldflags and may use UPX if installed; do not assume UPX exists.
-- Windows builds are unsigned, Linux CI builds use UPX while local builds may not, and macOS builds are ad-hoc signed/not notarized when produced; do not claim stronger distribution guarantees.
+- Wails v3 builds write binaries to `bin/`. Windows builds are unsigned, local Linux and Windows builds are compressed only when UPX is installed, and macOS builds are ad-hoc signed/not notarized when produced; do not claim stronger distribution guarantees.
 
 ## Lessons learned
-- `frontend/wailsjs` absence causes frontend type/check failures; regenerate with Wails instead of committing generated files.
+- `frontend/bindings` absence causes frontend type/check failures; regenerate with Wails instead of committing generated files.
 - `frontend/dist` absence breaks root Go tests because embedded assets are required.
 - A clean `npm ci` can still show `@emnapi/*`, `@napi-rs/wasm-runtime`, `@tybys/wasm-util`, and `tslib` as extraneous because of optional/bundled WASM bindings in the frontend toolchain; do not remove declared app dependencies based only on that npm output.
 - Oxfmt currently covers supported TypeScript, JavaScript, and CSS files here; `.svelte` component formatting remains manual plus `svelte-check`/Oxlint validation.
@@ -154,6 +154,7 @@
 - The Auto Update setting is persisted but not implemented as a worker; do not describe it as active behavior unless implementing a safe opt-in flow.
 - `SCRIBE_PPROF=1` starts the local pprof server; `SCRIBEEGO_PPROF=1` remains a legacy alias.
 - `OpenPath` is constrained to the configured AddOns directory or descendants after symlink resolution; justify any expansion of frontend-provided paths.
+- Wails v3 dev mode binds Vite to `127.0.0.1` through `WAILS_VITE_HOST` by default; using plain `localhost` can leave Vite on IPv6 while Wails proxies to IPv4 on Windows.
 
 ## Blockers: stop and ask
 - A request would delete, move, or bulk-modify user addon directories beyond the named install/update/uninstall action.

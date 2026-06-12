@@ -20,12 +20,14 @@ Want to help with Scribe? Nice. Keep it practical.
 ## Dev setup
 
 ```bash
-go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
+go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.99
 npm --prefix frontend install
-wails dev
+wails3 task dev
 ```
 
-Linux builds also need native Wails dependencies. Install the distro packages before `wails dev` or `wails build`.
+The dev task starts Vite on `127.0.0.1` by default through `WAILS_VITE_HOST`. This keeps Wails' asset proxy and Vite on the same loopback address on Windows. Override it only when you intentionally need another local host.
+
+Linux builds also need native Wails dependencies. Install the distro packages before `wails3 task dev` or `wails3 build`.
 
 Debian/Ubuntu:
 
@@ -58,18 +60,18 @@ npm --prefix frontend run lint:check
 npm --prefix frontend run format:check
 npm --prefix frontend run build
 go test ./...
-wails build -tags webkit2_41   # Linux
-wails build                    # Windows/macOS
+wails3 build -tags gtk3        # Linux
+wails3 build                   # Windows/macOS
 ```
 
-Run `wails build` before root `go test ./...` on a clean checkout so `frontend/dist/` exists. Use `npm --prefix frontend run lint:check` for Oxlint verification and `npm --prefix frontend run format:check` for Oxfmt-supported TypeScript, JavaScript, and CSS files. Avoid `npm --prefix frontend run lint` unless you intentionally want Oxlint autofixes and will review the diff.
+Run `wails3 build` before root `go test ./...` on a clean checkout so `frontend/dist/` exists. Use `npm --prefix frontend run lint:check` for Oxlint verification and `npm --prefix frontend run format:check` for Oxfmt-supported TypeScript, JavaScript, and CSS files. Avoid `npm --prefix frontend run lint` unless you intentionally want Oxlint autofixes and will review the diff.
 
 ## Generated files
 
-Wails generates `frontend/wailsjs/` and `frontend/dist/`.
+Wails generates `frontend/bindings/` and `frontend/dist/`.
 
-- recover missing or stale bindings with `wails dev` or `wails build`
-- recover missing embedded frontend assets with `wails build`
+- recover missing or stale bindings with `wails3 task common:generate:bindings` or `wails3 build`
+- recover missing embedded frontend assets with `wails3 build`
 - do not hand-edit generated files
 - run `./scripts/verify.sh` from a clean checkout when you want the full recovery-and-check path
 
@@ -126,7 +128,7 @@ It captures CPU and memory profiles for scanner scans, cached catalog load, matc
 For real desktop profiles, start Scribe with pprof enabled, exercise the UI, then capture profiles:
 
 ```bash
-SCRIBE_PPROF=1 ./build/bin/Scribe &
+SCRIBE_PPROF=1 ./bin/Scribe &
 ./scripts/profile-desktop.sh
 ```
 
@@ -146,7 +148,7 @@ If you touch release workflows or packaging, say that clearly in the PR body.
 
 Release tagging is manual. The tag-release workflow reads `frontend/package.json`, creates `vX.Y.Z`, and dispatches the release only when a maintainer runs it.
 
-When GitHub Actions are available, the release workflow validates the tag/version pair and stages Windows, Linux, and macOS artifacts. When releasing locally with `gh`, only upload artifacts built and smoke-tested locally; the current local fallback set is Windows amd64, Linux amd64, Fedora 44 Linux amd64, and `SHA256SUMS.txt`. macOS assets require a macOS runner or build host. The Windows NSIS installer is optional and is uploaded only if Wails produces it.
+When GitHub Actions are available, the release workflow validates the tag/version pair and stages Windows, Linux, and macOS artifacts. When releasing locally with `gh`, only upload artifacts built and smoke-tested locally; the current local fallback set is Windows amd64, Linux amd64, Fedora 44 Linux amd64, and `SHA256SUMS.txt`. macOS assets require a macOS runner or build host. The Windows NSIS installer is optional and is uploaded only if a packaging task produces it.
 
 Strong Windows signing and macOS notarization are not part of the current release flow. Do not add signing/notarization automation unless maintainer certificates, Apple credentials, secret handling, and release approval are already defined.
 
@@ -171,6 +173,6 @@ Good bug reports include:
 
 - explain the user-visible change first
 - call out trade-offs and follow-up work
-- keep AI-looking boilerplate out of the description
+- keep boilerplate out of the description
 
 That's it. Make it easier to maintain, not harder.

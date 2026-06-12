@@ -220,7 +220,17 @@ func newTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("OpenDB: %v", err)
 	}
+	closeTestDB(t, db)
 	return db
+}
+
+func closeTestDB(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	t.Cleanup(func() {
+		if err := esoui.CloseDB(db); err != nil {
+			t.Errorf("CloseDB: %v", err)
+		}
+	})
 }
 
 func newManagerWithPath(db *gorm.DB, settingsPath string) *Manager {

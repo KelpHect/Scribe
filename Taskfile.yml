@@ -1,0 +1,44 @@
+version: '3'
+
+vars:
+  APP_NAME: Scribe
+  BIN_DIR: bin
+  PACKAGE_MANAGER: npm
+  VITE_HOST: '{{.WAILS_VITE_HOST | default "127.0.0.1"}}'
+  VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
+
+includes:
+  common: ./build/Taskfile.yml
+  windows: ./build/windows/Taskfile.yml
+  linux: ./build/linux/Taskfile.yml
+  darwin: ./build/darwin/Taskfile.yml
+
+tasks:
+  build:
+    summary: Builds the desktop app for the current platform.
+    cmds:
+      - task: '{{OS}}:build'
+        vars:
+          ARCH: '{{.ARCH}}'
+          DEV: '{{.DEV}}'
+          EXTRA_TAGS: '{{.EXTRA_TAGS}}'
+          LD_FLAGS: '{{.LD_FLAGS}}'
+
+  package:
+    summary: Packages the desktop app for the current platform.
+    cmds:
+      - task: '{{OS}}:package'
+        vars:
+          ARCH: '{{.ARCH}}'
+          EXTRA_TAGS: '{{.EXTRA_TAGS}}'
+          LD_FLAGS: '{{.LD_FLAGS}}'
+
+  run:
+    summary: Runs the current platform build.
+    cmds:
+      - task: '{{OS}}:run'
+
+  dev:
+    summary: Runs Wails dev mode with the Vite frontend.
+    cmds:
+      - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}

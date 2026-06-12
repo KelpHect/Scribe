@@ -57,17 +57,14 @@ jobs:
         include:
           - name: Windows
             os: windows-latest
-            platform: windows/amd64
             build_tags: ""
             target: windows
           - name: Linux
             os: ubuntu-latest
-            platform: linux/amd64
-            build_tags: webkit2_41
+            build_tags: gtk3
             target: linux
           - name: macOS
             os: macos-latest
-            platform: darwin/universal
             build_tags: ""
             target: macos
 
@@ -90,13 +87,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
-
-      - name: Install UPX
-        if: runner.os != 'macOS'
-        uses: crazy-max/ghaction-upx@v3
-        with:
-          install-only: true
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.99
 
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
@@ -116,30 +107,33 @@ jobs:
         shell: bash
         run: |
           build_args=(
-            build
-            -platform "${{ matrix.platform }}"
-            -trimpath
-            -ldflags "-s -w -X main.version=${{ steps.info.outputs.VERSION }} -X main.commit=${{ steps.info.outputs.COMMIT }} -X main.date=${{ steps.info.outputs.DATE }}"
+            task
           )
 
-          if [ "${{ matrix.target }}" = "windows" ]; then
-            build_args+=( -nsis -upx -upxflags "--best --lzma" )
-          elif [ "${{ matrix.target }}" = "linux" ]; then
-            build_args+=( -upx -upxflags "--best --lzma" )
+          if [ "${{ matrix.target }}" = "macos" ]; then
+            build_args+=( darwin:package:universal )
+          else
+            build_args+=( build )
           fi
+
+          windows_gui_flag=""
+          if [ "${{ matrix.target }}" = "windows" ]; then
+            windows_gui_flag="-H windowsgui "
+          fi
+
+          build_args+=( "LD_FLAGS=-s -w ${windows_gui_flag}-X main.version=${{ steps.info.outputs.VERSION }} -X main.commit=${{ steps.info.outputs.COMMIT }} -X main.date=${{ steps.info.outputs.DATE }}" )
 
           if [ -n "${{ matrix.build_tags }}" ]; then
-            build_args+=( -tags "${{ matrix.build_tags }}" )
+            build_args+=( "EXTRA_TAGS=${{ matrix.build_tags }}" )
           fi
 
-          wails "${build_args[@]}"
+          wails3 "${build_args[@]}"
 
-      - name: Ad-hoc sign macOS app
+      - name: Verify macOS app signature
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          codesign --force --deep --sign - build/bin/Scribe.app
-          codesign --verify --deep --strict build/bin/Scribe.app
+          codesign --verify --deep --strict bin/Scribe.app
 
       - name: Stage release asset
         shell: bash
@@ -147,10 +141,10 @@ jobs:
           mkdir -p release
 
           if [ "${{ matrix.target }}" = "windows" ]; then
-            cp build/bin/Scribe.exe release/Scribe-windows-amd64.exe
+            cp bin/Scribe.exe release/Scribe-windows-amd64.exe
 
             installer=""
-            for candidate in build/bin/*installer*.exe; do
+            for candidate in bin/*installer*.exe; do
               if [ -f "$candidate" ]; then
                 installer="$candidate"
                 break
@@ -160,12 +154,12 @@ jobs:
             if [ -n "$installer" ]; then
               cp "$installer" release/Scribe-windows-amd64-installer.exe
             else
-              echo "No NSIS installer artifact found in build/bin. Publishing the portable Windows build only."
+              echo "No NSIS installer artifact found in bin. Publishing the portable Windows build only."
             fi
           elif [ "${{ matrix.target }}" = "linux" ]; then
-            cp build/bin/Scribe release/Scribe-linux-amd64
+            cp bin/Scribe release/Scribe-linux-amd64
           else
-            ditto -c -k --sequesterRsrc --keepParent build/bin/Scribe.app release/Scribe-macos-universal.zip
+            ditto -c -k --sequesterRsrc --keepParent bin/Scribe.app release/Scribe-macos-universal.zip
           fi
 
       - name: Validate staged release assets

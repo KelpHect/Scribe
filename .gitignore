@@ -1,8 +1,15 @@
 build/bin/
 build/reports/
+bin/
+.task/
 frontend/dist/
+frontend/bindings/
 frontend/wailsjs/
+frontend/tsconfig.tsbuildinfo
 node_modules/
+build/darwin/icons.icns
+build/darwin/Assets.car
+build/linux/*.desktop
 
 *.dll
 *.so

@@ -12,8 +12,6 @@ import (
 	"strings"
 	"sync"
 
-	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
-
 	"Scribe/internal/addon"
 	"Scribe/internal/esoui"
 	"Scribe/internal/scanner"
@@ -22,6 +20,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"gorm.io/gorm"
 )
@@ -32,9 +31,10 @@ const (
 )
 
 type App struct {
-	ctx     context.Context
-	scanner *scanner.Scanner
-	perfMu  sync.RWMutex
+	ctx      context.Context
+	wailsApp *application.App
+	scanner  *scanner.Scanner
+	perfMu   sync.RWMutex
 
 	version   string
 	commit    string
@@ -106,6 +106,20 @@ func NewApp() *App {
 	}
 }
 
+func (a *App) setWailsApp(app *application.App) {
+	a.wailsApp = app
+}
+
+func (a *App) ServiceStartup(ctx context.Context, _ application.ServiceOptions) error {
+	a.startup(ctx)
+	return nil
+}
+
+func (a *App) ServiceShutdown() error {
+	a.shutdown()
+	return nil
+}
+
 type DiagnosticsCount struct {
 	Name  string `json:"name"`
 	Count int    `json:"count"`
@@ -158,7 +172,13 @@ type RemoteCatalogStatus struct {
 	RefreshStartedAt string `json:"refreshStartedAt"`
 }
 
-func (a *App) shutdown(ctx context.Context) {
+type InstalledScanComplete struct {
+	Count  int    `json:"count"`
+	Reason string `json:"reason"`
+	Error  string `json:"error,omitempty"`
+}
+
+func (a *App) shutdown(_ ...context.Context) {
 	if a.shutdownCancel != nil {
 		a.shutdownCancel()
 	}
@@ -182,9 +202,7 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 	if a.db != nil {
 		_ = esoui.OptimizeDB(a.db)
-		if sqlDB, err := a.db.DB(); err == nil {
-			_ = sqlDB.Close()
-		}
+		_ = esoui.CloseDB(a.db)
 	}
 }
 
@@ -198,7 +216,10 @@ func (a *App) emitEvent(eventName string, data any) {
 	if a.ctx == nil || a.shutdownRequested() {
 		return
 	}
-	wailsRuntime.EventsEmit(a.ctx, eventName, data)
+	if a.wailsApp == nil {
+		return
+	}
+	a.wailsApp.Event.Emit(eventName, data)
 }
 
 func shouldBatchDownloadProgress(progress esoui.TaskProgress) bool {
@@ -242,25 +263,29 @@ func (a *App) flushDownloadProgress() {
 	if a.ctx == nil || a.shutdownRequested() {
 		return
 	}
-	wailsRuntime.EventsEmit(a.ctx, "download:progress-batch", batch)
+	if a.wailsApp == nil {
+		return
+	}
+	a.wailsApp.Event.Emit("download:progress-batch", batch)
 }
 
-func (a *App) registerRuntimeListeners(ctx context.Context) {
+func (a *App) registerRuntimeListeners() {
+	if a.wailsApp == nil {
+		return
+	}
 	if a.frontendReadyOff != nil {
 		a.frontendReadyOff()
 	}
 	if a.perfCaptureOff != nil {
 		a.perfCaptureOff()
 	}
-	a.frontendReadyOff = wailsRuntime.EventsOn(ctx, "perf:frontend-ready", func(optionalData ...interface{}) {
+	a.frontendReadyOff = a.wailsApp.Event.On("perf:frontend-ready", func(_ *application.CustomEvent) {
 		a.markFrontendReady()
 	})
-	a.perfCaptureOff = wailsRuntime.EventsOn(ctx, "perf:capture", func(optionalData ...interface{}) {
+	a.perfCaptureOff = a.wailsApp.Event.On("perf:capture", func(event *application.CustomEvent) {
 		label := "capture"
-		if len(optionalData) > 0 {
-			if s, ok := optionalData[0].(string); ok && s != "" {
-				label = s
-			}
+		if s, ok := event.Data.(string); ok && s != "" {
+			label = s
 		}
 		a.logPerformanceSnapshot(label)
 	})
@@ -295,7 +320,7 @@ func (a *App) startup(ctx context.Context) {
 		}
 	} else {
 		a.setPersistenceStatus("degraded", privacySafePersistenceError(err))
-		wailsRuntime.LogErrorf(a.ctx, "[db] settings/cache database unavailable: %s", a.getPersistenceError())
+		a.logErrorf("[db] settings/cache database unavailable: %s", a.getPersistenceError())
 	}
 
 	a.markCachedStateReady()
@@ -324,8 +349,7 @@ func (a *App) cleanStaleInstallArtifacts() {
 	a.tempCleanupMu.Unlock()
 
 	if report.RemovedCount() > 0 || report.RetainedCount() > 0 || report.Error() != "" {
-		wailsRuntime.LogInfof(
-			a.ctx,
+		a.logInfof(
 			"[install-cleanup] removed=%d retained=%d errors=%d",
 			report.RemovedCount(),
 			report.RetainedCount(),
@@ -347,7 +371,7 @@ func (a *App) initESOUI() {
 		cache, err = esoui.NewCache()
 		if err != nil {
 			a.setPersistenceStatus("degraded", privacySafePersistenceError(err))
-			wailsRuntime.LogErrorf(a.ctx, "[esoui] cache database unavailable: %s", a.getPersistenceError())
+			a.logErrorf("[esoui] cache database unavailable: %s", a.getPersistenceError())
 			return
 		}
 	}
@@ -358,7 +382,7 @@ func (a *App) initESOUI() {
 
 	client := esoui.NewClient()
 	if err := client.Init(); err != nil {
-		wailsRuntime.LogErrorf(a.ctx, "[esoui] client.Init failed: %v", err)
+		a.logErrorf("[esoui] client.Init failed: %v", err)
 		return
 	}
 	if a.shutdownCtx.Err() != nil {
@@ -385,7 +409,7 @@ func (a *App) initESOUI() {
 	}
 
 	if err := a.refreshRemoteList(); err != nil {
-		wailsRuntime.LogErrorf(a.ctx, "[esoui] initial refresh failed: %v", err)
+		a.logErrorf("[esoui] initial refresh failed: %v", err)
 		return
 	}
 	a.markRemoteReady()
@@ -393,7 +417,11 @@ func (a *App) initESOUI() {
 
 func (a *App) domReady(ctx context.Context) {
 	a.ctx = ctx
-	a.registerRuntimeListeners(ctx)
+	a.runtimeReady()
+}
+
+func (a *App) runtimeReady() {
+	a.registerRuntimeListeners()
 	a.perfMu.Lock()
 	if a.domReadyAt.IsZero() {
 		a.domReadyAt = time.Now()
@@ -469,6 +497,24 @@ func privacySafeInstallCleanupError(message string) string {
 	return "some Scribe-owned temporary install artifacts could not be cleaned; check AddOns directory permissions"
 }
 
+func (a *App) logInfof(format string, args ...any) {
+	message := fmt.Sprintf(format, args...)
+	if a.wailsApp != nil && a.wailsApp.Logger != nil {
+		a.wailsApp.Logger.Info(message)
+		return
+	}
+	_, _ = fmt.Fprintln(os.Stderr, message)
+}
+
+func (a *App) logErrorf(format string, args ...any) {
+	message := fmt.Sprintf(format, args...)
+	if a.wailsApp != nil && a.wailsApp.Logger != nil {
+		a.wailsApp.Logger.Error(message)
+		return
+	}
+	_, _ = fmt.Fprintln(os.Stderr, message)
+}
+
 func (a *App) logPerformanceSnapshot(label string) {
 	if a.ctx == nil {
 		return
@@ -476,8 +522,7 @@ func (a *App) logPerformanceSnapshot(label string) {
 
 	snapshot := a.getDiagnosticsSnapshot()
 
-	wailsRuntime.LogInfof(
-		a.ctx,
+	a.logInfof(
 		"[perf] %s startup_ms=%d dom_ready_ms=%d frontend_ready_ms=%d remote_ready_ms=%d heap_alloc_mb=%d sys_mb=%d goroutines=%d remote_addons=%d installed_addons=%d num_gc=%d detail_requests=%d remote_refreshes=%d heap_inuse_mb=%d stack_inuse_mb=%d total_alloc_mb=%d mem_budget_ok=%v startup_budget_ok=%v",
 		label,
 		snapshot.StartupMS,
@@ -500,10 +545,10 @@ func (a *App) logPerformanceSnapshot(label string) {
 	)
 
 	if !snapshot.StartupBudgetOK && !a.frontendReadyAt.IsZero() {
-		wailsRuntime.LogInfof(a.ctx, "[perf] WARNING: startup budget exceeded — frontend_ready_ms=%d (target: <1000ms)", snapshot.FrontendReadyMS)
+		a.logInfof("[perf] WARNING: startup budget exceeded - frontend_ready_ms=%d (target: <1000ms)", snapshot.FrontendReadyMS)
 	}
 	if !snapshot.MemoryBudgetOK {
-		wailsRuntime.LogInfof(a.ctx, "[perf] WARNING: memory budget exceeded — sys_mb=%d (target: <150MB)", snapshot.SysMB)
+		a.logInfof("[perf] WARNING: memory budget exceeded - sys_mb=%d (target: <150MB)", snapshot.SysMB)
 	}
 }
 
@@ -654,7 +699,7 @@ func (a *App) ensureClient() error {
 		return fmt.Errorf("ESOUI client init: %w", err)
 	}
 	a.esoClient = client
-	wailsRuntime.LogInfof(a.ctx, "[esoui] client re-initialized successfully")
+	a.logInfof("[esoui] client re-initialized successfully")
 	return nil
 }
 
@@ -741,14 +786,14 @@ func (a *App) finishAddonScan(reason string, count int, err error) string {
 	a.scanMu.Unlock()
 
 	if shouldEmitInstalledScanComplete(reason) && a.ctx != nil && !a.shutdownRequested() {
-		payload := map[string]any{
-			"count":  count,
-			"reason": reason,
+		payload := InstalledScanComplete{
+			Count:  count,
+			Reason: reason,
 		}
 		if err != nil {
-			payload["error"] = a.lastScanErr
+			payload.Error = a.lastScanErr
 		}
-		wailsRuntime.EventsEmit(a.ctx, "installed:scan-complete", payload)
+		a.emitEvent("installed:scan-complete", payload)
 	}
 	return safeErr
 }
@@ -784,7 +829,7 @@ func (a *App) scanAddonsLocked(reason string) ([]*addon.Addon, error) {
 	}
 	safeErr := a.finishAddonScan(reason, len(addons), err)
 	if err != nil && a.ctx != nil {
-		wailsRuntime.LogErrorf(a.ctx, "[scanner] scan %s failed: %s", reason, safeErr)
+		a.logErrorf("[scanner] scan %s failed: %s", reason, safeErr)
 	}
 	return addons, err
 }
@@ -849,10 +894,14 @@ func (a *App) DetectAddonPath() string {
 }
 
 func (a *App) BrowseFolder(title string) (string, error) {
-	path, err := wailsRuntime.OpenDirectoryDialog(a.ctx, wailsRuntime.OpenDialogOptions{
-		Title: title,
-	})
-	return path, err
+	if a.wailsApp == nil {
+		return "", fmt.Errorf("application runtime is not ready")
+	}
+	return a.wailsApp.Dialog.OpenFile().
+		SetTitle(title).
+		CanChooseDirectories(true).
+		CanChooseFiles(false).
+		PromptForSingleSelection()
 }
 
 func (a *App) OpenPath(path string) error {
@@ -937,7 +986,7 @@ func (a *App) GetRemoteAddons() ([]esoui.RemoteAddon, error) {
 	list := a.getRemoteList()
 	if len(list) == 0 {
 		if err := a.refreshRemoteList(); err != nil {
-			return nil, fmt.Errorf("unable to reach ESOUI — %w", err)
+			return nil, fmt.Errorf("unable to reach ESOUI: %w", err)
 		}
 		list = a.getRemoteList()
 	} else if a.esoCache != nil && a.esoCache.IsStale() {
@@ -955,7 +1004,7 @@ func (a *App) GetRemoteAddons() ([]esoui.RemoteAddon, error) {
 				a.remoteMu.Lock()
 				a.lastRefreshErr = err.Error()
 				a.remoteMu.Unlock()
-				wailsRuntime.LogInfof(a.ctx, "[esoui] background refresh failed: %v", err)
+				a.logInfof("[esoui] background refresh failed: %v", err)
 			}
 		}()
 	}
@@ -1072,7 +1121,7 @@ func (a *App) GetAppInfo() AppInfo {
 		Arch:      stdRuntime.GOARCH,
 		// GTK/KDE can still draw native chrome around a frameless Wails window.
 		// Prefer the platform titlebar on Linux to avoid duplicate controls.
-		CustomTitleBar: stdRuntime.GOOS != "linux",
+		CustomTitleBar: useCustomTitleBarForGOOS(stdRuntime.GOOS),
 	}
 }
 

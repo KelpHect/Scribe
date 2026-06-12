@@ -9,7 +9,8 @@ $gitVersion = if (git describe --tags --always 2>$null) { git describe --tags --
 $gitCommit  = if (git rev-parse --short HEAD 2>$null) { git rev-parse --short HEAD 2>$null } else { "none" }
 $buildDate  = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
 
-$ldflags = "-s -w -X main.version=$gitVersion -X main.commit=$gitCommit -X main.date=$buildDate"
+$windowsGuiFlag = if ((go env GOOS) -eq "windows") { "-H windowsgui " } else { "" }
+$ldflags = "-s -w ${windowsGuiFlag}-X main.version=$gitVersion -X main.commit=$gitCommit -X main.date=$buildDate"
 
 if ($env:SCRIBE_PGO_PROFILE) {
   if (-not (Test-Path $env:SCRIBE_PGO_PROFILE)) {
@@ -23,23 +24,26 @@ if ($env:SCRIBE_PGO_PROFILE) {
 Write-Host "building Scribe $gitVersion ($gitCommit) $buildDate" -ForegroundColor Cyan
 
 $buildArgs = @(
+  'task',
   'build',
-  '-trimpath',
-  '-ldflags',
-  $ldflags
+  "LD_FLAGS=$ldflags"
 )
+
+if ((go env GOOS) -eq "linux") {
+  $buildArgs += "EXTRA_TAGS=gtk3"
+}
 
 if ($ExtraArgs) {
   $buildArgs += $ExtraArgs
 }
 
-wails @buildArgs
+wails3 @buildArgs
 if ($LASTEXITCODE -ne 0) {
   Write-Host "build failed" -ForegroundColor Red
   exit $LASTEXITCODE
 }
 
-$exePath = Join-Path $PSScriptRoot "..\build\bin\Scribe.exe"
+$exePath = Join-Path $PSScriptRoot "..\bin\Scribe.exe"
 if (Test-Path $exePath) {
   $size = (Get-Item $exePath).Length / 1MB
   Write-Host "built: $exePath ($([math]::Round($size, 1)) MB)" -ForegroundColor Green

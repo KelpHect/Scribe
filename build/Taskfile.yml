@@ -1,0 +1,67 @@
+version: '3'
+
+tasks:
+  go:mod:tidy:
+    summary: Tidies Go modules.
+    internal: true
+    cmds:
+      - go mod tidy
+
+  install:frontend:deps:
+    summary: Installs frontend dependencies with npm.
+    dir: frontend
+    sources:
+      - package.json
+      - package-lock.json
+    generates:
+      - node_modules
+    cmds:
+      - npm install
+
+  generate:bindings:
+    summary: Generates Wails TypeScript bindings.
+    deps:
+      - task: go:mod:tidy
+    cmds:
+      - wails3 generate bindings -f '{{.BUILD_FLAGS}}' -clean=true -ts
+
+  build:frontend:
+    summary: Builds the frontend assets.
+    dir: frontend
+    deps:
+      - task: install:frontend:deps
+      - task: generate:bindings
+        vars:
+          BUILD_FLAGS: '{{.BUILD_FLAGS}}'
+    cmds:
+      - npm run build
+    env:
+      PRODUCTION: '{{if eq .DEV "true"}}false{{else}}true{{end}}'
+
+  dev:frontend:
+    summary: Runs the frontend dev server.
+    dir: frontend
+    deps:
+      - task: install:frontend:deps
+    cmds:
+      - npm run dev -- --host {{.VITE_HOST}} --port {{.VITE_PORT}} --strictPort
+
+  generate:icons:
+    summary: Regenerates platform icons from build/appicon.png.
+    dir: build
+    sources:
+      - appicon.png
+    generates:
+      - windows/icon.ico
+      - darwin/icons.icns
+    cmds:
+      - wails3 generate icons -input appicon.png -windowsfilename windows/icon.ico -macfilename darwin/icons.icns
+
+  ensure:bin:
+    summary: Ensures the binary output directory exists.
+    internal: true
+    cmds:
+      - cmd: powershell -NoProfile -Command "New-Item -ItemType Directory -Force '{{.BIN_DIR}}' | Out-Null"
+        platforms: [windows]
+      - cmd: mkdir -p "{{.BIN_DIR}}"
+        platforms: [linux, darwin]

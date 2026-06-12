@@ -1,6 +1,6 @@
 # Dependency Audit
 
-Last updated: 2026-05-19
+Last updated: 2026-06-12
 
 ## Summary
 
@@ -28,6 +28,7 @@ Declared frontend dependencies are used as follows:
 - `@tanstack/query-core`: direct `QueryClient` use in shared query/cache helpers.
 - `@tanstack/svelte-query`: route/detail/catalog query caching.
 - `@tanstack/svelte-virtual`: Installed and Find More list virtualization.
+- `@wailsio/runtime`: Wails v3 frontend runtime, events, window controls, browser links, clipboard access, and typed binding support.
 - `lucide-svelte`: app icons. It is deprecated upstream in favor of `@lucide/svelte`, but a package rename should be handled as a focused compatibility task, not hidden inside a dependency cleanup.
 - `svelte`: app framework.
 - `svelte-sonner`: toast/task notifications.
@@ -38,7 +39,7 @@ The clean `npm ci` tree still reports `@emnapi/*`, `@napi-rs/wasm-runtime`, `@ty
 Current build comparison:
 
 - `npm --prefix frontend run build` passed.
-- Bundle budget warnings remain non-fatal and currently cover small overages in `index`, `route-installed`, `route-settings`, and `index.css`.
+- Bundle budget warnings remain non-fatal and currently cover small overages in `index`, `route-installed`, and `route-settings`.
 
 ## Go
 
@@ -55,7 +56,7 @@ Direct Go dependencies are used as follows:
 - `github.com/glebarez/sqlite`: GORM SQLite driver.
 - `github.com/google/uuid`: search preset row IDs and local app identifiers.
 - `github.com/pelletier/go-toml/v2`: atomic `settings.toml` persistence.
-- `github.com/wailsapp/wails/v2`: desktop shell, app bindings, runtime helpers, and build tooling.
+- `github.com/wailsapp/wails/v3`: desktop shell, app bindings, runtime helpers, dialogs, events, and build tooling.
 - `gorm.io/gorm`: cache/settings migration, search preset rows, scanner cache, and install records.
 
 Indirect Go dependencies remain owned by Wails, GORM, SQLite, and platform/runtime packages.

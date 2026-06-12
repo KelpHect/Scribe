@@ -1,0 +1,39 @@
+version: '3'
+
+includes:
+  common: ../Taskfile.yml
+
+tasks:
+  build:
+    summary: Builds the Linux desktop binary.
+    deps:
+      - task: common:go:mod:tidy
+      - task: common:build:frontend
+        vars:
+          BUILD_FLAGS: '{{.BUILD_FLAGS}}'
+          DEV: '{{.DEV}}'
+      - task: common:ensure:bin
+    cmds:
+      - go build {{.BUILD_FLAGS}} -o "{{.BIN_DIR}}/{{.APP_NAME}}"
+    vars:
+      BUILD_TAGS: '{{if eq .DEV "true"}}{{.EXTRA_TAGS}}{{else}}production{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}}{{end}}'
+      DEFAULT_LD_FLAGS: '{{if eq .DEV "true"}}{{else}}-w -s{{end}}'
+      GO_LD_FLAGS: '{{.LD_FLAGS | default .DEFAULT_LD_FLAGS}}'
+      BUILD_FLAGS: '{{if .BUILD_TAGS}}-tags "{{.BUILD_TAGS}}" {{end}}{{if ne .DEV "true"}}-trimpath {{end}}-buildvcs=false {{if .GO_LD_FLAGS}}-ldflags "{{.GO_LD_FLAGS}}"{{end}}'
+    env:
+      GOOS: linux
+      GOARCH: '{{.ARCH | default ARCH}}'
+      CGO_ENABLED: 1
+
+  package:
+    summary: Packages Linux by building the portable binary.
+    cmds:
+      - task: build
+        vars:
+          ARCH: '{{.ARCH}}'
+          EXTRA_TAGS: '{{.EXTRA_TAGS}}'
+          LD_FLAGS: '{{.LD_FLAGS}}'
+
+  run:
+    cmds:
+      - '{{.BIN_DIR}}/{{.APP_NAME}}'

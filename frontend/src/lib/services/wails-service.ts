@@ -1,7 +1,7 @@
-type AppBindings = typeof import('../../../wailsjs/go/main/App');
+type AppBindings = typeof import('../../../bindings/Scribe/app');
 
 export async function getWailsApp(): Promise<AppBindings> {
-  return import('wailsjs/go/main/App') as Promise<AppBindings>;
+  return import('../../../bindings/Scribe/app') as Promise<AppBindings>;
 }
 
 export async function callWails<TMethod extends keyof AppBindings>(
