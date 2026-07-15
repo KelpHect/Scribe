@@ -1,0 +1,52 @@
+name: Tag Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  tag:
+    name: Create Cargo version tag
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve Cargo version
+        id: version
+        shell: pwsh
+        run: |
+          $metadata = cargo metadata --locked --no-deps --format-version 1 | ConvertFrom-Json
+          $version = ($metadata.packages | Where-Object name -eq 'scribe-app').version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "Invalid Cargo package version: $version"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=v$version" >> $env:GITHUB_OUTPUT
+
+      - name: Create and push tag if absent
+        id: tag
+        shell: pwsh
+        run: |
+          git fetch --tags --force
+          $tag = '${{ steps.version.outputs.tag }}'
+          git rev-parse $tag 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            "created=false" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          git tag $tag
+          git push origin $tag
+          "created=true" >> $env:GITHUB_OUTPUT
+
+      - name: Dispatch release workflow
+        if: steps.tag.outputs.created == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run release.yml --ref main -f release_tag='${{ steps.version.outputs.tag }}'

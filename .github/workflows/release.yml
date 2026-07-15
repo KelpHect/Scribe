@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Tag to build and publish, for example v1.0.5
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag || github.ref_name }}
+
+jobs:
+  build:
+    name: Build Windows portable artifact
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Validate tag matches Cargo version
+        shell: pwsh
+        run: |
+          $metadata = cargo metadata --locked --no-deps --format-version 1 | ConvertFrom-Json
+          $version = ($metadata.packages | Where-Object name -eq 'scribe-app').version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "Invalid Cargo package version: $version"
+          }
+          if ($env:RELEASE_TAG -ne "v$version") {
+            throw "Release tag $env:RELEASE_TAG does not match Cargo version $version"
+          }
+
+      - name: Verify and build
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo test --workspace --all-features --locked
+          cargo build --release -p scribe-app --locked
+
+      - name: Stage artifact and checksum
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release | Out-Null
+          Copy-Item target/release/scribe.exe release/Scribe-windows-amd64.exe
+          $hash = (Get-FileHash release/Scribe-windows-amd64.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Scribe-windows-amd64.exe" | Set-Content -NoNewline release/SHA256SUMS.txt
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-assets
+          path: release/*
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Scribe ${{ env.RELEASE_TAG }}
+          generate_release_notes: true
+          files: release/*

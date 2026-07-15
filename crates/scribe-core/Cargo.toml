@@ -1,0 +1,52 @@
+[package]
+name = "scribe-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[features]
+default = ["rkyv-catalog"]
+rkyv-catalog = ["dep:rkyv", "dep:self_cell"]
+rkyv-bench = ["rkyv-catalog"]
+codec-lab = ["rkyv-bench", "dep:compact_str"]
+
+[dependencies]
+atomicwrites = "0.4"
+async-io.workspace = true
+async-executor.workspace = true
+async-lock.workspace = true
+compact_str = { version = "0.10", optional = true, features = ["serde"] }
+event-listener.workspace = true
+futures.workspace = true
+http_client.workspace = true
+md-5 = "0.11"
+postcard.workspace = true
+redb.workspace = true
+regex = "1.12"
+rkyv = { version = "0.8.17", optional = true, features = ["little_endian", "pointer_width_32", "unaligned", "bytecheck", "smol_str-0_3"] }
+self_cell = { version = "1.2.2", optional = true }
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+smol_str = { version = "0.3.6", features = ["serde"] }
+thiserror.workspace = true
+tempfile = "3.27"
+toml.workspace = true
+time.workspace = true
+zip = { version = "8.2", default-features = false, features = ["deflate"] }
+
+[[example]]
+name = "codec_gate"
+required-features = ["rkyv-bench"]
+
+[[example]]
+name = "codec_lab"
+required-features = ["codec-lab"]
+
+[dev-dependencies]
+http_client = { workspace = true, features = ["test-support"] }
+proptest = { git = "https://github.com/proptest-rs/proptest", rev = "3dca198a8fef1b32e3a66f1e1897c955b4dc5b5b" }
+stats_alloc = "0.1.10"

@@ -1,0 +1,68 @@
+[advisories]
+ignore = [
+    { id = "RUSTSEC-2024-0436", reason = "Unmaintained paste is transitive in the pinned GPUI graph; no vulnerability or safe upgrade is available." },
+    { id = "RUSTSEC-2024-0384", reason = "Unmaintained instant is transitive through futures-lite in the pinned Zed utility graph; no vulnerability or compatible upgrade is available." },
+    { id = "RUSTSEC-2025-0134", reason = "Unmaintained rustls-pemfile is transitive in the pinned Zed TLS graph; no vulnerability or safe upgrade is available." },
+    { id = "RUSTSEC-2026-0173", reason = "Unmaintained proc-macro-error2 is transitive in the pinned GPUI graph; no vulnerability or safe upgrade is available." },
+    { id = "RUSTSEC-2026-0192", reason = "Unmaintained ttf-parser is transitive in the pinned GPUI text stack; no vulnerability or safe upgrade is available." },
+    { id = "RUSTSEC-2026-0206", reason = "Unmaintained rustybuzz is transitive in the pinned GPUI text stack; no vulnerability or safe upgrade is available." },
+]
+
+[licenses]
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+    "bzip2-1.0.6",
+]
+confidence-threshold = 0.8
+exceptions = [
+    { crate = "zlog", allow = ["GPL-3.0-or-later"] },
+    { crate = "ztracing", allow = ["GPL-3.0-or-later"] },
+    { crate = "ztracing_macro", allow = ["GPL-3.0-or-later"] },
+]
+
+[[licenses.clarify]]
+crate = "gpui_shared_string"
+expression = "Apache-2.0"
+license-files = [{ path = "LICENSE-APACHE", hash = 0x8a8d02f6 }]
+
+[[licenses.clarify]]
+crate = "gpui_util"
+expression = "Apache-2.0"
+license-files = [{ path = "LICENSE-APACHE", hash = 0x8a8d02f6 }]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+required-git-spec = "any"
+unused-allowed-source = "allow"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = [
+    "https://github.com/proptest-rs/proptest",
+    "https://github.com/smol-rs/async-task",
+    "https://github.com/longbridge/gpui-component",
+    "https://github.com/zed-industries/async-process",
+    "https://github.com/zed-industries/font-kit",
+    "https://github.com/zed-industries/reqwest",
+    "https://github.com/zed-industries/scap",
+    "https://github.com/zed-industries/wgpu",
+    "https://github.com/zed-industries/zed",
+]
