@@ -496,48 +496,89 @@ mod tests {
 
     #[test]
     fn required_dependency_wins_and_constraints_are_informational() {
-        let mut first = local("AddonA", "1");
-        first.optional_depends_on = vec!["SharedLib >= 100".into(), "UnknownLib".into()];
-        let mut second = local("AddonB", "1");
-        second.depends_on = vec!["SharedLib >= 200".into()];
+        // Golden parity fixture from old_app/missing_dependencies_test.go:
+        // TestFindMissingDependenciesPureHelper.
+        let mut root = local("RootAddon", "1");
+        root.depends_on = vec!["LibRequired>=1.0".into()];
+        root.optional_depends_on = vec!["LibOptional".into(), "LibInstalled".into()];
+        let mut other = local("OtherAddon", "1");
+        other.optional_depends_on = vec!["LibRequired<=2.0".into()];
+
+        let mut required = remote("required-uid", "3", &["LibRequired"]);
+        required.ui_name = "Required Library".into();
+        let mut optional = remote("optional-uid", "2", &["Nested", "LibOptional"]);
+        optional.ui_name = "Optional Library".into();
 
         let plan = Matcher::resolve_dependencies(
-            &[first, second],
-            &[remote("canonical", "3", &["SharedLib"])],
+            &[root, other, local("LibInstalled", "1")],
+            &[required, optional],
         );
-        assert_eq!(plan.len(), 2);
-        assert_eq!(plan[0].dep_folder_name, "sharedlib");
-        assert!(!plan[0].optional);
-        assert!(plan[0].can_install);
-        assert_eq!(plan[0].remote_uid, "canonical");
-        assert_eq!(plan[0].required_by, ["AddonA", "AddonB"]);
-        assert_eq!(plan[0].version_constraints, [">= 100", ">= 200"]);
-        assert_eq!(plan[1].plan_state, "unresolved");
-        assert!(plan[1].optional);
+        let required = plan
+            .iter()
+            .find(|dependency| dependency.dep_folder_name == "librequired")
+            .unwrap();
+        assert!(!required.optional);
+        assert!(required.can_install);
+        assert_eq!(required.remote_uid, "required-uid");
+        assert_eq!(required.remote_name, "Required Library");
+        assert_eq!(required.required_by, ["OtherAddon", "RootAddon"]);
+        assert_eq!(required.version_constraints, ["<=2.0", ">=1.0"]);
+        assert_eq!(required.plan_state, "installable");
+        assert!(!required.plan_reason.is_empty());
+
+        let optional = plan
+            .iter()
+            .find(|dependency| dependency.dep_folder_name == "liboptional")
+            .unwrap();
+        assert!(optional.optional);
+        assert!(optional.can_install);
+        assert_eq!(optional.remote_uid, "optional-uid");
+        assert_eq!(optional.remote_name, "Optional Library");
+        assert!(
+            !plan
+                .iter()
+                .any(|dependency| dependency.dep_folder_name == "libinstalled")
+        );
     }
 
     #[test]
     fn md5_decisions_suppress_false_positives_and_detect_changed_archives() {
-        let remotes = [
-            remote("same", "2", &["Same"]),
-            remote("changed", "1", &["Changed"]),
+        // Golden parity fixture from old_app/md5_suppression_test.go.
+        let decision = |uid: &str, update_available: bool, state: UpdateState| MatchedAddon {
+            remote: Some(remote(uid, "1", &[uid])),
+            update_available,
+            update_state: state.as_str().into(),
+            ..MatchedAddon::default()
+        };
+        let matched = vec![
+            decision("same", true, UpdateState::RemoteNewer),
+            decision("different", true, UpdateState::RemoteNewer),
+            decision("missing-remote-md5", true, UpdateState::RemoteNewer),
+            decision("already-current", false, UpdateState::UpToDate),
+            decision("same-version-new-download", false, UpdateState::UpToDate),
         ];
-        let matched =
-            Matcher::match_installed(&[local("Same", "1"), local("Changed", "1")], &remotes);
         let installed = HashMap::from([
-            ("same".into(), "ABC".into()),
-            ("changed".into(), "old".into()),
+            ("same".into(), "abc".into()),
+            ("different".into(), "old".into()),
+            ("missing-remote-md5".into(), "stored".into()),
+            ("already-current".into(), "abc".into()),
+            ("same-version-new-download".into(), "old".into()),
         ]);
         let current = HashMap::from([
             ("same".into(), "abc".into()),
-            ("changed".into(), "new".into()),
+            ("different".into(), "new".into()),
+            ("already-current".into(), "abc".into()),
+            ("same-version-new-download".into(), "new".into()),
         ]);
         let decisions = Matcher::apply_md5_decisions(matched, &installed, &current);
         assert!(!decisions[0].update_available);
         assert_eq!(decisions[0].update_state, UpdateState::UpToDate.as_str());
         assert!(decisions[1].update_available);
+        assert!(decisions[2].update_available);
+        assert!(!decisions[3].update_available);
+        assert!(decisions[4].update_available);
         assert_eq!(
-            decisions[1].update_state,
+            decisions[4].update_state,
             UpdateState::Md5OnlyChanged.as_str()
         );
     }

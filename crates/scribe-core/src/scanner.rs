@@ -430,19 +430,50 @@ mod tests {
 
     #[test]
     fn parses_metadata_dependencies_and_color_codes() {
+        // Golden parity fixture from old_app/internal/scanner/scanner_test.go:
+        // TestParseAddonFile_MetadataEdgeCases.
         let temp = tempfile::tempdir().unwrap();
         let directory = temp.path().join("EdgeAddon");
         fs::create_dir(&directory).unwrap();
         let path = directory.join("EdgeAddon.txt");
         fs::write(
             &path,
-            "## Title: |cFFAA00Colored Title|r\n## DependsOn: LibA>=1 LibB\n## PCDependsOn: LibPC\n## OptionalDependsOn: LibOptional>=4\n## IsLibrary: 1\n",
+            "## Title: |cFFAA00Colored Title|r\n\
+             ## Version: |cFFFFFF1.2.3|r\n\
+             ## Author: |c00FF00Author Name|r\n\
+             ## Description: |c123456A description|r\n\
+             ## DependsOn: LibRequired>=1.0 LibAnother<=2\n\
+             ## PCDependsOn: LibPC LibPCVersion>=3\n\
+             ## ConsoleDependsOn: ConsoleOnly\n\
+             ## OptionalDependsOn: LibOptional LibOptionalVersion>=4\n\
+             ## SavedVariables: EdgeSaved AccountWideSaved\n\
+             ## APIVersion: 101046 101047\n\
+             ## AddOnVersion: 42\n\
+             ## IsLibrary: 1\n\n\
+             EdgeAddon.lua\n",
         )
         .unwrap();
         let addon = parse_addon_file(&path).unwrap();
         assert_eq!(addon.title, "Colored Title");
-        assert_eq!(addon.depends_on, ["LibA>=1", "LibB", "LibPC"]);
-        assert_eq!(addon.optional_depends_on, ["LibOptional>=4"]);
+        assert_eq!(addon.version, "1.2.3");
+        assert_eq!(addon.author, "Author Name");
+        assert_eq!(addon.description, "A description");
+        assert_eq!(
+            addon.depends_on,
+            [
+                "LibRequired>=1.0",
+                "LibAnother<=2",
+                "LibPC",
+                "LibPCVersion>=3"
+            ]
+        );
+        assert_eq!(
+            addon.optional_depends_on,
+            ["LibOptional", "LibOptionalVersion>=4"]
+        );
+        assert_eq!(addon.saved_variables, ["EdgeSaved", "AccountWideSaved"]);
+        assert_eq!(addon.api_version, "101046 101047");
+        assert_eq!(addon.add_on_version, "42");
         assert!(addon.is_library);
     }
 

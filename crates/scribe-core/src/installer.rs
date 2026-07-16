@@ -490,6 +490,8 @@ mod tests {
 
     #[test]
     fn rejects_traversal_absolute_backslash_and_root_files() {
+        // Golden parity cases from old_app/internal/esoui/installer_test.go:
+        // TestPlanInstallArchiveRejectsAmbiguousUnsafeArchives.
         for name in ["../evil.txt", "/evil.txt", r"Addon\..\evil.txt"] {
             let (_temp, archive) = create_archive(&[(name, "evil")]);
             let addon_path = tempfile::tempdir().unwrap();
@@ -504,6 +506,20 @@ mod tests {
         assert!(matches!(
             Installer::plan_archive(&archive, addon_path.path(), &[]),
             Err(InstallError::RootFile(_))
+        ));
+
+        let (_temp, archive) = create_archive(&[("Addon/file.lua", "content")]);
+        let addon_path = tempfile::tempdir().unwrap();
+        assert!(matches!(
+            Installer::plan_archive(&archive, addon_path.path(), &["Addon".into()]),
+            Err(InstallError::MissingManifest(folder)) if folder == "Addon"
+        ));
+
+        let (_temp, archive) = create_archive(&[("OtherAddon/OtherAddon.txt", "## Title: Other")]);
+        let addon_path = tempfile::tempdir().unwrap();
+        assert!(matches!(
+            Installer::plan_archive(&archive, addon_path.path(), &["Addon".into()]),
+            Err(InstallError::UnexpectedFolder(folder)) if folder == "OtherAddon"
         ));
     }
 

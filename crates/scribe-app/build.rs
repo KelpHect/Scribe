@@ -1,10 +1,10 @@
 fn main() {
-    println!("cargo:rerun-if-changed=../../assets/icon.ico");
+    println!("cargo:rerun-if-changed=../../assets/scribe-icon-v2.ico");
     #[cfg(windows)]
     {
         let mut resource = winresource::WindowsResource::new();
         resource
-            .set_icon("../../assets/icon.ico")
+            .set_icon("../../assets/scribe-icon-v2.ico")
             .set("ProductName", "Scribe")
             .set("FileDescription", "Scribe ESO Addon Manager")
             .set("OriginalFilename", "Scribe-windows-amd64.exe")

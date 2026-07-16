@@ -14,7 +14,7 @@ pub mod storage;
 
 #[cfg(feature = "rkyv-catalog")]
 pub use archive::CatalogArchive;
-pub use catalog::{Catalog, CatalogIndex, CatalogSort, InstalledIndex};
+pub use catalog::{Catalog, CatalogIndex, CatalogSort, InstalledIndex, latest_compatibility};
 pub use client::{CancellationToken, CatalogService, EsouiClient};
 pub use install_manager::{InstallManager, InstallRequest, TaskProgress, TaskState};
 pub use installer::{CleanupReport, InstallPlanEntry, Installer};

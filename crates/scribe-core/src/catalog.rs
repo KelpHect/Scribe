@@ -6,7 +6,14 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "rkyv-catalog")]
 use crate::CatalogArchive;
-use crate::{Addon, Category, MatchedAddon, RemoteAddon};
+use crate::{Addon, Category, GameVersion, MatchedAddon, RemoteAddon};
+
+pub fn latest_compatibility(versions: &[GameVersion]) -> Option<&GameVersion> {
+    versions
+        .iter()
+        .filter(|version| !version.version.trim().is_empty())
+        .max_by(|left, right| compare_version_strings(&left.version, &right.version))
+}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(
@@ -396,14 +403,38 @@ fn collect_compatibility_versions<'a>(
     versions: impl Iterator<Item = (&'a str, &'a str)>,
 ) -> Vec<String> {
     let mut versions: Vec<String> = versions
-        .flat_map(|(version, name)| [version, name])
+        .map(|(version, _)| version)
         .filter(|value| !value.trim().is_empty())
         .map(ToOwned::to_owned)
         .collect();
-    versions.sort_unstable();
+    versions.sort_unstable_by(|left, right| compare_version_strings(left, right));
     versions.dedup();
     versions.reverse();
     versions
+}
+
+fn compare_version_strings(left: &str, right: &str) -> std::cmp::Ordering {
+    let parse = |value: &str| {
+        value
+            .split('.')
+            .filter_map(|part| part.parse::<u64>().ok())
+            .collect::<Vec<_>>()
+    };
+    let left_parts = parse(left);
+    let right_parts = parse(right);
+    let max_parts = left_parts.len().max(right_parts.len());
+    for index in 0..max_parts {
+        match left_parts
+            .get(index)
+            .copied()
+            .unwrap_or_default()
+            .cmp(&right_parts.get(index).copied().unwrap_or_default())
+        {
+            std::cmp::Ordering::Equal => {}
+            ordering => return ordering,
+        }
+    }
+    left.cmp(right)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -700,6 +731,175 @@ mod tests {
         );
     }
 
+    #[test]
+    fn legacy_remote_catalog_filter_golden_matches_rust_index() {
+        // Golden parity fixture from
+        // old_app/frontend/src/lib/perf/remote-catalog-index.test.ts.
+        let current = crate::GameVersion {
+            version: "101046".into(),
+            name: "Current".into(),
+        };
+        let older = crate::GameVersion {
+            version: "101041".into(),
+            name: "Older".into(),
+        };
+        let catalog = Arc::new(Catalog {
+            addons: vec![
+                RemoteAddon {
+                    uid: "installed-lib".into(),
+                    category_id: "library".into(),
+                    ui_name: "LibInstalled".into(),
+                    compatabilities: vec![current.clone()],
+                    ..RemoteAddon::default()
+                },
+                RemoteAddon {
+                    uid: "current-lib".into(),
+                    category_id: "library".into(),
+                    ui_name: "LibCurrent".into(),
+                    compatabilities: vec![current.clone()],
+                    ..RemoteAddon::default()
+                },
+                RemoteAddon {
+                    uid: "old-lib".into(),
+                    category_id: "library".into(),
+                    ui_name: "LibOld".into(),
+                    compatabilities: vec![older],
+                    ..RemoteAddon::default()
+                },
+                RemoteAddon {
+                    uid: "normal-addon".into(),
+                    category_id: "utility".into(),
+                    ui_name: "Normal Addon".into(),
+                    compatabilities: vec![current],
+                    ..RemoteAddon::default()
+                },
+                RemoteAddon {
+                    uid: "low".into(),
+                    category_id: "utility".into(),
+                    ui_name: "Alpha".into(),
+                    ui_author_name: "Zed".into(),
+                    ui_date: "2026-05-01".into(),
+                    ui_download_total: 10,
+                    ui_favorite_total: 2,
+                    ..RemoteAddon::default()
+                },
+                RemoteAddon {
+                    uid: "high".into(),
+                    category_id: "combat".into(),
+                    ui_name: "Beta".into(),
+                    ui_author_name: "Ann".into(),
+                    ui_date: "2026-05-18".into(),
+                    ui_download_total: 50,
+                    ui_favorite_total: 9,
+                    ..RemoteAddon::default()
+                },
+            ],
+            categories: vec![
+                Category {
+                    id: "utility".into(),
+                    name: "Utility Mods".into(),
+                    ..Category::default()
+                },
+                Category {
+                    id: "library".into(),
+                    name: "Libraries".into(),
+                    ..Category::default()
+                },
+                Category {
+                    id: "combat".into(),
+                    name: "Action Bar Mods".into(),
+                    ..Category::default()
+                },
+            ],
+        });
+        let index = CatalogIndex::new(catalog);
+        let uids = |indices: Vec<usize>| {
+            indices
+                .into_iter()
+                .map(|item| index.addon(item).unwrap().uid.to_string())
+                .collect::<Vec<_>>()
+        };
+        let non_sort_rows = HashSet::from([
+            "installed-lib".to_owned(),
+            "current-lib".to_owned(),
+            "old-lib".to_owned(),
+            "normal-addon".to_owned(),
+        ]);
+
+        assert_eq!(
+            uids(index.filter_sort(
+                "",
+                None,
+                true,
+                Some("101046"),
+                &HashSet::from(["installed-lib".to_owned()]),
+                CatalogSort::Title,
+                true,
+            )),
+            ["current-lib"]
+        );
+        assert_eq!(
+            uids(index.filter_sort(
+                "",
+                None,
+                false,
+                None,
+                &non_sort_rows,
+                CatalogSort::Downloads,
+                false,
+            ))[0],
+            "high"
+        );
+        assert_eq!(
+            uids(index.filter_sort(
+                "",
+                None,
+                false,
+                None,
+                &non_sort_rows,
+                CatalogSort::Favorites,
+                false,
+            ))[0],
+            "high"
+        );
+        assert_eq!(
+            uids(index.filter_sort(
+                "",
+                None,
+                false,
+                None,
+                &non_sort_rows,
+                CatalogSort::Date,
+                false,
+            ))[0],
+            "high"
+        );
+        assert_eq!(
+            uids(index.filter_sort(
+                "",
+                None,
+                false,
+                None,
+                &non_sort_rows,
+                CatalogSort::Author,
+                true,
+            ))[0],
+            "high"
+        );
+        assert_eq!(
+            uids(index.filter_sort(
+                "",
+                None,
+                false,
+                None,
+                &non_sort_rows,
+                CatalogSort::Category,
+                true,
+            ))[0],
+            "high"
+        );
+    }
+
     #[cfg(feature = "rkyv-catalog")]
     #[test]
     fn archived_index_matches_owned_lookup_and_materializes_selected_rows() {
@@ -753,5 +953,32 @@ mod tests {
         let index = InstalledIndex::new(&installed, &matched);
         assert_eq!(index.search("SECOND", false), vec![1]);
         assert_eq!(index.search("", true), vec![1]);
+    }
+
+    #[test]
+    fn compatibility_versions_keep_api_values_and_choose_the_numeric_latest() {
+        let versions = vec![
+            GameVersion {
+                version: "101041".into(),
+                name: "Older".into(),
+            },
+            GameVersion {
+                version: "101046".into(),
+                name: "Current".into(),
+            },
+            GameVersion {
+                version: "101046".into(),
+                name: "Current duplicate".into(),
+            },
+        ];
+        assert_eq!(latest_compatibility(&versions).unwrap().version, "101046");
+        assert_eq!(
+            collect_compatibility_versions(
+                versions
+                    .iter()
+                    .map(|version| (version.version.as_ref(), version.name.as_ref())),
+            ),
+            vec!["101046", "101041"]
+        );
     }
 }
