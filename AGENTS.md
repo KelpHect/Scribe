@@ -46,6 +46,7 @@ Run the relevant release-mode fixture for performance-sensitive changes.
 - `window.rs` — `ScribeWindow` (state, subscriptions, focus/overlay plumbing), the sidebar shell, page header/filter rows, all four pages, `Render`.
 - `components.rs` — shared primitives: `NativeButton`/`NativeIconButton`, `Modal`, `LiveRegion`, filter controls, category picker overlay, notices, cards, artwork helpers.
 - `rows.rs` — catalog and installed row renderers.
+- `bbcode.rs` — safe BBCode/HTML parser and rich-text renderer for ESOUI descriptions/changelogs (StyledText/InteractiveText, http/https links only, bounded images).
 - `overlays.rs` — details sheets, lightbox, confirm modals, dependency banners, context menus, the Activity surface.
 - `tests.rs` — all tests (updated, never deleted, when presentation changes).
 
@@ -62,7 +63,7 @@ The design source of truth is `docs/ui-rework-design.md`. Key rules:
 - Render dialogs, sheets, and screenshot lightboxes as final children of the window root so their backdrop covers the title bar, sidebar, and content; modal children must stop pointer propagation to the catalog beneath them.
 - Pages: Installed stays category-grouped (MMOUI category artwork, collapsible headers, dependency banners, explicit bulk-selection mode with selection bar). Find More has one searchable icon-bearing category picker, All/Latest compatibility, hybrid sort/direction, hide-installed, refresh, and search controls; do not add parallel category selectors. Settings is one scrolling column of four cards (library, appearance, health & recovery, about & diagnostics); do not reintroduce the index rail or a second wordmark.
 - Missing addon thumbnails use MMOUI category artwork first and Scribe's category-aware semantic fallback second; do not use generic letters or an unrelated stock placeholder.
-- Addon rows open details on click or Enter/Space; action buttons stop propagation. Remote details place the bounded screenshot rail before description/changelog, and screenshots open a full-window previous/next lightbox.
+- Addon rows open details on click or Enter/Space; action buttons stop propagation. Remote details place the bounded screenshot rail before description/changelog, and screenshots open a full-window previous/next lightbox. Description and changelog bodies render through `bbcode.rs`: styled runs, links (validated http/https, opened in the system browser), lists, quotes, code, and bounded lazy failure-safe images; never reintroduce raw tag stripping that loses this structure.
 - Status notices stay a slim inline banner with `LiveRegion` semantics; task progress stays in the floating Activity surface (collapsed pill + expanded panel). Do not dock a task center into page content or duplicate task failures in both the global status surface and Activity.
 
 ## UI and performance

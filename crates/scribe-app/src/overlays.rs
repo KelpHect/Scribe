@@ -17,12 +17,13 @@ use scribe_core::{
     TaskProgress, TaskState,
 };
 
+use crate::bbcode::render_bbcode;
 use crate::components::{
     Group, Modal, NativeButton, NativeIconButton, Title, addon_artwork, category_artwork,
     format_count, metric_pill, notice_visuals, update_state_label,
 };
 use crate::flows::{
-    enqueue_dependency_uids, enqueue_remote, plain_text, rebuild_local_storage, show_addon_details,
+    enqueue_dependency_uids, enqueue_remote, rebuild_local_storage, show_addon_details,
     show_installed_details, uninstall_named_folders,
 };
 use crate::model::{AppModel, NoticeTone, RecoveryPhase, installed_groups};
@@ -270,8 +271,8 @@ pub(crate) fn render_details_modal(
         .take(12)
         .map(ToString::to_string)
         .collect();
-    let description = plain_text(&details.ui_description);
-    let change_log = plain_text(&details.ui_change_log);
+    let has_description = !details.ui_description.trim().is_empty();
+    let has_change_log = !details.ui_change_log.trim().is_empty();
     let compatibility = details
         .addon
         .compatabilities
@@ -413,11 +414,19 @@ pub(crate) fn render_details_modal(
                 .when(!screenshots.is_empty(), |column| {
                     column.child(details_screenshot_rail(&screenshots, model.clone()))
                 })
-                .when(!description.is_empty(), |column| {
-                    column.child(detail_text_section("Description", description))
+                .when(has_description, |column| {
+                    column.child(detail_rich_section(
+                        "Description",
+                        "remote-description",
+                        &details.ui_description,
+                    ))
                 })
-                .when(!change_log.is_empty(), |column| {
-                    column.child(detail_text_section("Latest changes", change_log))
+                .when(has_change_log, |column| {
+                    column.child(detail_rich_section(
+                        "Latest changes",
+                        "remote-changelog",
+                        &details.ui_change_log,
+                    ))
                 }),
         )
         .into_any_element()
@@ -452,11 +461,12 @@ pub(crate) fn render_local_details_modal(
                 .collect()
         })
         .unwrap_or_default();
-    let description = details
+    let description_source = details
         .as_ref()
-        .map(|details| plain_text(&details.ui_description))
-        .filter(|description| !description.is_empty())
-        .unwrap_or_else(|| addon.description.clone());
+        .and_then(|details| {
+            (!details.ui_description.trim().is_empty()).then_some(details.ui_description.as_str())
+        })
+        .or_else(|| (!addon.description.trim().is_empty()).then_some(addon.description.as_str()));
     let thumbnail = remote
         .as_ref()
         .and_then(|remote| remote.ui_img_thumbs.first())
@@ -615,8 +625,12 @@ pub(crate) fn render_local_details_modal(
                             )
                         }),
                 )
-                .when(!description.is_empty(), |column| {
-                    column.child(detail_text_section("Description", description))
+                .when_some(description_source, |column, text| {
+                    column.child(detail_rich_section(
+                        "Description",
+                        "local-description",
+                        text,
+                    ))
                 })
                 .child(
                     div()
@@ -655,6 +669,29 @@ pub(crate) fn render_local_details_modal(
                     ))
                 }),
         )
+        .into_any_element()
+}
+
+pub(crate) fn detail_rich_section(
+    title: &'static str,
+    id_prefix: &'static str,
+    text: &str,
+) -> gpui::AnyElement {
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(7.0))
+        .child(
+            div()
+                .pb(px(6.0))
+                .border_b_1()
+                .border_color(gpui::rgba(SCRIBE_HAIRLINE_RGBA))
+                .font_semibold()
+                .text_size(px(12.0))
+                .text_color(gpui::rgba(SCRIBE_TEXT_SECONDARY_RGBA))
+                .child(title),
+        )
+        .child(render_bbcode(id_prefix, text))
         .into_any_element()
 }
 

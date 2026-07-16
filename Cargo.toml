@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/scribe-core", "crates/scribe-app"]
 
 [workspace.package]
-version = "1.0.6"
+version = "1.0.7"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/KellHect/Scribe"

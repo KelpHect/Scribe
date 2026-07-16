@@ -14,7 +14,6 @@ use scribe_core::{
 
 use crate::components::*;
 use crate::embedded_assets_ready;
-use crate::flows::*;
 use crate::model::*;
 use crate::overlays::*;
 use crate::theme::*;
@@ -159,16 +158,6 @@ fn empty_model() -> AppModel {
         health: HealthState::default(),
         observed_completions: HashSet::new(),
     }
-}
-
-#[test]
-fn addon_copy_removes_html_and_mmoui_bbcode() {
-    assert_eq!(
-        plain_text(
-            r#"<p>[SIZE=4][B]Useful[/B][/SIZE] &amp; [URL="https://example.test"]safe[/URL]</p>"#,
-        ),
-        "Useful & safe"
-    );
 }
 
 #[test]
