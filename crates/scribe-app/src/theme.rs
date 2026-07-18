@@ -38,6 +38,7 @@ pub(crate) const SCRIBE_SIDEBAR_TINT_RGBA: u32 = 0x0b0e138c;
 pub(crate) const SCRIBE_SURFACE_RGBA: u32 = 0xffffff0f;
 pub(crate) const SCRIBE_BUTTON_FILL_RGBA: u32 = 0xffffff14;
 pub(crate) const SCRIBE_SURFACE_HOVER_RGBA: u32 = 0xffffff1a;
+pub(crate) const SCRIBE_HOVER_BORDER_RGBA: u32 = 0xffffff29;
 pub(crate) const SCRIBE_SURFACE_ACTIVE_RGBA: u32 = 0xffffff24;
 pub(crate) const SCRIBE_SURFACE_RAISED_RGBA: u32 = 0x171b23f0;
 pub(crate) const SCRIBE_HAIRLINE_RGBA: u32 = 0xffffff17;
@@ -83,7 +84,8 @@ pub(crate) const SCRIBE_CONTENT_GUTTER: f32 = 28.0;
 pub(crate) const SCRIBE_CONTENT_MAX_WIDTH: f32 = 1200.0;
 pub(crate) const SCRIBE_SETTINGS_MAX_WIDTH: f32 = 760.0;
 pub(crate) const SCRIBE_SIDEBAR_WIDTH: f32 = 228.0;
-pub(crate) const SCRIBE_TITLE_ROW_HEIGHT: f32 = 52.0;
+pub(crate) const SCRIBE_TITLE_ROW_HEIGHT: f32 = 36.0;
+pub(crate) const SCRIBE_PAGE_HEADER_HEIGHT: f32 = 56.0;
 pub(crate) const SCRIBE_MOTION_FAST_MS: u64 = 120;
 pub(crate) const SCRIBE_MOTION_PAGE_MS: u64 = 180;
 

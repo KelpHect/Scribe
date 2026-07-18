@@ -22,6 +22,6 @@ pub use matcher::{Matcher, UpdateState};
 pub use models::*;
 pub use scanner::Scanner;
 pub use settings::{AppSettings, SettingsManager, app_config_directory};
-pub use storage::{CacheLoad, RebuildOutcome, SaveOutcome, Storage};
+pub use storage::{CACHE_TTL_SECONDS, CacheLoad, RebuildOutcome, SaveOutcome, Storage};
 #[cfg(feature = "rkyv-catalog")]
 mod archive;

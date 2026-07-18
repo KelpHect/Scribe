@@ -17,6 +17,10 @@ pub struct AppSettings {
     pub memory_limit_mb: u32,
     #[serde(default = "default_theme")]
     pub theme: String,
+    #[serde(default = "default_background_alerts")]
+    pub background_alerts: bool,
+    #[serde(default)]
+    pub recent_searches: Vec<String>,
 }
 
 impl Default for AppSettings {
@@ -26,12 +30,18 @@ impl Default for AppSettings {
             auto_update: false,
             memory_limit_mb: default_memory_limit(),
             theme: default_theme(),
+            background_alerts: default_background_alerts(),
+            recent_searches: Vec::new(),
         }
     }
 }
 
 fn default_memory_limit() -> u32 {
     150
+}
+
+fn default_background_alerts() -> bool {
+    true
 }
 
 fn default_theme() -> String {
@@ -150,6 +160,8 @@ mod tests {
             auto_update: true,
             memory_limit_mb: 192,
             theme: "dark".into(),
+            background_alerts: true,
+            recent_searches: Vec::new(),
         };
         manager.save(&settings).unwrap();
         let loaded = manager.load().unwrap();
@@ -166,5 +178,46 @@ mod tests {
             ..AppSettings::default()
         });
         assert!(matches!(result, Err(SettingsError::AddonPathNotAbsolute)));
+    }
+
+    #[test]
+    fn background_alerts_defaults_true_for_legacy_settings_files() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("Scribe/settings.toml");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "addon_path = \"\"\nauto_update = false\n").unwrap();
+        let loaded = SettingsManager::at(&path).load().unwrap();
+        assert!(loaded.background_alerts);
+    }
+
+    #[test]
+    fn background_alerts_round_trips() {
+        let temp = tempfile::tempdir().unwrap();
+        let manager = SettingsManager::at(temp.path().join("Scribe/settings.toml"));
+        let settings = AppSettings {
+            background_alerts: false,
+            ..AppSettings::default()
+        };
+        manager.save(&settings).unwrap();
+        assert!(!manager.load().unwrap().background_alerts);
+    }
+
+    #[test]
+    fn recent_searches_default_empty_for_legacy_files_and_round_trip() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("Scribe/settings.toml");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "addon_path = \"\"\nauto_update = false\n").unwrap();
+        let manager = SettingsManager::at(&path);
+        assert!(manager.load().unwrap().recent_searches.is_empty());
+        let settings = AppSettings {
+            recent_searches: vec!["skyshards".into(), "harvestmap".into()],
+            ..AppSettings::default()
+        };
+        manager.save(&settings).unwrap();
+        assert_eq!(
+            manager.load().unwrap().recent_searches,
+            vec!["skyshards".to_string(), "harvestmap".to_string()]
+        );
     }
 }

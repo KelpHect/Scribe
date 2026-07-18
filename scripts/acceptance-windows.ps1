@@ -94,7 +94,9 @@ function Invoke-ScribeRun {
     }
     finally {
         if (-not $process.HasExited) {
-            $process.Kill($true)
+            # Kill() without arguments: the tree-kill overload does not exist
+            # on Windows PowerShell 5.1, and Scribe spawns no child processes.
+            $process.Kill()
             $process.WaitForExit()
         }
         $process.Dispose()
@@ -117,6 +119,23 @@ try {
     $env:APPDATA = $roamingRoot
     $env:LOCALAPPDATA = $localRoot
 
+    # Seed settings before the first launch: background_alerts defaults to
+    # true, which vetoes window-close and minimizes to the tray instead of
+    # exiting — the graceful-close assertion below needs exit-on-close.
+    New-Item -ItemType Directory -Force -Path $scribeRoot | Out-Null
+    $settings = @"
+addon_path = ""
+auto_update = false
+memory_limit_mb = 192
+theme = "scribe"
+background_alerts = false
+"@
+    [System.IO.File]::WriteAllText(
+        $settingsPath,
+        $settings,
+        [System.Text.UTF8Encoding]::new($false)
+    )
+
     $first = Invoke-ScribeRun -Name "first-launch"
     if (-not (Test-Path -LiteralPath $databasePath)) {
         throw "First launch did not create the isolated scribe.redb database."
@@ -125,18 +144,6 @@ try {
         throw "First launch created an empty scribe.redb database."
     }
 
-    New-Item -ItemType Directory -Force -Path $scribeRoot | Out-Null
-    $settings = @"
-addon_path = ""
-auto_update = false
-memory_limit_mb = 192
-theme = "scribe"
-"@
-    [System.IO.File]::WriteAllText(
-        $settingsPath,
-        $settings,
-        [System.Text.UTF8Encoding]::new($false)
-    )
     $settingsHashBefore = (Get-FileHash -Algorithm SHA256 -LiteralPath $settingsPath).Hash
     $databaseLengthBefore = (Get-Item -LiteralPath $databasePath).Length
 

@@ -1,16 +1,17 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use gpui::{AppContext, Context, Entity, Subscription, Window};
+use gpui::{AppContext, Context, Entity, Pixels, Subscription, Window, px};
 use gpui_component::{
     IconName,
     input::{InputEvent, InputState},
 };
 use scribe_core::{
-    Addon, AppSettings, CancellationToken, Catalog, CatalogIndex, CatalogService, Category,
-    EsouiClient, InstallManager, InstalledIndex, Installer, MatchedAddon, Matcher,
-    MissingDependency, RemoteAddonDetails, Scanner, SettingsManager, Storage, TaskState,
+    Addon, AppSettings, CACHE_TTL_SECONDS, CancellationToken, Catalog, CatalogIndex,
+    CatalogService, Category, EsouiClient, InstallManager, InstalledIndex, Installer, MatchedAddon,
+    Matcher, MissingDependency, RemoteAddon, RemoteAddonDetails, Scanner, SettingsManager, Storage,
+    TaskState,
 };
 
 use crate::flows::enrich_md5_decisions;
@@ -110,6 +111,384 @@ pub(crate) struct AppModel {
     pub(crate) pending_rebuild: bool,
     pub(crate) health: HealthState,
     pub(crate) observed_completions: HashSet<String>,
+    /// Update-available count from the last alert that was surfaced, used to
+    /// fire one alert per rise and re-arm only when the count returns to 0.
+    pub(crate) alerted_update_count: Option<usize>,
+    /// A newly raised update-available count waiting to be surfaced by the
+    /// window layer (balloon when hidden, otherwise just consumed once).
+    pub(crate) pending_update_alert: Option<usize>,
+    /// Remote details are being fetched; the dossier shows a skeleton sheet.
+    pub(crate) details_loading: bool,
+}
+
+/// Update-alert state machine: returns the next alerted count and the alert
+/// to fire. Alerts only fire when the count rises above the previously
+/// alerted count (or above zero when never alerted), and the state re-arms
+/// when the count returns to zero.
+pub(crate) fn alert_decision(
+    alerted: Option<usize>,
+    new_count: usize,
+) -> (Option<usize>, Option<usize>) {
+    if new_count == 0 {
+        (None, None)
+    } else if alerted.is_none_or(|alerted| new_count > alerted) {
+        (Some(new_count), Some(new_count))
+    } else {
+        (alerted, None)
+    }
+}
+
+/// Uids that cannot be batch-selected in Find More: already installed (per
+/// matched decisions) or currently queued/downloading in the install manager.
+pub(crate) fn catalog_blocked_uids(app: &AppModel) -> HashSet<String> {
+    let mut blocked: HashSet<String> = app
+        .matched
+        .iter()
+        .filter_map(|decision| {
+            decision
+                .remote
+                .as_ref()
+                .map(|remote| remote.uid.to_string())
+        })
+        .collect();
+    if let Some(manager) = &app.install_manager {
+        blocked.extend(
+            manager
+                .statuses()
+                .into_iter()
+                .filter(|task| {
+                    !matches!(
+                        task.state,
+                        TaskState::Complete | TaskState::Failed | TaskState::Cancelled
+                    )
+                })
+                .map(|task| task.uid),
+        );
+    }
+    blocked
+}
+
+/// Selected catalog uids that can actually be enqueued: skips uids blocked
+/// as installed/queued and resolves the rest to current catalog entries.
+pub(crate) fn installable_selection(
+    index: &CatalogIndex,
+    uids: &BTreeSet<String>,
+    blocked: &HashSet<String>,
+) -> Vec<RemoteAddon> {
+    uids.iter()
+        .filter(|uid| !blocked.contains(*uid))
+        .filter_map(|uid| index.by_uid(uid))
+        .collect()
+}
+
+// ---------------------------------------------------------------------------
+// Keyboard navigation + fuzzy search helpers (pure; unit-tested)
+// ---------------------------------------------------------------------------
+
+/// Moves a list cursor by `delta`, clamped to `len`; starts at the nearest
+/// edge when unset, and is `None` for empty lists.
+pub(crate) fn move_cursor(cursor: Option<usize>, delta: i64, len: usize) -> Option<usize> {
+    if len == 0 {
+        return None;
+    }
+    let len = len as i64;
+    let next = match cursor {
+        None => {
+            if delta >= 0 {
+                0
+            } else {
+                len - 1
+            }
+        }
+        Some(index) => (index as i64 + delta).clamp(0, len - 1),
+    };
+    Some(next as usize)
+}
+
+/// Clamps a cursor after its list shrinks; drops it for empty lists.
+pub(crate) fn clamp_cursor(cursor: Option<usize>, len: usize) -> Option<usize> {
+    match (cursor, len) {
+        (_, 0) => None,
+        (Some(index), len) => Some(index.min(len - 1)),
+        (None, _) => None,
+    }
+}
+
+/// The catalog cursor resets when the filter/sort/search signature changes;
+/// otherwise it only clamps to the current result count.
+pub(crate) fn cursor_after_filter_change(
+    signature_changed: bool,
+    cursor: Option<usize>,
+    len: usize,
+) -> Option<usize> {
+    if signature_changed {
+        None
+    } else {
+        clamp_cursor(cursor, len)
+    }
+}
+
+/// Maps a flattened library cursor position to `(group, row)` pairs, skipping
+/// collapsed groups and counting only data rows.
+pub(crate) fn visible_library_rows(
+    groups: &[InstalledGroup],
+    expanded: &HashSet<String>,
+) -> Vec<(usize, usize)> {
+    let mut rows = Vec::new();
+    for (group_ix, group) in groups.iter().enumerate() {
+        if expanded.contains(&group.id) {
+            for row_ix in 0..group.items.len() {
+                rows.push((group_ix, row_ix));
+            }
+        }
+    }
+    rows
+}
+
+/// Subsequence fuzzy match with scoring: consecutive-run, word-start, and
+/// camelCase/delimiter bonuses, shorter-candidate and early-start preference.
+/// Case-insensitive; empty query matches everything at score 0.
+pub(crate) fn fuzzy_score(query: &str, candidate: &str) -> Option<i32> {
+    let query: Vec<char> = query.trim().chars().flat_map(char::to_lowercase).collect();
+    if query.is_empty() {
+        return Some(0);
+    }
+    let candidate: Vec<char> = candidate.chars().collect();
+    let mut score = 0i32;
+    let mut query_ix = 0;
+    let mut last_match: Option<usize> = None;
+    let mut first_match = 0usize;
+    for (ix, character) in candidate.iter().enumerate() {
+        if query_ix >= query.len() {
+            break;
+        }
+        let lower = character.to_lowercase().next().unwrap_or(*character);
+        if lower != query[query_ix] {
+            continue;
+        }
+        let word_start =
+            ix == 0 || matches!(candidate[ix - 1], ' ' | '-' | '_' | '.' | '/' | '(' | '&');
+        let camel = ix > 0 && candidate[ix - 1].is_lowercase() && character.is_uppercase();
+        score += 10;
+        if last_match.is_some_and(|last| ix == last + 1) {
+            score += 14;
+        }
+        if word_start {
+            score += 12;
+        }
+        if camel {
+            score += 10;
+        }
+        if last_match.is_none() {
+            first_match = ix;
+        }
+        last_match = Some(ix);
+        query_ix += 1;
+    }
+    if query_ix < query.len() {
+        return None;
+    }
+    score -= (candidate.len() as i32) / 4;
+    score -= (first_match as i32) / 2;
+    Some(score)
+}
+
+/// Ranks a popularity-ordered base index list by fuzzy score (best of title,
+/// author, category name) descending, ties keeping the base order.
+pub(crate) fn fuzzy_filter_rank(index: &CatalogIndex, base: &[usize], query: &str) -> Vec<usize> {
+    let mut scored: Vec<(i32, usize, usize)> = Vec::with_capacity(base.len());
+    for (position, addon_ix) in base.iter().enumerate() {
+        let Some(addon) = index.addon(*addon_ix) else {
+            continue;
+        };
+        let category_name = index
+            .category(&addon.category_id)
+            .map(|category| category.name.to_string())
+            .unwrap_or_default();
+        let score = fuzzy_score(query, &addon.ui_name)
+            .into_iter()
+            .chain(fuzzy_score(query, &addon.ui_author_name))
+            .chain(fuzzy_score(query, &category_name))
+            .max();
+        if let Some(score) = score {
+            scored.push((score, position, *addon_ix));
+        }
+    }
+    scored.sort_by_key(|(score, position, _)| (std::cmp::Reverse(*score), *position));
+    scored
+        .into_iter()
+        .map(|(_, _, addon_ix)| addon_ix)
+        .collect()
+}
+
+/// Records a committed search query: distinct, most-recent-first, capped at 8,
+/// empty/whitespace queries ignored.
+pub(crate) fn push_recent_search(recent: &mut Vec<String>, query: &str) {
+    let query = query.trim();
+    if query.is_empty() {
+        return;
+    }
+    recent.retain(|entry| !entry.eq_ignore_ascii_case(query));
+    recent.insert(0, query.to_string());
+    recent.truncate(8);
+}
+
+/// Whether the dossier opens inline as a page (wide windows) rather than as a
+/// modal sheet: inline at ≥1400px viewport width.
+pub(crate) fn details_inline_width(viewport_width: Pixels) -> bool {
+    viewport_width >= px(1400.0)
+}
+
+/// Maps overlay state to the current overlay kind, in precedence order. The
+/// inline (wide-window) details page maps to the same kinds as the modal
+/// dossier so focus, Escape, and keyboard guards behave identically.
+pub(crate) fn derive_overlay_kind(
+    lightbox_open: bool,
+    rebuild_pending: bool,
+    uninstall_pending: bool,
+    local_details_open: bool,
+    remote_details_open: bool,
+) -> Option<OverlayKind> {
+    if lightbox_open {
+        Some(OverlayKind::Lightbox)
+    } else if rebuild_pending {
+        Some(OverlayKind::Rebuild)
+    } else if uninstall_pending {
+        Some(OverlayKind::Uninstall)
+    } else if local_details_open {
+        Some(OverlayKind::LocalDetails)
+    } else if remote_details_open {
+        Some(OverlayKind::RemoteDetails)
+    } else {
+        None
+    }
+}
+
+/// Whether the caption strip's non-client hit areas (drag region and the
+/// min/max/close overlay) may be registered this frame. While a modal
+/// overlay or a context menu is open, those areas are suspended: the
+/// non-client hit test resolves purely by hitbox geometry, so an area
+/// beneath an overlay's close button would otherwise swallow that click —
+/// or close the window when the user aimed at the overlay. Inline details
+/// leave the chrome untouched because nothing covers the strip.
+pub(crate) fn window_chrome_active(
+    overlay_kind: Option<OverlayKind>,
+    inline_details: bool,
+    context_menu_open: bool,
+) -> bool {
+    (overlay_kind.is_none() || inline_details) && !context_menu_open
+}
+
+/// Whether list keyboard browsing keys are active: only with no overlay, no
+/// context menu, no category palette, and an unfocused page search.
+pub(crate) fn keyboard_nav_allowed(
+    overlay: Option<OverlayKind>,
+    context_menu_open: bool,
+    palette_open: bool,
+    search_focused: bool,
+) -> bool {
+    overlay.is_none() && !context_menu_open && !palette_open && !search_focused
+}
+
+/// Clears any open dossier state (back action and Escape share this).
+pub(crate) fn clear_details_overlay(app: &mut AppModel) {
+    app.selected_details = None;
+    app.selected_local = None;
+    app.details_loading = false;
+}
+
+// ---------------------------------------------------------------------------
+// Flattened library model for virtualized Installed/Updates lists
+// ---------------------------------------------------------------------------
+
+/// One item in the virtualized library list: a group header or one addon row.
+/// `last_in_group` drives border/radius styling at group boundaries.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum LibraryRow {
+    GroupHeader {
+        group_ix: usize,
+        last_in_group: bool,
+    },
+    AddonRow {
+        group_ix: usize,
+        row_ix: usize,
+        last_in_group: bool,
+    },
+}
+
+/// Flattens category groups into the virtualized list model: every group
+/// yields a header; expanded groups also yield their rows. Selection mode
+/// does not change the model (checkboxes live inside rows).
+pub(crate) fn flatten_library(
+    groups: &[InstalledGroup],
+    expanded: &HashSet<String>,
+    _selection_mode: bool,
+) -> Vec<LibraryRow> {
+    let mut rows = Vec::new();
+    for (group_ix, group) in groups.iter().enumerate() {
+        let is_expanded = expanded.contains(&group.id);
+        rows.push(LibraryRow::GroupHeader {
+            group_ix,
+            last_in_group: !is_expanded,
+        });
+        if is_expanded {
+            for row_ix in 0..group.items.len() {
+                rows.push(LibraryRow::AddonRow {
+                    group_ix,
+                    row_ix,
+                    last_in_group: row_ix + 1 == group.items.len(),
+                });
+            }
+        }
+    }
+    rows
+}
+
+/// Position of the `cursor`-th AddonRow inside the flattened model (headers
+/// included), for scroll-to-reveal.
+pub(crate) fn flat_index_of_row(model: &[LibraryRow], cursor: usize) -> Option<usize> {
+    let mut seen = 0usize;
+    model.iter().position(|row| {
+        if matches!(row, LibraryRow::AddonRow { .. }) {
+            let hit = seen == cursor;
+            seen += 1;
+            hit
+        } else {
+            false
+        }
+    })
+}
+
+/// Whether the recent-searches dropdown is visible: Find More, search input
+/// focused and empty, entries exist, and no overlay surface is open.
+pub(crate) fn should_show_recent_dropdown(
+    page_is_find_more: bool,
+    search_focused: bool,
+    query_empty: bool,
+    has_recent: bool,
+    overlay_open: bool,
+) -> bool {
+    page_is_find_more && search_focused && query_empty && has_recent && !overlay_open
+}
+
+/// Recomputes the update-available count after any matched-state change and
+/// records a pending alert when it rises. Honors `background_alerts`.
+pub(crate) fn evaluate_update_alerts(app: &mut AppModel) {
+    let count = app
+        .matched
+        .iter()
+        .filter(|decision| decision.update_available)
+        .count();
+    if !app.settings.background_alerts {
+        app.alerted_update_count = (count > 0).then_some(count);
+        app.pending_update_alert = None;
+        return;
+    }
+    let (alerted, fire) = alert_decision(app.alerted_update_count, count);
+    app.alerted_update_count = alerted;
+    if fire.is_some() {
+        app.pending_update_alert = fire;
+    }
 }
 
 pub(crate) fn navigate_to_page(app: &mut AppModel, page: Page) {
@@ -444,16 +823,41 @@ impl AppModel {
                         app.matched = Arc::new(decisions);
                         app.installed_index =
                             Arc::new(InstalledIndex::new(&app.installed, &app.matched));
+                        evaluate_update_alerts(app);
                         cx.notify();
                     })
                     .ok();
                 }
             }
 
+            // Periodic catalog freshness loop: every 15 minutes, refresh the
+            // catalog when the cached snapshot is past the 4h TTL. Runs on the
+            // background executor; the refresh itself is the shared flow.
+            let mut last_freshness_check = std::time::Instant::now();
+
             loop {
                 cx.background_executor()
                     .timer(std::time::Duration::from_millis(100))
                     .await;
+                if last_freshness_check.elapsed() >= std::time::Duration::from_secs(15 * 60) {
+                    last_freshness_check = std::time::Instant::now();
+                    let refresh_due = this
+                        .update(cx, |app, _| {
+                            app.catalog_service.is_some()
+                                && app.health.last_catalog_success.is_none_or(|at| {
+                                    unix_now().saturating_sub(at) >= CACHE_TTL_SECONDS
+                                })
+                        })
+                        .unwrap_or(false);
+                    if refresh_due {
+                        this.update(cx, |app, cx| {
+                            if app.catalog_service.is_some() {
+                                crate::flows::refresh_catalog_now(cx.entity(), cx);
+                            }
+                        })
+                        .ok();
+                    }
+                }
                 let manager = match this.update(cx, |app, _| app.install_manager.clone()) {
                     Ok(Some(manager)) => manager,
                     Ok(None) => continue,
@@ -543,6 +947,9 @@ impl AppModel {
             pending_rebuild: false,
             health: HealthState::default(),
             observed_completions: HashSet::new(),
+            alerted_update_count: None,
+            pending_update_alert: None,
+            details_loading: false,
         }
     }
 }
@@ -554,6 +961,7 @@ pub(crate) fn replace_catalog_state(app: &mut AppModel, catalog: Arc<Catalog>) {
     app.missing_dependencies = Arc::new(missing_dependencies);
     app.installed_index = Arc::new(InstalledIndex::new(&app.installed, &app.matched));
     app.catalog_index = catalog_index;
+    evaluate_update_alerts(app);
 }
 
 pub(crate) fn replace_installed_state(
@@ -569,6 +977,7 @@ pub(crate) fn replace_installed_state(
     app.installed = Arc::new(installed);
     app.health.scan_issue = None;
     app.health.last_scan_success = Some(unix_now());
+    evaluate_update_alerts(app);
 }
 
 impl Drop for AppModel {

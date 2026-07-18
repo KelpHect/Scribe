@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::sync::Arc;
 
 use gpui::prelude::*;
@@ -9,7 +9,7 @@ use gpui::{
 use gpui_component::Theme;
 use scribe_core::{
     Addon, AppSettings, Catalog, CatalogIndex, Category, InstalledIndex, MatchedAddon,
-    MissingDependency, RemoteAddon, TaskProgress, TaskState,
+    MissingDependency, RemoteAddon, RemoteAddonDetails, TaskProgress, TaskState,
 };
 
 use crate::components::*;
@@ -157,6 +157,9 @@ fn empty_model() -> AppModel {
         pending_rebuild: false,
         health: HealthState::default(),
         observed_completions: HashSet::new(),
+        alerted_update_count: None,
+        pending_update_alert: None,
+        details_loading: false,
     }
 }
 
@@ -359,15 +362,12 @@ fn installed_groups_keep_mmoui_category_artwork() {
 }
 
 #[gpui::test]
-fn status_notice_keeps_readable_width_at_minimum_window_size(cx: &mut TestAppContext) {
+fn toasts_stay_bounded_and_legible_at_minimum_window_size(cx: &mut TestAppContext) {
     let window = cx.update(|cx| {
         gpui_component::init(cx);
         apply_scribe_theme(cx);
         Theme::global_mut(cx).font_size = px(18.0);
-        let mut app = empty_model();
-        app.status =
-            "ESOUI refresh failed: network unavailable. Cached data remains available.".into();
-        let model = cx.new(|_| app);
+        let model = cx.new(|_| empty_model());
         cx.open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(Bounds {
@@ -380,12 +380,36 @@ fn status_notice_keeps_readable_width_at_minimum_window_size(cx: &mut TestAppCon
         )
         .unwrap()
     });
+    window
+        .update(cx, |view, _, cx| {
+            let notice = StatusNotice {
+                tone: NoticeTone::Danger,
+                title: "Action needed",
+                message:
+                    "ESOUI refresh failed: network unavailable. Cached data remains available."
+                        .into(),
+            };
+            push_toast(
+                &mut view.toasts,
+                1,
+                notice,
+                "ESOUI refresh failed.".into(),
+                std::time::Instant::now(),
+            );
+            cx.notify();
+        })
+        .unwrap();
     let mut visual = gpui::VisualTestContext::from_window(window.into(), cx);
     visual.run_until_parked();
 
-    let notice = visual.debug_bounds("status-notice").expect("status notice");
-    assert!(notice.size.width >= px(700.0), "notice={notice:?}");
-    assert!(notice.size.height <= px(64.0), "notice={notice:?}");
+    let card = visual.debug_bounds("toast-card").expect("toast card");
+    assert!(card.size.width <= px(360.0), "card={card:?}");
+    assert!(
+        card.origin.x + card.size.width <= px(1024.0),
+        "card={card:?}"
+    );
+    let stack = visual.debug_bounds("toast-stack").expect("toast stack");
+    assert!(stack.origin.x >= px(0.0));
 }
 
 #[gpui::test]
@@ -922,4 +946,678 @@ fn navigation_keeps_page_entities_and_search_state(cx: &mut TestAppContext) {
             assert_eq!(window_view.installed.read(cx).query, "persistent query");
         })
         .unwrap();
+}
+
+#[test]
+fn update_alert_fires_once_per_rise_and_re_arms_at_zero() {
+    // First rise above zero fires and records the alerted count.
+    assert_eq!(alert_decision(None, 3), (Some(3), Some(3)));
+    // Same or lower count never nags again.
+    assert_eq!(alert_decision(Some(3), 3), (Some(3), None));
+    assert_eq!(alert_decision(Some(3), 1), (Some(3), None));
+    // A rise above the alerted count fires exactly once more.
+    assert_eq!(alert_decision(Some(3), 5), (Some(5), Some(5)));
+    assert_eq!(alert_decision(Some(5), 5), (Some(5), None));
+    // Dropping to zero re-arms; the next rise alerts again.
+    assert_eq!(alert_decision(Some(5), 0), (None, None));
+    assert_eq!(alert_decision(None, 2), (Some(2), Some(2)));
+}
+
+#[test]
+fn update_alert_evaluation_respects_the_settings_switch() {
+    let mut model = empty_model();
+    model.matched = Arc::new(vec![
+        MatchedAddon {
+            update_available: true,
+            ..MatchedAddon::default()
+        },
+        MatchedAddon::default(),
+    ]);
+    model.settings.background_alerts = true;
+    evaluate_update_alerts(&mut model);
+    assert_eq!(model.pending_update_alert, Some(1));
+    model.pending_update_alert = None;
+    // Same count: nothing new fires.
+    evaluate_update_alerts(&mut model);
+    assert_eq!(model.pending_update_alert, None);
+    // Disabled switch suppresses alerts entirely (state still tracks).
+    model.settings.background_alerts = false;
+    model.matched = Arc::new(vec![
+        MatchedAddon {
+            update_available: true,
+            ..MatchedAddon::default()
+        },
+        MatchedAddon {
+            update_available: true,
+            ..MatchedAddon::default()
+        },
+    ]);
+    evaluate_update_alerts(&mut model);
+    assert_eq!(model.pending_update_alert, None);
+    assert_eq!(model.alerted_update_count, Some(2));
+}
+
+#[test]
+fn updates_badge_is_loud_only_with_waiting_updates() {
+    assert!(updates_badge_loud(Page::Updates, 1));
+    assert!(updates_badge_loud(Page::Updates, 12));
+    assert!(!updates_badge_loud(Page::Updates, 0));
+    assert!(!updates_badge_loud(Page::Installed, 4));
+    assert!(!updates_badge_loud(Page::FindMore, 4));
+}
+
+#[test]
+fn tray_menu_commands_map_to_events() {
+    assert_eq!(
+        crate::tray::menu_command_event(1),
+        Some(crate::tray::TrayEvent::Open)
+    );
+    assert_eq!(
+        crate::tray::menu_command_event(2),
+        Some(crate::tray::TrayEvent::CheckUpdates)
+    );
+    assert_eq!(
+        crate::tray::menu_command_event(3),
+        Some(crate::tray::TrayEvent::Quit)
+    );
+    assert_eq!(crate::tray::menu_command_event(0), None);
+    assert_eq!(crate::tray::menu_command_event(99), None);
+}
+
+#[test]
+fn catalog_selection_toggles_and_respects_unselectable_rows() {
+    let mut selection = BTreeSet::new();
+    assert!(toggle_catalog_selection(&mut selection, "uid-a", true));
+    assert!(selection.contains("uid-a"));
+    assert!(toggle_catalog_selection(&mut selection, "uid-a", true));
+    assert!(!selection.contains("uid-a"));
+    // Unselectable (installed/queued) rows never toggle.
+    assert!(!toggle_catalog_selection(&mut selection, "uid-b", false));
+    assert!(!selection.contains("uid-b"));
+}
+
+#[test]
+fn catalog_blocked_uids_covers_installed_matches() {
+    let remote = RemoteAddon {
+        uid: "installed-uid".into(),
+        ..RemoteAddon::default()
+    };
+    let mut model = empty_model();
+    model.matched = Arc::new(vec![MatchedAddon {
+        remote: Some(remote),
+        ..MatchedAddon::default()
+    }]);
+    let blocked = catalog_blocked_uids(&model);
+    assert!(blocked.contains("installed-uid"));
+    assert!(!blocked.contains("other-uid"));
+}
+
+#[test]
+fn installable_selection_skips_blocked_and_unknown_uids() {
+    let catalog = Arc::new(Catalog {
+        addons: vec![
+            RemoteAddon {
+                uid: "ok".into(),
+                ..RemoteAddon::default()
+            },
+            RemoteAddon {
+                uid: "blocked".into(),
+                ..RemoteAddon::default()
+            },
+        ],
+        ..Catalog::default()
+    });
+    let index = CatalogIndex::new(catalog);
+    let uids = BTreeSet::from([
+        "ok".to_string(),
+        "blocked".to_string(),
+        "missing".to_string(),
+    ]);
+    let blocked = HashSet::from(["blocked".to_string()]);
+    let remotes = installable_selection(&index, &uids, &blocked);
+    assert_eq!(remotes.len(), 1);
+    assert_eq!(remotes[0].uid.as_str(), "ok");
+}
+
+fn toast_notice(tone: NoticeTone, title: &'static str) -> StatusNotice {
+    StatusNotice {
+        tone,
+        title,
+        message: "message".into(),
+    }
+}
+
+#[test]
+fn toast_expiry_maps_tones_to_durations() {
+    let now = std::time::Instant::now();
+    let info = toast_expires_at(&toast_notice(NoticeTone::Info, "Hint"), false, now);
+    assert_eq!(info, Some(now + std::time::Duration::from_secs(4)));
+    let success = toast_expires_at(&toast_notice(NoticeTone::Success, "Done"), false, now);
+    assert_eq!(success, Some(now + std::time::Duration::from_secs(4)));
+    assert_eq!(
+        toast_expires_at(&toast_notice(NoticeTone::Warning, "Careful"), false, now),
+        None
+    );
+    assert_eq!(
+        toast_expires_at(&toast_notice(NoticeTone::Danger, "Failed"), false, now),
+        None
+    );
+    // Loading toasts persist until the status changes.
+    assert_eq!(
+        toast_expires_at(
+            &toast_notice(NoticeTone::Info, "Loading library"),
+            true,
+            now
+        ),
+        None
+    );
+}
+
+#[test]
+fn toast_push_trims_to_three_and_replaces_loading() {
+    let now = std::time::Instant::now();
+    let mut toasts = Vec::new();
+    push_toast(
+        &mut toasts,
+        1,
+        toast_notice(NoticeTone::Info, "Loading library"),
+        "a".into(),
+        now,
+    );
+    assert!(toasts[0].loading);
+    // A new toast retires the loading toast.
+    push_toast(
+        &mut toasts,
+        2,
+        toast_notice(NoticeTone::Danger, "Failed"),
+        "b".into(),
+        now,
+    );
+    assert_eq!(toasts.len(), 1);
+    assert!(!toasts[0].loading);
+    // The stack caps at three visible cards.
+    for seq in 3..=5 {
+        push_toast(
+            &mut toasts,
+            seq,
+            toast_notice(NoticeTone::Info, "Hint"),
+            seq.to_string(),
+            now,
+        );
+    }
+    assert_eq!(toasts.len(), 3);
+    assert_eq!(toasts[0].seq, 3);
+    // Expired toasts prune; sticky toasts stay.
+    let later = now + std::time::Duration::from_secs(5);
+    prune_toasts(&mut toasts, later);
+    assert!(toasts.is_empty());
+    push_toast(
+        &mut toasts,
+        6,
+        toast_notice(NoticeTone::Danger, "Failed"),
+        "c".into(),
+        now,
+    );
+    prune_toasts(&mut toasts, later);
+    assert_eq!(toasts.len(), 1);
+}
+
+#[test]
+fn dismissed_status_does_not_reappear() {
+    assert!(toast_should_show("refresh failed", true, ""));
+    assert!(!toast_should_show("refresh failed", true, "refresh failed"));
+    assert!(!toast_should_show("refresh failed", false, ""));
+    assert!(toast_should_show(
+        "different status",
+        true,
+        "refresh failed"
+    ));
+}
+
+#[test]
+fn toast_roles_match_notice_tones() {
+    assert_eq!(toast_role(NoticeTone::Danger), Role::Alert);
+    assert_eq!(toast_role(NoticeTone::Info), Role::Status);
+    assert_eq!(toast_role(NoticeTone::Success), Role::Status);
+    assert_eq!(toast_role(NoticeTone::Warning), Role::Status);
+}
+
+#[gpui::test]
+fn loading_state_shows_skeleton_rows_instead_of_empty_state(cx: &mut TestAppContext) {
+    let window = cx.update(|cx| {
+        gpui_component::init(cx);
+        apply_scribe_theme(cx);
+        let mut app = empty_model();
+        app.page = Page::FindMore;
+        app.loading = true;
+        let model = cx.new(|_| app);
+        cx.open_window(Default::default(), move |window, cx| {
+            cx.new(|cx| ScribeWindow::new(model, window, cx))
+        })
+        .unwrap()
+    });
+    let mut visual = gpui::VisualTestContext::from_window(window.into(), cx);
+    visual.run_until_parked();
+
+    assert!(visual.debug_bounds("skeleton-row").is_some());
+}
+
+#[gpui::test]
+fn skeletons_render_statically_under_reduced_motion(cx: &mut TestAppContext) {
+    let window = cx.update(|cx| {
+        gpui_component::init(cx);
+        apply_scribe_theme(cx);
+        cx.set_reduce_motion(true);
+        let mut app = empty_model();
+        app.page = Page::FindMore;
+        app.loading = true;
+        let model = cx.new(|_| app);
+        cx.open_window(Default::default(), move |window, cx| {
+            cx.new(|cx| ScribeWindow::new(model, window, cx))
+        })
+        .unwrap()
+    });
+    let mut visual = gpui::VisualTestContext::from_window(window.into(), cx);
+    visual.run_until_parked();
+
+    // Static skeleton blocks still render under reduced motion.
+    assert!(visual.debug_bounds("skeleton-row").is_some());
+}
+
+#[test]
+fn list_cursor_moves_clamps_and_handles_empty_lists() {
+    assert_eq!(move_cursor(None, 1, 5), Some(0));
+    assert_eq!(move_cursor(None, -1, 5), Some(4));
+    assert_eq!(move_cursor(Some(0), -1, 5), Some(0));
+    assert_eq!(move_cursor(Some(4), 1, 5), Some(4));
+    assert_eq!(move_cursor(Some(2), 1, 5), Some(3));
+    assert_eq!(move_cursor(Some(2), 1, 0), None);
+    assert_eq!(clamp_cursor(Some(9), 3), Some(2));
+    assert_eq!(clamp_cursor(Some(1), 0), None);
+    assert_eq!(clamp_cursor(None, 3), None);
+}
+
+#[test]
+fn catalog_cursor_resets_on_filter_change_and_clamps_on_shrink() {
+    assert_eq!(cursor_after_filter_change(true, Some(3), 10), None);
+    assert_eq!(cursor_after_filter_change(false, Some(3), 10), Some(3));
+    assert_eq!(cursor_after_filter_change(false, Some(9), 4), Some(3));
+    assert_eq!(cursor_after_filter_change(false, Some(2), 0), None);
+}
+
+#[test]
+fn visible_library_rows_skips_collapsed_groups() {
+    let addon = |name: &str| Addon {
+        title: name.into(),
+        folder_name: name.into(),
+        ..Addon::default()
+    };
+    let groups = vec![
+        InstalledGroup {
+            id: "a".into(),
+            name: "A".into(),
+            icon_url: None,
+            items: vec![
+                (addon("a1"), MatchedAddon::default()),
+                (addon("a2"), MatchedAddon::default()),
+            ],
+        },
+        InstalledGroup {
+            id: "b".into(),
+            name: "B".into(),
+            icon_url: None,
+            items: vec![(addon("b1"), MatchedAddon::default())],
+        },
+    ];
+    // All expanded: a1, a2, b1 in order.
+    let expanded = HashSet::from(["a".to_string(), "b".to_string()]);
+    let rows = visible_library_rows(&groups, &expanded);
+    assert_eq!(rows, vec![(0, 0), (0, 1), (1, 0)]);
+    // Group "a" collapsed: only b1 remains visible.
+    let expanded = HashSet::from(["b".to_string()]);
+    let rows = visible_library_rows(&groups, &expanded);
+    assert_eq!(rows, vec![(1, 0)]);
+    // Everything collapsed: no rows.
+    assert!(visible_library_rows(&groups, &HashSet::new()).is_empty());
+}
+
+#[test]
+fn fuzzy_score_matches_subsequence_with_style_bonuses() {
+    assert!(fuzzy_score("dolg", "Dolgubon").is_some());
+    assert!(fuzzy_score("lwc", "Lazy Writ Crafter").is_some());
+    assert!(fuzzy_score("xyz", "SkyShards").is_none());
+    assert_eq!(fuzzy_score("", "anything"), Some(0));
+    assert_eq!(fuzzy_score("   ", "anything"), Some(0));
+    assert!(fuzzy_score("SKY", "skyshards").is_some());
+    // Consecutive, word-start, and camel matches outrank scattered ones.
+    let consecutive = fuzzy_score("abc", "abcd").unwrap();
+    let scattered = fuzzy_score("abc", "axbxcx").unwrap();
+    assert!(consecutive > scattered);
+    let word_start = fuzzy_score("shards", "shards").unwrap();
+    let buried = fuzzy_score("shards", "xshards").unwrap();
+    assert!(word_start > buried);
+    let camel = fuzzy_score("sw", "StarWars").unwrap();
+    let plain = fuzzy_score("sw", "stwxx").unwrap();
+    assert!(camel > plain);
+}
+
+fn ranked_catalog() -> CatalogIndex {
+    CatalogIndex::new(Arc::new(Catalog {
+        addons: vec![
+            RemoteAddon {
+                uid: "1".into(),
+                ui_name: "SkyShards".into(),
+                ui_author_name: "Dolgubon".into(),
+                ..RemoteAddon::default()
+            },
+            RemoteAddon {
+                uid: "2".into(),
+                ui_name: "LoreBooks".into(),
+                ui_author_name: "Someone".into(),
+                ..RemoteAddon::default()
+            },
+            RemoteAddon {
+                uid: "3".into(),
+                ui_name: "Lazy Writ Crafter".into(),
+                ui_author_name: "Dolgubon".into(),
+                ..RemoteAddon::default()
+            },
+        ],
+        ..Catalog::default()
+    }))
+}
+
+#[test]
+fn fuzzy_rank_orders_by_score_then_popularity() {
+    let index = ranked_catalog();
+    // "lwc" matches only Lazy Writ Crafter via initials.
+    assert_eq!(fuzzy_filter_rank(&index, &[0, 1, 2], "lwc"), vec![2]);
+    // "dolg" matches both Dolgubon authors with equal scores; popularity
+    // order (base position) decides between them.
+    assert_eq!(fuzzy_filter_rank(&index, &[0, 1, 2], "dolg"), vec![0, 2]);
+    // Stronger title match beats the weaker author match.
+    let ranked = fuzzy_filter_rank(&index, &[0, 1, 2], "writ");
+    assert_eq!(ranked, vec![2]);
+    // Nothing matches: empty result, no crash.
+    assert!(fuzzy_filter_rank(&index, &[0, 1, 2], "zzzz").is_empty());
+}
+
+#[test]
+fn recent_searches_dedupe_order_and_cap() {
+    let mut recent = Vec::new();
+    push_recent_search(&mut recent, "skyshards");
+    push_recent_search(&mut recent, "harvestmap");
+    push_recent_search(&mut recent, "SKYSHARDS");
+    assert_eq!(
+        recent,
+        vec!["SKYSHARDS".to_string(), "harvestmap".to_string()]
+    );
+    push_recent_search(&mut recent, "   ");
+    assert_eq!(recent.len(), 2);
+    for index in 0..10 {
+        push_recent_search(&mut recent, &format!("query-{index}"));
+    }
+    assert_eq!(recent.len(), 8);
+    assert_eq!(recent[0], "query-9");
+}
+
+#[test]
+fn recent_dropdown_visibility_rules() {
+    assert!(should_show_recent_dropdown(true, true, true, true, false));
+    // Not Find More, not focused, typing, empty recents, or overlay open.
+    assert!(!should_show_recent_dropdown(false, true, true, true, false));
+    assert!(!should_show_recent_dropdown(true, false, true, true, false));
+    assert!(!should_show_recent_dropdown(true, true, false, true, false));
+    assert!(!should_show_recent_dropdown(true, true, true, false, false));
+    assert!(!should_show_recent_dropdown(true, true, true, true, true));
+}
+
+#[test]
+fn details_breakpoint_selects_inline_at_1400px() {
+    assert!(!details_inline_width(px(1399.0)));
+    assert!(details_inline_width(px(1400.0)));
+    assert!(details_inline_width(px(2560.0)));
+}
+
+#[test]
+fn overlay_kind_maps_details_identically_for_modal_and_inline() {
+    assert_eq!(
+        derive_overlay_kind(false, false, false, false, true),
+        Some(OverlayKind::RemoteDetails)
+    );
+    assert_eq!(
+        derive_overlay_kind(false, false, false, true, true),
+        Some(OverlayKind::LocalDetails)
+    );
+    assert_eq!(
+        derive_overlay_kind(false, false, true, true, true),
+        Some(OverlayKind::Uninstall)
+    );
+    assert_eq!(
+        derive_overlay_kind(true, true, true, true, true),
+        Some(OverlayKind::Lightbox)
+    );
+    assert_eq!(derive_overlay_kind(false, false, false, false, false), None);
+}
+
+#[test]
+fn keyboard_guards_suspend_browsing_while_details_open() {
+    assert!(keyboard_nav_allowed(None, false, false, false));
+    assert!(!keyboard_nav_allowed(
+        Some(OverlayKind::RemoteDetails),
+        false,
+        false,
+        false
+    ));
+    assert!(!keyboard_nav_allowed(
+        Some(OverlayKind::LocalDetails),
+        false,
+        false,
+        false
+    ));
+    assert!(!keyboard_nav_allowed(None, true, false, false));
+    assert!(!keyboard_nav_allowed(None, false, true, false));
+    assert!(!keyboard_nav_allowed(None, false, false, true));
+}
+
+#[test]
+fn window_chrome_hit_areas_suspend_under_overlays() {
+    // No overlay: caption drag + window controls register their hit areas.
+    assert!(window_chrome_active(None, false, false));
+    // Inline details leave the chrome interactive (nothing covers it).
+    assert!(window_chrome_active(
+        Some(OverlayKind::RemoteDetails),
+        true,
+        false
+    ));
+    // Modal overlays suspend the chrome so overlay close buttons above the
+    // caption strip keep receiving client clicks.
+    for kind in [
+        OverlayKind::RemoteDetails,
+        OverlayKind::LocalDetails,
+        OverlayKind::Uninstall,
+        OverlayKind::Rebuild,
+        OverlayKind::Lightbox,
+    ] {
+        assert!(!window_chrome_active(Some(kind), false, false));
+    }
+    // A context menu can open over the strip, so it suspends the chrome too.
+    assert!(!window_chrome_active(None, false, true));
+}
+
+#[test]
+fn back_action_clears_details_state() {
+    let mut model = empty_model();
+    model.selected_details = Some(RemoteAddonDetails::default());
+    model.selected_local = Some((Addon::default(), MatchedAddon::default()));
+    model.details_loading = true;
+    clear_details_overlay(&mut model);
+    assert!(model.selected_details.is_none());
+    assert!(model.selected_local.is_none());
+    assert!(!model.details_loading);
+}
+
+fn library_fixture() -> Vec<InstalledGroup> {
+    let addon = |name: &str| Addon {
+        title: name.into(),
+        folder_name: name.into(),
+        ..Addon::default()
+    };
+    vec![
+        InstalledGroup {
+            id: "a".into(),
+            name: "A".into(),
+            icon_url: None,
+            items: vec![
+                (addon("a1"), MatchedAddon::default()),
+                (addon("a2"), MatchedAddon::default()),
+            ],
+        },
+        InstalledGroup {
+            id: "b".into(),
+            name: "B".into(),
+            icon_url: None,
+            items: vec![(addon("b1"), MatchedAddon::default())],
+        },
+    ]
+}
+
+#[test]
+fn flatten_library_orders_headers_and_rows() {
+    let groups = library_fixture();
+    let expanded = HashSet::from(["a".to_string(), "b".to_string()]);
+    let flat = flatten_library(&groups, &expanded, false);
+    assert_eq!(
+        flat,
+        vec![
+            LibraryRow::GroupHeader {
+                group_ix: 0,
+                last_in_group: false
+            },
+            LibraryRow::AddonRow {
+                group_ix: 0,
+                row_ix: 0,
+                last_in_group: false
+            },
+            LibraryRow::AddonRow {
+                group_ix: 0,
+                row_ix: 1,
+                last_in_group: true
+            },
+            LibraryRow::GroupHeader {
+                group_ix: 1,
+                last_in_group: false
+            },
+            LibraryRow::AddonRow {
+                group_ix: 1,
+                row_ix: 0,
+                last_in_group: true
+            },
+        ]
+    );
+    // Collapsed group: header only, marked as group end.
+    let flat = flatten_library(&groups, &HashSet::from(["b".to_string()]), false);
+    assert_eq!(
+        flat,
+        vec![
+            LibraryRow::GroupHeader {
+                group_ix: 0,
+                last_in_group: true
+            },
+            LibraryRow::GroupHeader {
+                group_ix: 1,
+                last_in_group: false
+            },
+            LibraryRow::AddonRow {
+                group_ix: 1,
+                row_ix: 0,
+                last_in_group: true
+            },
+        ]
+    );
+    // Selection mode does not change the model.
+    assert_eq!(
+        flat,
+        flatten_library(&groups, &HashSet::from(["b".to_string()]), true)
+    );
+}
+
+#[test]
+fn flattened_addon_rows_match_keyboard_cursor_mapping() {
+    let groups = library_fixture();
+    let expanded = HashSet::from(["a".to_string(), "b".to_string()]);
+    let flat = flatten_library(&groups, &expanded, false);
+    let keyboard_rows = visible_library_rows(&groups, &expanded);
+    let flat_rows: Vec<(usize, usize)> = flat
+        .iter()
+        .filter_map(|row| match row {
+            LibraryRow::AddonRow {
+                group_ix, row_ix, ..
+            } => Some((*group_ix, *row_ix)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(keyboard_rows, flat_rows);
+    // Cursor -> flattened index accounts for interleaved headers.
+    assert_eq!(flat_index_of_row(&flat, 0), Some(1));
+    assert_eq!(flat_index_of_row(&flat, 1), Some(2));
+    assert_eq!(flat_index_of_row(&flat, 2), Some(4));
+    assert_eq!(flat_index_of_row(&flat, 3), None);
+}
+
+#[test]
+fn list_state_splice_keeps_offset_clamped_on_collapse() {
+    let state = gpui::ListState::new(0, gpui::ListAlignment::Top, px(10.0));
+    state.splice(0..0, 5);
+    assert_eq!(state.item_count(), 5);
+    state.splice(0..5, 2);
+    assert_eq!(state.item_count(), 2);
+    state.splice(0..2, 0);
+    assert_eq!(state.item_count(), 0);
+}
+
+#[gpui::test]
+fn details_open_inline_as_page_on_wide_windows(cx: &mut TestAppContext) {
+    let remote = RemoteAddon {
+        uid: "inline-fixture".into(),
+        category_id: "inline-category".into(),
+        ui_name: "Inline Fixture".into(),
+        ..RemoteAddon::default()
+    };
+    let catalog = Arc::new(Catalog {
+        addons: vec![remote.clone()],
+        categories: vec![Category {
+            id: "inline-category".into(),
+            name: "Inline Category".into(),
+            ..Category::default()
+        }],
+    });
+    let window = cx.update(|cx| {
+        gpui_component::init(cx);
+        apply_scribe_theme(cx);
+        let mut app = empty_model();
+        app.catalog_index = Arc::new(CatalogIndex::new(catalog));
+        app.selected_details = Some(RemoteAddonDetails {
+            addon: remote,
+            ..RemoteAddonDetails::default()
+        });
+        let model = cx.new(|_| app);
+        cx.open_window(
+            WindowOptions {
+                window_bounds: Some(WindowBounds::Windowed(Bounds {
+                    origin: Point::default(),
+                    size: size(px(1500.0), px(900.0)),
+                })),
+                ..Default::default()
+            },
+            move |window, cx| cx.new(|cx| ScribeWindow::new(model, window, cx)),
+        )
+        .unwrap()
+    });
+    let mut visual = gpui::VisualTestContext::from_window(window.into(), cx);
+    visual.run_until_parked();
+
+    // Wide viewport renders the inline page instead of the modal sheet.
+    assert!(visual.debug_bounds("details-page").is_some());
+    assert!(visual.debug_bounds("modal-surface").is_none());
 }

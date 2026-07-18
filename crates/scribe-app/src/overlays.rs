@@ -1,14 +1,15 @@
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use gpui::prelude::*;
 use gpui::{
     Animation, AnimationExt as _, App, Bounds, Context, DismissEvent, Entity, FocusHandle,
-    Focusable, IntoElement, ObjectFit, Pixels, Point, Role, StyledImage, Window, anchored,
-    deferred, div, img, point, px, relative,
+    Focusable, IntoElement, ObjectFit, Pixels, Point, Role, SharedString, StyledImage, Window,
+    anchored, deferred, div, img, point, px, relative,
 };
 use gpui_component::{
     FocusTrapElement as _, Icon, IconName, Size, StyledExt as _, Theme, h_flex,
+    input::InputState,
     menu::{PopupMenu, PopupMenuItem},
     scroll::ScrollableElement as _,
 };
@@ -19,16 +20,316 @@ use scribe_core::{
 
 use crate::bbcode::render_bbcode;
 use crate::components::{
-    Group, Modal, NativeButton, NativeIconButton, Title, addon_artwork, category_artwork,
-    format_count, metric_pill, notice_visuals, update_state_label,
+    Group, LiveRegion, Modal, NativeButton, NativeIconButton, Title, addon_artwork,
+    category_artwork, format_count, metric_pill, notice_visuals, skeleton_details_body,
+    update_state_label,
 };
 use crate::flows::{
     enqueue_dependency_uids, enqueue_remote, rebuild_local_storage, show_addon_details,
     show_installed_details, uninstall_named_folders,
 };
-use crate::model::{AppModel, NoticeTone, RecoveryPhase, installed_groups};
+use crate::model::{
+    AppModel, NoticeTone, RecoveryPhase, StatusNotice, clear_details_overlay, installed_groups,
+};
 use crate::theme::*;
 use crate::window::ScribeWindow;
+
+// ---------------------------------------------------------------------------
+// Toasts (bottom-right, above the Activity surface)
+// ---------------------------------------------------------------------------
+
+/// One visible toast. `loading` toasts persist until the status changes
+/// again; transient tones auto-dismiss; Warning/Danger stay until dismissed.
+#[derive(Clone)]
+pub(crate) struct ToastEntry {
+    pub(crate) seq: u64,
+    pub(crate) notice: StatusNotice,
+    pub(crate) status_key: String,
+    pub(crate) loading: bool,
+    pub(crate) expires_at: Option<Instant>,
+}
+
+pub(crate) fn is_loading_notice(notice: &StatusNotice) -> bool {
+    notice.title.starts_with("Loading")
+}
+
+/// Tone → auto-dismiss mapping: Info/Success expire in 4s; Warning/Danger
+/// and loading toasts stay until dismissed or replaced.
+pub(crate) fn toast_expires_at(
+    notice: &StatusNotice,
+    loading: bool,
+    now: Instant,
+) -> Option<Instant> {
+    if loading {
+        return None;
+    }
+    match notice.tone {
+        NoticeTone::Info | NoticeTone::Success => Some(now + Duration::from_secs(4)),
+        NoticeTone::Warning | NoticeTone::Danger => None,
+    }
+}
+
+/// A status is only toasted when it classifies to a notice and was not the
+/// status the user last dismissed.
+pub(crate) fn toast_should_show(
+    status: &str,
+    has_notice: bool,
+    last_dismissed_status: &str,
+) -> bool {
+    has_notice && status != last_dismissed_status
+}
+
+/// Pushes a toast, retiring any still-loading toasts and capping the stack
+/// at three visible cards (oldest drop first).
+pub(crate) fn push_toast(
+    toasts: &mut Vec<ToastEntry>,
+    seq: u64,
+    notice: StatusNotice,
+    status_key: String,
+    now: Instant,
+) {
+    let loading = is_loading_notice(&notice);
+    toasts.retain(|toast| !toast.loading);
+    toasts.push(ToastEntry {
+        seq,
+        expires_at: toast_expires_at(&notice, loading, now),
+        loading,
+        notice,
+        status_key,
+    });
+    while toasts.len() > 3 {
+        toasts.remove(0);
+    }
+}
+
+pub(crate) fn prune_toasts(toasts: &mut Vec<ToastEntry>, now: Instant) {
+    toasts.retain(|toast| toast.expires_at.is_none_or(|at| now < at));
+}
+
+pub(crate) fn toast_role(tone: NoticeTone) -> Role {
+    if tone == NoticeTone::Danger {
+        Role::Alert
+    } else {
+        Role::Status
+    }
+}
+
+pub(crate) fn render_toasts(
+    toasts: &[ToastEntry],
+    bottom_offset: f32,
+    owner: Entity<ScribeWindow>,
+) -> gpui::AnyElement {
+    let live = if toasts
+        .iter()
+        .any(|toast| toast.notice.tone == NoticeTone::Danger)
+    {
+        gpui::accesskit::Live::Assertive
+    } else {
+        gpui::accesskit::Live::Polite
+    };
+    let stack = div()
+        .id("toast-stack")
+        .debug_selector(|| "toast-stack".into())
+        .absolute()
+        .right(px(SCRIBE_CONTENT_GUTTER))
+        .bottom(px(bottom_offset))
+        .w(px(360.0))
+        .flex()
+        .flex_col()
+        .items_end()
+        .gap(px(8.0))
+        .children(toasts.iter().map(|toast| {
+            let (color, icon) = match toast.notice.tone {
+                NoticeTone::Info => (gpui::rgb(SCRIBE_INFO), IconName::Info),
+                NoticeTone::Success => (gpui::rgb(SCRIBE_SUCCESS), IconName::CircleCheck),
+                NoticeTone::Warning => (gpui::rgb(SCRIBE_WARNING), IconName::TriangleAlert),
+                NoticeTone::Danger => (gpui::rgb(SCRIBE_DANGER), IconName::TriangleAlert),
+            };
+            let icon = if toast.loading {
+                IconName::LoaderCircle
+            } else {
+                icon
+            };
+            let dismiss_owner = owner.clone();
+            let dismiss_status = toast.status_key.clone();
+            let dismiss_seq = toast.seq;
+            let label = format!("{}. {}", toast.notice.title, toast.notice.message);
+            let card = div()
+                .id(SharedString::from(format!("toast-{}", toast.seq)))
+                .debug_selector(|| "toast-card".into())
+                .role(toast_role(toast.notice.tone))
+                .aria_label(label)
+                .relative()
+                .w_full()
+                .px(px(12.0))
+                .py(px(10.0))
+                .rounded(px(12.0))
+                .border_1()
+                .border_color(color.opacity(0.35))
+                .bg(gpui::rgba(SCRIBE_SURFACE_RAISED_RGBA))
+                .shadow_lg()
+                .flex()
+                .items_start()
+                .gap(px(9.0))
+                .child(Icon::new(icon).size(px(15.0)).flex_none().text_color(color))
+                .child(
+                    div()
+                        .min_w_0()
+                        .flex_1()
+                        .flex()
+                        .flex_col()
+                        .gap(px(2.0))
+                        .child(
+                            div()
+                                .font_semibold()
+                                .text_size(px(13.0))
+                                .child(toast.notice.title),
+                        )
+                        .child(
+                            div()
+                                .text_size(px(12.0))
+                                .line_height(relative(1.35))
+                                .text_color(gpui::rgba(SCRIBE_TEXT_SECONDARY_RGBA))
+                                .child(toast.notice.message.clone()),
+                        ),
+                );
+            let card = if toast.loading {
+                card
+            } else {
+                card.child(
+                    NativeIconButton::new(
+                        SharedString::from(format!("toast-dismiss-{dismiss_seq}")),
+                        "Dismiss notification",
+                        IconName::Close,
+                    )
+                    .on_activate(move |_, cx| {
+                        dismiss_owner.update(cx, |view, cx| {
+                            view.last_dismissed_status = dismiss_status.clone();
+                            view.toasts.retain(|toast| toast.seq != dismiss_seq);
+                            cx.notify();
+                        });
+                    }),
+                )
+            };
+            card.with_animation(
+                SharedString::from(format!("toast-enter-{}", toast.seq)),
+                Animation::new(Duration::from_millis(SCRIBE_MOTION_FAST_MS)),
+                |card, delta| card.opacity(delta).right(px(-12.0 * (1.0 - delta))),
+            )
+            .into_any_element()
+        }));
+    LiveRegion::new(stack, live).into_any_element()
+}
+
+/// Skeleton dossier sheet shown while remote details are being fetched.
+pub(crate) fn render_details_skeleton(
+    model: Entity<AppModel>,
+    focus: FocusHandle,
+) -> gpui::AnyElement {
+    let close_model = model.clone();
+    Modal::new(focus)
+        .title("Addon dossier")
+        .width(860.0)
+        .sheet()
+        .on_close(move |_, cx| {
+            close_model.update(cx, |app, cx| {
+                app.details_loading = false;
+                cx.notify();
+            });
+        })
+        .child(skeleton_details_body())
+        .into_any_element()
+}
+
+/// Recent-searches dropdown below the Find More search input. Visible only
+/// while the input is focused and empty; dismisses with focus loss or Escape.
+pub(crate) fn render_recent_searches(
+    entries: Vec<String>,
+    anchor: Bounds<Pixels>,
+    search: Entity<InputState>,
+    owner: Entity<ScribeWindow>,
+) -> gpui::AnyElement {
+    let _ = owner;
+    div()
+        .id("recent-searches")
+        .debug_selector(|| "recent-searches".into())
+        .absolute()
+        .top(anchor.bottom() + px(6.0))
+        .left(anchor.left())
+        .w(anchor.size.width.max(px(260.0)))
+        .rounded(px(10.0))
+        .border_1()
+        .border_color(gpui::rgba(SCRIBE_HAIRLINE_RGBA))
+        .bg(gpui::rgba(SCRIBE_SURFACE_RAISED_RGBA))
+        .shadow_lg()
+        .p(px(6.0))
+        .flex()
+        .flex_col()
+        .gap(px(2.0))
+        .on_click(|_, _, cx| cx.stop_propagation())
+        .child(
+            div()
+                .px(px(6.0))
+                .py(px(2.0))
+                .text_size(px(11.0))
+                .text_color(gpui::rgba(SCRIBE_TEXT_TERTIARY_RGBA))
+                .child("Recent searches"),
+        )
+        .children(entries.into_iter().take(5).map(|query| {
+            let apply_search = search.clone();
+            let pointer_query = query.clone();
+            let keyboard_search = search.clone();
+            let keyboard_query = query.clone();
+            div()
+                .id(SharedString::from(format!("recent-search-{query}")))
+                .focusable()
+                .tab_stop(true)
+                .role(Role::Button)
+                .aria_label(format!("Search for {query} again"))
+                .cursor_pointer()
+                .h(px(28.0))
+                .px(px(6.0))
+                .rounded(px(6.0))
+                .flex()
+                .items_center()
+                .gap(px(8.0))
+                .hover(|row| row.bg(gpui::rgba(SCRIBE_SURFACE_HOVER_RGBA)))
+                .focus(|row| {
+                    row.border_1()
+                        .border_color(gpui::rgba(SCRIBE_FOCUS_RING_RGBA))
+                })
+                .on_click(move |_, window, cx| {
+                    apply_search.update(cx, |input, cx| {
+                        input.set_value(pointer_query.clone(), window, cx)
+                    });
+                })
+                .on_key_down(move |event, window, cx| {
+                    if !event.is_held && matches!(event.keystroke.key.as_str(), "enter" | "space") {
+                        cx.stop_propagation();
+                        keyboard_search.update(cx, |input, cx| {
+                            input.set_value(keyboard_query.clone(), window, cx)
+                        });
+                    }
+                })
+                .child(
+                    Icon::new(IconName::Search)
+                        .size(px(13.0))
+                        .flex_none()
+                        .text_color(gpui::rgba(SCRIBE_TEXT_TERTIARY_RGBA)),
+                )
+                .child(
+                    div()
+                        .min_w_0()
+                        .overflow_hidden()
+                        .whitespace_nowrap()
+                        .text_ellipsis()
+                        .text_size(px(12.0))
+                        .child(query),
+                )
+                .into_any_element()
+        }))
+        .into_any_element()
+}
 
 pub(crate) fn render_missing_dependencies(
     dependencies: Arc<Vec<MissingDependency>>,
@@ -202,6 +503,7 @@ pub(crate) fn dependency_banner(
 pub(crate) fn details_screenshot_rail(
     screenshots: &[String],
     model: Entity<AppModel>,
+    thumb_height: f32,
 ) -> gpui::AnyElement {
     div()
         .w_full()
@@ -233,7 +535,7 @@ pub(crate) fn details_screenshot_rail(
                             ))
                             .cursor_pointer()
                             .flex_1()
-                            .h(px(142.0))
+                            .h(px(thumb_height))
                             .rounded(px(8.0))
                             .overflow_hidden()
                             .border_1()
@@ -247,11 +549,530 @@ pub(crate) fn details_screenshot_rail(
                                     cx.notify();
                                 });
                             })
-                            .child(img(source.clone()).size_full().object_fit(ObjectFit::Cover))
+                            .child(
+                                img(source.clone())
+                                    .size_full()
+                                    .object_fit(ObjectFit::Cover)
+                                    .with_animation(
+                                        "artwork-fade",
+                                        Animation::new(Duration::from_millis(
+                                            SCRIBE_MOTION_FAST_MS,
+                                        )),
+                                        |image, delta| image.opacity(delta),
+                                    ),
+                            )
                     }),
             ),
         )
         .into_any_element()
+}
+
+// ---------------------------------------------------------------------------
+// Inline details page (viewport >= 1400px): same dossier content as the modal
+// sheet, rendered as a page-level view with a back affordance.
+// ---------------------------------------------------------------------------
+
+fn details_page_chrome(
+    title: &'static str,
+    focus: FocusHandle,
+    model: Entity<AppModel>,
+    content: gpui::AnyElement,
+) -> gpui::AnyElement {
+    let back_model = model.clone();
+    div()
+        .id("details-page")
+        .debug_selector(|| "details-page".into())
+        .role(Role::Group)
+        .aria_label(title)
+        .track_focus(&focus)
+        .focus_trap("scribe-details-page", &focus)
+        .size_full()
+        .flex()
+        .flex_col()
+        .child(
+            div().h(px(40.0)).flex().items_center().child(
+                NativeButton::new("details-back", "← Back")
+                    .ghost()
+                    .on_activate(move |_, cx| {
+                        back_model.update(cx, |app, cx| {
+                            clear_details_overlay(app);
+                            cx.notify();
+                        });
+                    }),
+            ),
+        )
+        .child(
+            div()
+                .min_h_0()
+                .flex_1()
+                .overflow_y_scrollbar()
+                .pr(px(5.0))
+                .child(content),
+        )
+        .into_any_element()
+}
+
+fn facts_card(title: &'static str, facts: Vec<(&'static str, String)>) -> gpui::AnyElement {
+    div()
+        .w_full()
+        .p(px(14.0))
+        .rounded(px(SCRIBE_CARD_RADIUS))
+        .border_1()
+        .border_color(gpui::rgba(SCRIBE_HAIRLINE_RGBA))
+        .bg(gpui::rgba(SCRIBE_SURFACE_RGBA))
+        .flex()
+        .flex_col()
+        .gap(px(8.0))
+        .child(
+            div()
+                .font_semibold()
+                .text_size(px(12.0))
+                .text_color(gpui::rgba(SCRIBE_TEXT_SECONDARY_RGBA))
+                .child(title),
+        )
+        .children(
+            facts
+                .into_iter()
+                .map(|(label, value)| detail_fact(label, value)),
+        )
+        .into_any_element()
+}
+
+fn actions_card(children: Vec<gpui::AnyElement>) -> gpui::AnyElement {
+    div()
+        .w_full()
+        .p(px(14.0))
+        .rounded(px(SCRIBE_CARD_RADIUS))
+        .border_1()
+        .border_color(gpui::rgba(SCRIBE_HAIRLINE_RGBA))
+        .bg(gpui::rgba(SCRIBE_SURFACE_RGBA))
+        .flex()
+        .flex_col()
+        .gap(px(8.0))
+        .child(
+            div()
+                .font_semibold()
+                .text_size(px(12.0))
+                .text_color(gpui::rgba(SCRIBE_TEXT_SECONDARY_RGBA))
+                .child("Actions"),
+        )
+        .children(children)
+        .into_any_element()
+}
+
+/// Inline (wide-window) remote dossier page: header + big screenshot rail +
+/// BBCode description on the left, facts/actions rail on the right, latest
+/// changes full-width below.
+pub(crate) fn render_remote_details_page(
+    details: RemoteAddonDetails,
+    category: Option<Category>,
+    model: Entity<AppModel>,
+    focus: FocusHandle,
+) -> gpui::AnyElement {
+    let install_model = model.clone();
+    let website = details.addon.ui_file_info_url.to_string();
+    let remote_for_install = details.addon.clone();
+    let screenshots: Vec<_> = details
+        .addon
+        .ui_imgs
+        .iter()
+        .take(12)
+        .map(ToString::to_string)
+        .collect();
+    let has_description = !details.ui_description.trim().is_empty();
+    let has_change_log = !details.ui_change_log.trim().is_empty();
+    let compatibility = details
+        .addon
+        .compatabilities
+        .iter()
+        .take(4)
+        .map(|version| version.name.to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let thumbnail = details.addon.ui_img_thumbs.first().map(ToString::to_string);
+    let category_name = category
+        .as_ref()
+        .map(|category| category.name.to_string())
+        .unwrap_or_else(|| "ESOUI addon".into());
+    let category_icon = category
+        .as_ref()
+        .filter(|category| !category.icon_url.is_empty())
+        .map(|category| category.icon_url.to_string());
+    let title = details.addon.ui_name.to_string();
+    let author = details.addon.ui_author_name.to_string();
+    let version = details.addon.ui_version.to_string();
+    let version_display = version.trim_start_matches(['v', 'V']).to_owned();
+    let updated = details.addon.ui_date.to_string();
+    let downloads = format_count(details.addon.ui_download_total);
+    let favorites = format_count(details.addon.ui_favorite_total);
+    let views = format_count(details.ui_hit_count);
+    let content = div()
+        .flex()
+        .flex_col()
+        .gap(px(16.0))
+        .child(
+            div()
+                .flex()
+                .items_start()
+                .gap(px(16.0))
+                .child(
+                    div()
+                        .min_w_0()
+                        .flex_1()
+                        .flex()
+                        .flex_col()
+                        .gap(px(16.0))
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap(px(13.0))
+                                .child(addon_artwork(
+                                    thumbnail,
+                                    category_icon.clone(),
+                                    &category_name,
+                                    56.0,
+                                ))
+                                .child(
+                                    div()
+                                        .min_w_0()
+                                        .flex()
+                                        .flex_col()
+                                        .gap(px(4.0))
+                                        .child(
+                                            div()
+                                                .min_w_0()
+                                                .overflow_hidden()
+                                                .whitespace_nowrap()
+                                                .text_ellipsis()
+                                                .font_semibold()
+                                                .text_size(px(17.0))
+                                                .child(title),
+                                        )
+                                        .child(
+                                            div()
+                                                .text_size(px(12.0))
+                                                .text_color(gpui::rgba(SCRIBE_TEXT_TERTIARY_RGBA))
+                                                .child(format!(
+                                                    "{author}  •  v{version_display}  •  {category_name}"
+                                                )),
+                                        ),
+                                ),
+                        )
+                        .when(!screenshots.is_empty(), |column| {
+                            column.child(details_screenshot_rail(
+                                &screenshots,
+                                model.clone(),
+                                200.0,
+                            ))
+                        })
+                        .when(has_description, |column| {
+                            column.child(detail_rich_section(
+                                "Description",
+                                "remote-description",
+                                &details.ui_description,
+                            ))
+                        }),
+                )
+                .child(
+                    div()
+                        .w(px(300.0))
+                        .flex_none()
+                        .flex()
+                        .flex_col()
+                        .gap(px(12.0))
+                        .child(facts_card(
+                            "Facts",
+                            vec![
+                                ("Version", format!("v{version_display}")),
+                                ("Author", author),
+                                ("Category", category_name),
+                                ("Downloads", downloads),
+                                ("Favorites", favorites),
+                                ("Views", views),
+                                ("Updated", updated),
+                                ("Compatibility", compatibility),
+                            ],
+                        ))
+                        .child(actions_card(vec![
+                            NativeButton::new("install-from-details", "Install addon")
+                                .install()
+                                .on_activate(move |window, cx| {
+                                    enqueue_remote(
+                                        remote_for_install.clone(),
+                                        install_model.clone(),
+                                        window,
+                                        cx,
+                                    );
+                                })
+                                .into_any_element(),
+                            NativeButton::new("open-detail-website", "ESOUI page")
+                                .ghost()
+                                .icon(IconName::ExternalLink)
+                                .on_activate(move |_, cx| cx.open_url(&website))
+                                .into_any_element(),
+                        ])),
+                ),
+        )
+        .when(has_change_log, |column| {
+            column.child(detail_rich_section(
+                "Latest changes",
+                "remote-changelog",
+                &details.ui_change_log,
+            ))
+        });
+    details_page_chrome("Addon details", focus, model, content.into_any_element())
+}
+
+/// Inline (wide-window) installed dossier page.
+pub(crate) fn render_local_details_page(
+    local: (Addon, MatchedAddon),
+    details: Option<RemoteAddonDetails>,
+    category: Option<Category>,
+    model: Entity<AppModel>,
+    focus: FocusHandle,
+) -> gpui::AnyElement {
+    let (addon, decision) = local;
+    let remove_model = model.clone();
+    let update_model = model.clone();
+    let folder = addon.folder_name.clone();
+    let update = decision
+        .remote
+        .clone()
+        .filter(|_| decision.update_available);
+    let remote = decision.remote.clone();
+    let screenshots: Vec<String> = details
+        .as_ref()
+        .map(|details| {
+            details
+                .addon
+                .ui_imgs
+                .iter()
+                .take(12)
+                .map(ToString::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    let description_source = details
+        .as_ref()
+        .and_then(|details| {
+            (!details.ui_description.trim().is_empty()).then_some(details.ui_description.as_str())
+        })
+        .or_else(|| (!addon.description.trim().is_empty()).then_some(addon.description.as_str()));
+    let thumbnail = remote
+        .as_ref()
+        .and_then(|remote| remote.ui_img_thumbs.first())
+        .map(ToString::to_string);
+    let category_name = category
+        .as_ref()
+        .map(|category| category.name.to_string())
+        .unwrap_or_else(|| {
+            if addon.is_library {
+                "Library".into()
+            } else {
+                "Installed addon".into()
+            }
+        });
+    let category_icon = category
+        .as_ref()
+        .filter(|category| !category.icon_url.is_empty())
+        .map(|category| category.icon_url.to_string());
+    let downloads = remote
+        .as_ref()
+        .map(|remote| format_count(remote.ui_download_total))
+        .unwrap_or_else(|| "Local".into());
+    let updated = remote
+        .as_ref()
+        .map(|remote| remote.ui_date.to_string())
+        .unwrap_or_default();
+    let website = remote
+        .as_ref()
+        .map(|remote| remote.ui_file_info_url.to_string())
+        .unwrap_or_default();
+    let version_display = addon.version.trim_start_matches(['v', 'V']).to_owned();
+    let title = addon.title.clone();
+    let content = div()
+        .flex()
+        .flex_col()
+        .gap(px(16.0))
+        .child(
+            div()
+                .flex()
+                .items_start()
+                .gap(px(16.0))
+                .child(
+                    div()
+                        .min_w_0()
+                        .flex_1()
+                        .flex()
+                        .flex_col()
+                        .gap(px(16.0))
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap(px(13.0))
+                                .child(addon_artwork(
+                                    thumbnail,
+                                    category_icon.clone(),
+                                    &category_name,
+                                    56.0,
+                                ))
+                                .child(
+                                    div()
+                                        .min_w_0()
+                                        .flex()
+                                        .flex_col()
+                                        .gap(px(4.0))
+                                        .child(
+                                            div()
+                                                .min_w_0()
+                                                .overflow_hidden()
+                                                .whitespace_nowrap()
+                                                .text_ellipsis()
+                                                .font_semibold()
+                                                .text_size(px(17.0))
+                                                .child(title),
+                                        )
+                                        .child(
+                                            div()
+                                                .flex()
+                                                .items_center()
+                                                .gap(px(5.0))
+                                                .text_size(px(12.0))
+                                                .text_color(gpui::rgba(SCRIBE_TEXT_TERTIARY_RGBA))
+                                                .child(category_artwork(
+                                                    category_icon,
+                                                    &category_name,
+                                                    15.0,
+                                                ))
+                                                .child(category_name)
+                                                .child(format!(
+                                                    "•  v{version_display}  •  {}",
+                                                    update_state_label(&decision.update_state)
+                                                )),
+                                        ),
+                                ),
+                        )
+                        .when(!screenshots.is_empty(), |column| {
+                            column.child(details_screenshot_rail(
+                                &screenshots,
+                                model.clone(),
+                                200.0,
+                            ))
+                        })
+                        .when_some(description_source, |column, text| {
+                            column.child(detail_rich_section(
+                                "Description",
+                                "local-description",
+                                text,
+                            ))
+                        }),
+                )
+                .child(
+                    div()
+                        .w(px(300.0))
+                        .flex_none()
+                        .flex()
+                        .flex_col()
+                        .gap(px(12.0))
+                        .child(facts_card(
+                            "Facts",
+                            vec![
+                                (
+                                    "Author",
+                                    if addon.author.is_empty() {
+                                        "Unknown".into()
+                                    } else {
+                                        addon.author.clone()
+                                    },
+                                ),
+                                ("Version", addon.version.clone()),
+                                ("API version", addon.api_version.clone()),
+                                ("Folder", addon.folder_name.clone()),
+                                ("Downloads", downloads),
+                                ("Updated", updated),
+                            ],
+                        ))
+                        .child(actions_card({
+                            let mut buttons = Vec::new();
+                            if let Some(remote) = update {
+                                buttons.push(
+                                    NativeButton::new("update-from-local-detail", "Update")
+                                        .icon(IconName::ArrowDown)
+                                        .on_activate(move |window, cx| {
+                                            enqueue_remote(
+                                                remote.clone(),
+                                                update_model.clone(),
+                                                window,
+                                                cx,
+                                            )
+                                        })
+                                        .into_any_element(),
+                                );
+                            }
+                            buttons.push(
+                                NativeButton::new("remove-from-local-detail", "Uninstall")
+                                    .danger()
+                                    .icon(IconName::CircleX)
+                                    .on_activate(move |_, cx| {
+                                        remove_model.update(cx, |app, cx| {
+                                            app.pending_uninstall = vec![folder.clone()];
+                                            cx.notify();
+                                        });
+                                    })
+                                    .into_any_element(),
+                            );
+                            if !website.is_empty() {
+                                buttons.push(
+                                    NativeButton::new("open-local-esoui", "ESOUI")
+                                        .ghost()
+                                        .icon(IconName::ExternalLink)
+                                        .on_activate(move |_, cx| cx.open_url(&website))
+                                        .into_any_element(),
+                                );
+                            }
+                            buttons
+                        })),
+                ),
+        )
+        .when(!addon.depends_on.is_empty(), |column| {
+            column.child(detail_text_section(
+                "Required dependencies",
+                addon.depends_on.join(", "),
+            ))
+        })
+        .when(!addon.optional_depends_on.is_empty(), |column| {
+            column.child(detail_text_section(
+                "Optional dependencies",
+                addon.optional_depends_on.join(", "),
+            ))
+        })
+        .when(!addon.saved_variables.is_empty(), |column| {
+            column.child(detail_text_section(
+                "Saved variables",
+                addon.saved_variables.join(", "),
+            ))
+        });
+    details_page_chrome(
+        "Installed addon details",
+        focus,
+        model,
+        content.into_any_element(),
+    )
+}
+
+/// Inline skeleton page while remote details are being fetched.
+pub(crate) fn render_details_page_skeleton(
+    model: Entity<AppModel>,
+    focus: FocusHandle,
+) -> gpui::AnyElement {
+    details_page_chrome(
+        "Loading addon details",
+        focus,
+        model,
+        skeleton_details_body(),
+    )
 }
 
 pub(crate) fn render_details_modal(
@@ -412,7 +1233,7 @@ pub(crate) fn render_details_modal(
                         ),
                 )
                 .when(!screenshots.is_empty(), |column| {
-                    column.child(details_screenshot_rail(&screenshots, model.clone()))
+                    column.child(details_screenshot_rail(&screenshots, model.clone(), 142.0))
                 })
                 .when(has_description, |column| {
                     column.child(detail_rich_section(
@@ -608,7 +1429,7 @@ pub(crate) fn render_local_details_modal(
                         ),
                 )
                 .when(!screenshots.is_empty(), |column| {
-                    column.child(details_screenshot_rail(&screenshots, model.clone()))
+                    column.child(details_screenshot_rail(&screenshots, model.clone(), 142.0))
                 })
                 .child(
                     div()

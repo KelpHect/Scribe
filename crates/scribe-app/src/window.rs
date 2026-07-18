@@ -1,5 +1,5 @@
 use std::cell::Cell;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ops::Range;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -9,38 +9,49 @@ use std::time::{Duration, Instant};
 use gpui::prelude::*;
 use gpui::{
     Animation, AnimationExt as _, App, Bounds, ClipboardItem, Context, Entity, FocusHandle,
-    Focusable, IntoElement, MouseButton, ObjectFit, Pixels, Point, Role, SharedString, StyledImage,
-    Subscription, Window, WindowControlArea, div, img, px, uniform_list,
+    Focusable, IntoElement, ListAlignment, ListState, MouseButton, ObjectFit, Pixels, Point, Role,
+    SharedString, StyledImage, Subscription, Window, WindowControlArea, div, img, list, px,
+    uniform_list,
 };
+use gpui::{ScrollStrategy, UniformListScrollHandle};
 use gpui_component::{
-    ActiveTheme as _, ElementExt as _, Icon, IconName, IndexPath, StyledExt as _, TitleBar,
+    ActiveTheme as _, ElementExt as _, Icon, IconName, IndexPath, StyledExt as _,
     input::{Input, InputEvent, InputState},
     menu::PopupMenu,
     scroll::ScrollableElement as _,
     select::{SearchableVec, SelectEvent, SelectState},
 };
-use scribe_core::{CatalogSort, Category, RemoteAddon};
+use scribe_core::{Addon, CatalogSort, Category, MatchedAddon, RemoteAddon};
 
 use crate::components::{
     CategoryPickerOverlay, FilterOption, NativeButton, catalog_sort_button, category_artwork,
     category_filter_trigger, compatibility_control, empty_state, health_status_row, metric_pill,
-    render_category_picker_overlay, render_inline_notice, render_status_notice, settings_card,
-    settings_section_label,
+    render_category_picker_overlay, render_inline_notice, settings_card, settings_section_label,
+    skeleton_group, skeleton_row_catalog,
 };
 use crate::flows::{
-    browse_for_addons, enqueue_remote, refresh_catalog, rescan_configured_addons, set_app_theme,
+    browse_for_addons, commit_recent_search, enqueue_remote, refresh_catalog,
+    rescan_configured_addons, set_app_theme, set_background_alerts, show_addon_details,
+    show_installed_details,
 };
 use crate::model::{
-    AppModel, NoticeTone, OverlayKind, Page, PageState, RecoveryPhase, installed_groups,
-    navigate_to_page, status_notice,
+    AppModel, InstalledGroup, LibraryRow, NoticeTone, OverlayKind, Page, PageState, RecoveryPhase,
+    catalog_blocked_uids, clamp_cursor, clear_details_overlay, cursor_after_filter_change,
+    derive_overlay_kind, details_inline_width, flat_index_of_row, flatten_library,
+    fuzzy_filter_rank, installable_selection, installed_groups, keyboard_nav_allowed, move_cursor,
+    navigate_to_page, should_show_recent_dropdown, status_notice, visible_library_rows,
+    window_chrome_active,
 };
 use crate::overlays::{
-    claim_context_invoker, context_menu_key, menu_anchor, open_category_context_menu,
-    render_context_menu_overlay, render_details_modal, render_lightbox, render_local_details_modal,
-    render_missing_dependencies, render_rebuild_modal, render_task_activity,
-    render_uninstall_modal, task_activity_relevant, task_state_is_terminal,
+    ToastEntry, claim_context_invoker, context_menu_key, menu_anchor, open_category_context_menu,
+    prune_toasts, push_toast, render_context_menu_overlay, render_details_modal,
+    render_details_page_skeleton, render_details_skeleton, render_lightbox,
+    render_local_details_modal, render_local_details_page, render_missing_dependencies,
+    render_rebuild_modal, render_recent_searches, render_remote_details_page, render_task_activity,
+    render_toasts, render_uninstall_modal, task_activity_relevant, task_state_is_terminal,
+    toast_should_show,
 };
-use crate::rows::{catalog_row, matched_row};
+use crate::rows::{RowChrome, catalog_row, matched_row};
 use crate::theme::*;
 use crate::{
     FocusSearch, OpenSettings, ShowFindMore, ShowInstalled, ShowUpdates, duration_label,
@@ -93,7 +104,10 @@ impl ScribeWindowControl {
     }
 }
 
-pub(crate) fn scribe_window_control(control: ScribeWindowControl) -> gpui::AnyElement {
+pub(crate) fn scribe_window_control(
+    control: ScribeWindowControl,
+    active: bool,
+) -> gpui::AnyElement {
     let is_close = matches!(control, ScribeWindowControl::Close);
     let selector = control.id();
     div()
@@ -108,7 +122,12 @@ pub(crate) fn scribe_window_control(control: ScribeWindowControl) -> gpui::AnyEl
         .items_center()
         .justify_center()
         .text_color(gpui::rgb(SCRIBE_FOREGROUND).opacity(0.8))
-        .window_control_area(control.hit_area())
+        // The non-client hit area only exists while the window chrome is
+        // active: a modal overlay painted above this strip must not let
+        // clicks on its own close button land on HTCLOSE beneath it.
+        .when(active, |button| {
+            button.window_control_area(control.hit_area())
+        })
         .hover(move |button| {
             if is_close {
                 button
@@ -146,7 +165,38 @@ fn truncate_middle(text: &str, max_chars: usize) -> String {
     format!("{head}…{tail}")
 }
 
-pub(crate) fn scribe_window_controls(is_maximized: bool) -> gpui::AnyElement {
+/// The Updates badge turns into a loud accent pill whenever updates are
+/// waiting; zero hides the badge entirely (see the `.filter` at the call site).
+pub(crate) fn updates_badge_loud(page: Page, count: usize) -> bool {
+    page == Page::Updates && count > 0
+}
+
+/// Flips one uid in the Find More batch selection. Unselectable (installed or
+/// queued) rows are ignored and report `false`.
+pub(crate) fn toggle_catalog_selection(
+    selection: &mut BTreeSet<String>,
+    uid: &str,
+    selectable: bool,
+) -> bool {
+    if !selectable {
+        return false;
+    }
+    if !selection.remove(uid) {
+        selection.insert(uid.to_owned());
+    }
+    true
+}
+
+/// The keyboard cursor's frame of reference: the position of a flattened
+/// list item among AddonRow items only.
+fn visible_row_index(flat: &[LibraryRow], index: usize) -> usize {
+    flat[..index.min(flat.len())]
+        .iter()
+        .filter(|row| matches!(row, LibraryRow::AddonRow { .. }))
+        .count()
+}
+
+pub(crate) fn scribe_window_controls(is_maximized: bool, active: bool) -> gpui::AnyElement {
     div()
         .id("scribe-window-controls")
         .debug_selector(|| "scribe-window-controls".into())
@@ -156,13 +206,16 @@ pub(crate) fn scribe_window_controls(is_maximized: bool) -> gpui::AnyElement {
         .h(px(SCRIBE_TITLE_ROW_HEIGHT))
         .flex()
         .items_center()
-        .child(scribe_window_control(ScribeWindowControl::Minimize))
-        .child(scribe_window_control(if is_maximized {
-            ScribeWindowControl::Restore
-        } else {
-            ScribeWindowControl::Maximize
-        }))
-        .child(scribe_window_control(ScribeWindowControl::Close))
+        .child(scribe_window_control(ScribeWindowControl::Minimize, active))
+        .child(scribe_window_control(
+            if is_maximized {
+                ScribeWindowControl::Restore
+            } else {
+                ScribeWindowControl::Maximize
+            },
+            active,
+        ))
+        .child(scribe_window_control(ScribeWindowControl::Close, active))
         .into_any_element()
 }
 
@@ -184,6 +237,21 @@ pub(crate) struct ScribeWindow {
     pub(crate) category_trigger_bounds: Rc<Cell<Bounds<Pixels>>>,
     pub(crate) hide_installed: bool,
     pub(crate) sort_ascending: bool,
+    pub(crate) catalog_selection_mode: bool,
+    pub(crate) selected_catalog_uids: BTreeSet<String>,
+    pub(crate) catalog_cursor: Option<usize>,
+    pub(crate) library_cursor: Option<usize>,
+    pub(crate) keyboard_nav: bool,
+    pub(crate) catalog_filter_signature: Option<(String, String, String, String, bool, bool)>,
+    pub(crate) catalog_indices: Arc<Vec<usize>>,
+    pub(crate) catalog_scroll: UniformListScrollHandle,
+    pub(crate) library_list: ListState,
+    pub(crate) library_flat: Vec<LibraryRow>,
+    pub(crate) search_region_bounds: Rc<Cell<Bounds<Pixels>>>,
+    pub(crate) toasts: Vec<ToastEntry>,
+    pub(crate) toast_seq: u64,
+    pub(crate) last_status: String,
+    pub(crate) last_dismissed_status: String,
     pub(crate) expanded_categories: HashSet<String>,
     pub(crate) installed_groups_initialized: bool,
     pub(crate) selection_mode: bool,
@@ -205,6 +273,7 @@ pub(crate) struct ScribeWindow {
     pub(crate) context_menu_subscription: Option<Subscription>,
     pub(crate) profiled_page: Page,
     pub(crate) profiled_viewport: gpui::Size<Pixels>,
+    pub(crate) tray: Option<crate::tray::TrayHandle>,
     pub(crate) _subscriptions: Vec<Subscription>,
 }
 
@@ -283,6 +352,124 @@ impl ScribeWindow {
                 cx.notify();
             }
         }));
+        // Recent searches commit on Enter only.
+        let find_more_search = find_more.read(cx).search.clone();
+        subscriptions.push(cx.subscribe(&find_more_search, |this, _, event, cx| {
+            if matches!(event, InputEvent::PressEnter { .. }) {
+                let query = this.find_more.read(cx).query.clone();
+                commit_recent_search(&query, this.model.clone(), cx);
+            }
+        }));
+
+        // Tray icon + drain loop. Closing the window minimizes it to the tray
+        // while background alerts are enabled; with alerts disabled the close
+        // proceeds normally and the tray icon is removed on drop.
+        let close_model = model.clone();
+        window.on_window_should_close(cx, move |window, cx| {
+            if close_model.read(cx).settings.background_alerts {
+                window.minimize_window();
+                false
+            } else {
+                true
+            }
+        });
+        let (tray_event_sender, tray_events) = std::sync::mpsc::channel();
+        let tray = crate::tray::TrayHandle::start(tray_event_sender);
+        let window_handle = window.window_handle();
+        cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor()
+                    .timer(std::time::Duration::from_millis(250))
+                    .await;
+                let drained = this.update(cx, |view, cx| {
+                    let mut events = Vec::new();
+                    while let Ok(event) = tray_events.try_recv() {
+                        events.push(event);
+                    }
+                    let alert = view
+                        .model
+                        .update(cx, |app, _| app.pending_update_alert.take());
+                    (events, alert)
+                });
+                let Ok((events, alert)) = drained else {
+                    break;
+                };
+                for event in events {
+                    match event {
+                        crate::tray::TrayEvent::Open | crate::tray::TrayEvent::BalloonClicked => {
+                            window_handle
+                                .update(cx, |_, window, _| window.activate_window())
+                                .ok();
+                            if event == crate::tray::TrayEvent::BalloonClicked {
+                                this.update(cx, |view, cx| {
+                                    view.model.update(cx, |app, cx| {
+                                        navigate_to_page(app, Page::Updates);
+                                        cx.notify();
+                                    });
+                                })
+                                .ok();
+                            }
+                        }
+                        crate::tray::TrayEvent::CheckUpdates => {
+                            this.update(cx, |view, cx| {
+                                crate::flows::refresh_catalog_now(view.model.clone(), cx);
+                            })
+                            .ok();
+                        }
+                        crate::tray::TrayEvent::Quit => {
+                            this.update(cx, |_, cx| cx.quit()).ok();
+                        }
+                    }
+                }
+                if let Some(count) = alert {
+                    let hidden = window_handle
+                        .update(cx, |_, window, _| crate::tray::window_is_hidden(window))
+                        .unwrap_or(false);
+                    if hidden {
+                        this.update(cx, |view, _| {
+                            if let Some(tray) = &view.tray {
+                                tray.notify_updates(count);
+                            }
+                        })
+                        .ok();
+                    }
+                }
+
+                // Toast drain: classify the current status and surface it once
+                // per status string; dismissed statuses stay suppressed.
+                let status_snapshot = this.update(cx, |view, cx| {
+                    let model = view.model.read(cx);
+                    (model.status.clone(), model.loading, model.health.clone())
+                });
+                if let Ok((status, loading, health)) = status_snapshot {
+                    this.update(cx, |view, cx| {
+                        let now = std::time::Instant::now();
+                        prune_toasts(&mut view.toasts, now);
+                        if status != view.last_status {
+                            view.last_status = status.clone();
+                            if let Some(notice) = status_notice(&status, loading, &health) {
+                                if toast_should_show(&status, true, &view.last_dismissed_status) {
+                                    view.toast_seq += 1;
+                                    push_toast(
+                                        &mut view.toasts,
+                                        view.toast_seq,
+                                        notice,
+                                        status.clone(),
+                                        now,
+                                    );
+                                }
+                            } else {
+                                view.toasts.retain(|toast| !toast.loading);
+                            }
+                            cx.notify();
+                        }
+                    })
+                    .ok();
+                }
+            }
+        })
+        .detach();
+
         Self {
             model,
             installed,
@@ -301,6 +488,22 @@ impl ScribeWindow {
             category_trigger_bounds: Rc::new(Cell::new(Bounds::default())),
             hide_installed: true,
             sort_ascending: false,
+            catalog_selection_mode: false,
+            selected_catalog_uids: BTreeSet::new(),
+            catalog_cursor: None,
+            library_cursor: None,
+            keyboard_nav: false,
+            catalog_filter_signature: None,
+            catalog_indices: Arc::new(Vec::new()),
+            catalog_scroll: UniformListScrollHandle::new(),
+            library_list: ListState::new(0, ListAlignment::Top, px(200.0))
+                .with_uniform_item_height(px(56.0)),
+            library_flat: Vec::new(),
+            search_region_bounds: Rc::new(Cell::new(Bounds::default())),
+            toasts: Vec::new(),
+            toast_seq: 0,
+            last_status: String::new(),
+            last_dismissed_status: String::new(),
             expanded_categories: HashSet::new(),
             installed_groups_initialized: false,
             selection_mode: false,
@@ -322,6 +525,7 @@ impl ScribeWindow {
             context_menu_subscription: None,
             profiled_page: Page::Installed,
             profiled_viewport: window.bounds().size,
+            tray,
             _subscriptions: subscriptions,
         }
     }
@@ -332,6 +536,120 @@ impl ScribeWindow {
             Page::FindMore => &self.find_more,
             Page::Updates => &self.updates,
             Page::Settings => &self.settings,
+        }
+    }
+
+    /// Handles list-browsing keys when no overlay surface is open and the page
+    /// search is not focused. Returns true when the key was consumed.
+    pub(crate) fn handle_list_key(
+        &mut self,
+        key: &str,
+        page: Page,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        match key {
+            "down" | "j" => self.move_list_cursor(page, 1, cx),
+            "up" | "k" => self.move_list_cursor(page, -1, cx),
+            "enter" => self.open_active_row(page, window, cx),
+            "i" => self.install_active_row(page, window, cx),
+            "/" => {
+                let input = self.page_state(page).read(cx).search.clone();
+                window.focus(&input.read(cx).focus_handle(cx), cx);
+                cx.notify();
+            }
+            _ => return false,
+        }
+        true
+    }
+
+    fn move_list_cursor(&mut self, page: Page, delta: i64, cx: &mut Context<Self>) {
+        self.keyboard_nav = true;
+        match page {
+            Page::FindMore => {
+                self.catalog_cursor =
+                    move_cursor(self.catalog_cursor, delta, self.catalog_indices.len());
+                if let Some(index) = self.catalog_cursor {
+                    self.catalog_scroll
+                        .scroll_to_item(index, ScrollStrategy::Nearest);
+                }
+            }
+            Page::Installed | Page::Updates => {
+                let groups = self.library_groups(page, cx);
+                let flat = visible_library_rows(&groups, &self.expanded_categories);
+                self.library_cursor = move_cursor(self.library_cursor, delta, flat.len());
+                if let Some(index) = self
+                    .library_cursor
+                    .and_then(|index| flat_index_of_row(&self.library_flat, index))
+                {
+                    self.library_list.scroll_to_reveal_item(index);
+                }
+            }
+            Page::Settings => {}
+        }
+        cx.notify();
+    }
+
+    fn library_groups(&self, page: Page, cx: &mut Context<Self>) -> Vec<InstalledGroup> {
+        let query = self.page_state(page).read(cx).query.clone();
+        installed_groups(self.model.read(cx), &query, page == Page::Updates)
+    }
+
+    fn active_library_row(
+        &self,
+        page: Page,
+        cx: &mut Context<Self>,
+    ) -> Option<(Addon, MatchedAddon)> {
+        let groups = self.library_groups(page, cx);
+        let flat = visible_library_rows(&groups, &self.expanded_categories);
+        let (group_ix, row_ix) = flat.get(self.library_cursor?).copied()?;
+        Some(groups[group_ix].items[row_ix].clone())
+    }
+
+    fn open_active_row(&mut self, page: Page, window: &mut Window, cx: &mut Context<Self>) {
+        match page {
+            Page::FindMore => {
+                if let Some(addon) = self
+                    .catalog_cursor
+                    .and_then(|index| self.catalog_indices.get(index))
+                    .and_then(|index| self.model.read(cx).catalog_index.addon(*index))
+                {
+                    show_addon_details(addon, self.model.clone(), window, cx);
+                }
+            }
+            Page::Installed | Page::Updates => {
+                if let Some((addon, decision)) = self.active_library_row(page, cx) {
+                    show_installed_details(addon, decision, self.model.clone(), window, cx);
+                }
+            }
+            Page::Settings => {}
+        }
+    }
+
+    fn install_active_row(&mut self, page: Page, window: &mut Window, cx: &mut Context<Self>) {
+        match page {
+            Page::FindMore => {
+                let Some(addon) = self
+                    .catalog_cursor
+                    .and_then(|index| self.catalog_indices.get(index))
+                    .and_then(|index| self.model.read(cx).catalog_index.addon(*index))
+                else {
+                    return;
+                };
+                let blocked = catalog_blocked_uids(self.model.read(cx));
+                if !blocked.contains(addon.uid.as_str()) {
+                    enqueue_remote(addon, self.model.clone(), window, cx);
+                }
+            }
+            Page::Installed | Page::Updates => {
+                if let Some((_, decision)) = self.active_library_row(page, cx)
+                    && decision.update_available
+                    && let Some(remote) = decision.remote
+                {
+                    enqueue_remote(remote, self.model.clone(), window, cx);
+                }
+            }
+            Page::Settings => {}
         }
     }
 
@@ -563,7 +881,7 @@ impl ScribeWindow {
         active: bool,
         count: Option<usize>,
         cx: &mut Context<Self>,
-    ) -> impl IntoElement {
+    ) -> gpui::AnyElement {
         let _ = cx;
         let model = self.model.clone();
         let keyboard_model = self.model.clone();
@@ -572,7 +890,7 @@ impl ScribeWindow {
         } else {
             gpui::rgba(SCRIBE_TEXT_SECONDARY_RGBA)
         };
-        div()
+        let item = div()
             .id(SharedString::from(format!("nav-{}", page.title())))
             .focusable()
             .tab_stop(true)
@@ -634,17 +952,45 @@ impl ScribeWindow {
                     .child(page.title()),
             )
             .when_some(count.filter(|count| *count > 0), |item, count| {
+                let loud = updates_badge_loud(page, count);
                 item.child(
                     div()
+                        .min_w(px(18.0))
+                        .h(px(18.0))
+                        .px(px(5.0))
+                        .rounded(px(9.0))
+                        .flex()
+                        .items_center()
+                        .justify_center()
                         .text_size(px(12.0))
-                        .text_color(if active {
-                            gpui::rgb(SCRIBE_PRIMARY)
-                        } else {
-                            gpui::rgba(SCRIBE_TEXT_TERTIARY_RGBA)
+                        .when(loud, |badge| {
+                            badge
+                                .bg(gpui::rgb(SCRIBE_PRIMARY))
+                                .font_semibold()
+                                .text_color(gpui::rgb(SCRIBE_PRIMARY_FOREGROUND))
+                        })
+                        .when(!loud, |badge| {
+                            badge.text_color(if active {
+                                gpui::rgb(SCRIBE_PRIMARY)
+                            } else {
+                                gpui::rgba(SCRIBE_TEXT_TERTIARY_RGBA)
+                            })
                         })
                         .child(count.to_string()),
                 )
-            })
+            });
+        if active {
+            // Selection crossfades in (with_animation already renders
+            // statically under reduced motion).
+            item.with_animation(
+                SharedString::from(format!("nav-active-{}", page.title())),
+                Animation::new(Duration::from_millis(SCRIBE_MOTION_FAST_MS)),
+                |item, delta| item.opacity(delta),
+            )
+            .into_any_element()
+        } else {
+            item.into_any_element()
+        }
     }
 
     pub(crate) fn render_page_header(
@@ -667,6 +1013,8 @@ impl ScribeWindow {
         let rescan_model = self.model.clone();
         let bulk_model = self.model.clone();
         let updates_model = self.model.clone();
+        let select_toggle_owner = cx.entity();
+        let catalog_selection_mode = self.catalog_selection_mode;
         let selection_mode = self.selection_mode;
         let selected_count = self.selected_folders.len();
         let selected_for_remove: Vec<String> = self.selected_folders.iter().cloned().collect();
@@ -757,6 +1105,27 @@ impl ScribeWindow {
                             refresh_catalog(refresh_model.clone(), window, cx)
                         }),
                 )
+                .child(
+                    NativeButton::new(
+                        "catalog-select-toggle",
+                        if catalog_selection_mode {
+                            "Done"
+                        } else {
+                            "Select"
+                        },
+                    )
+                    .secondary()
+                    .icon(IconName::Check)
+                    .on_activate(move |_, cx| {
+                        select_toggle_owner.update(cx, |view, cx| {
+                            view.catalog_selection_mode = !view.catalog_selection_mode;
+                            if !view.catalog_selection_mode {
+                                view.selected_catalog_uids.clear();
+                            }
+                            cx.notify();
+                        });
+                    }),
+                )
             })
             .when(page == Page::Installed, |row| {
                 row.when(selection_mode && selected_count > 0, |row| {
@@ -805,7 +1174,7 @@ impl ScribeWindow {
                     .debug_selector(|| "command-deck-primary-row".into())
                     .w_full()
                     .max_w(px(max_width))
-                    .h(px(40.0))
+                    .h(px(SCRIBE_PAGE_HEADER_HEIGHT))
                     .px(px(SCRIBE_CONTENT_GUTTER))
                     .flex()
                     .items_center()
@@ -813,18 +1182,38 @@ impl ScribeWindow {
                     .child(
                         div()
                             .flex()
-                            .items_center()
-                            .gap(px(7.0))
-                            .text_size(px(11.0))
-                            .font_medium()
-                            .text_color(gpui::rgba(SCRIBE_TEXT_TERTIARY_RGBA))
+                            .flex_col()
+                            .justify_center()
                             .child(
                                 div()
-                                    .size(px(6.0))
-                                    .rounded(px(3.0))
-                                    .bg(gpui::rgb(archive_status_color)),
+                                    .font_semibold()
+                                    .text_size(px(22.0))
+                                    .line_height(px(26.0))
+                                    .text_color(gpui::rgb(SCRIBE_FOREGROUND))
+                                    .child(page.title()),
                             )
-                            .child(archive_status_label),
+                            .child(
+                                div()
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(7.0))
+                                    .text_size(px(12.0))
+                                    .line_height(px(15.0))
+                                    .text_color(gpui::rgba(SCRIBE_TEXT_TERTIARY_RGBA))
+                                    .child(page.subtitle())
+                                    .child(
+                                        div()
+                                            .size(px(6.0))
+                                            .rounded(px(3.0))
+                                            .bg(gpui::rgb(archive_status_color)),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_size(px(11.0))
+                                            .font_medium()
+                                            .child(archive_status_label),
+                                    ),
+                            ),
                     )
                     .child(actions),
             )
@@ -853,6 +1242,7 @@ impl ScribeWindow {
             Page::Settings => "Search settings",
         };
         let search_value = search.read(cx).value();
+        let search_bounds_paint = self.search_region_bounds.clone();
         let category_value = self
             .category_select
             .read(cx)
@@ -943,6 +1333,9 @@ impl ScribeWindow {
                     .role(Role::SearchInput)
                     .aria_label(search_label)
                     .aria_value(search_value)
+                    .on_prepaint(move |bounds, _, _| {
+                        search_bounds_paint.set(bounds);
+                    })
                     .min_w(px(200.0))
                     .max_w(px(320.0))
                     .flex_1()
@@ -1083,6 +1476,23 @@ impl ScribeWindow {
         let missing = model.missing_dependencies.clone();
         let addon_path_configured = !model.settings.addon_path.is_empty();
         let groups = installed_groups(model, query, updates_only);
+        if model.loading {
+            return div()
+                .size_full()
+                .flex()
+                .flex_col()
+                .child(
+                    div()
+                        .min_h_0()
+                        .flex_1()
+                        .px(px(SCRIBE_CONTENT_GUTTER))
+                        .py(px(16.0))
+                        .flex()
+                        .flex_col()
+                        .children((0..4).map(|_| skeleton_group())),
+                )
+                .into_any_element();
+        }
         if !self.installed_groups_initialized && !groups.is_empty() {
             self.expanded_categories = groups.iter().map(|group| group.id.clone()).collect();
             self.installed_groups_initialized = true;
@@ -1163,177 +1573,20 @@ impl ScribeWindow {
             .cloned()
             .map(|category| (category.id.to_string(), category))
             .collect();
-        let mut rows = Vec::with_capacity(groups.len());
-        let selection_owner = cx.entity();
-        for group in groups {
-            let expanded = self.expanded_categories.contains(&group.id);
-            let group_id = group.id.clone();
-            let context_key = format!("category:{}", group.id);
-            let context_focus = (self.context_invoker_key.as_deref() == Some(context_key.as_str()))
-                .then(|| self.context_invoker_focus.clone());
-            let pointer_context_key = context_key.clone();
-            let keyboard_context_key = context_key;
-            let toggle = cx.entity();
-            let keyboard_toggle = cx.entity();
-            let menu_owner = cx.entity();
-            let pointer_menu_owner = menu_owner.clone();
-            let keyboard_menu_owner = menu_owner.clone();
-            let pointer_group_id = group.id.clone();
-            let keyboard_group_id = group.id.clone();
-            let header_bounds = Rc::new(Cell::new(Bounds::default()));
-            let paint_bounds = header_bounds.clone();
-            let keyboard_bounds = header_bounds.clone();
-            let icon = group.icon_url.clone();
-            let count = group.items.len();
-            let name = group.name.clone();
-            let mut section = div()
-                .w_full()
-                .mb(px(16.0))
-                .flex()
-                .flex_col()
-                .rounded(px(SCRIBE_CARD_RADIUS))
-                .border_1()
-                .border_color(gpui::rgba(SCRIBE_HAIRLINE_RGBA))
-                .bg(gpui::rgba(SCRIBE_SURFACE_RGBA))
-                .overflow_hidden()
-                .child(
-                    div()
-                        .id(SharedString::from(format!(
-                            "installed-category-{}",
-                            group.id
-                        )))
-                        .when_some(context_focus, |header, focus| header.track_focus(&focus))
-                        .focusable()
-                        .tab_stop(true)
-                        .role(Role::Button)
-                        .aria_expanded(expanded)
-                        .aria_label(format!("{name}, {count} addons"))
-                        .cursor_pointer()
-                        .h(px(40.0))
-                        .px(px(12.0))
-                        .border_b_1()
-                        .border_color(gpui::rgba(SCRIBE_HAIRLINE_RGBA))
-                        .hover(|header| header.bg(gpui::rgba(SCRIBE_SURFACE_HOVER_RGBA)))
-                        .focus(|header| header.border_color(gpui::rgba(SCRIBE_FOCUS_RING_RGBA)))
-                        .flex()
-                        .items_center()
-                        .gap(px(9.0))
-                        .on_prepaint(move |bounds, _, _| paint_bounds.set(bounds))
-                        .on_mouse_down(MouseButton::Right, move |event, window, cx| {
-                            cx.stop_propagation();
-                            let invocation = claim_context_invoker(
-                                &pointer_menu_owner,
-                                pointer_context_key.clone(),
-                                event.position,
-                                cx,
-                            );
-                            open_category_context_menu(
-                                pointer_group_id.clone(),
-                                expanded,
-                                pointer_menu_owner.clone(),
-                                invocation,
-                                window,
-                                cx,
-                            );
-                        })
-                        .on_click(move |_, _, cx| {
-                            toggle.update(cx, |this, cx| {
-                                if !this.expanded_categories.remove(&group_id) {
-                                    this.expanded_categories.insert(group_id.clone());
-                                }
-                                cx.notify();
-                            });
-                        })
-                        .on_key_down(move |event, window, cx| {
-                            if event.is_held {
-                                return;
-                            }
-                            if matches!(event.keystroke.key.as_str(), "enter" | "space") {
-                                cx.stop_propagation();
-                                keyboard_toggle.update(cx, |view, cx| {
-                                    if !view.expanded_categories.remove(&keyboard_group_id) {
-                                        view.expanded_categories.insert(keyboard_group_id.clone());
-                                    }
-                                    cx.notify();
-                                });
-                            } else if context_menu_key(event) {
-                                cx.stop_propagation();
-                                let invocation = claim_context_invoker(
-                                    &keyboard_menu_owner,
-                                    keyboard_context_key.clone(),
-                                    menu_anchor(keyboard_bounds.get()),
-                                    cx,
-                                );
-                                open_category_context_menu(
-                                    keyboard_group_id.clone(),
-                                    expanded,
-                                    keyboard_menu_owner.clone(),
-                                    invocation,
-                                    window,
-                                    cx,
-                                );
-                            }
-                        })
-                        .child(category_artwork(icon, &name, 20.0))
-                        .child(
-                            div()
-                                .min_w_0()
-                                .flex_1()
-                                .overflow_hidden()
-                                .whitespace_nowrap()
-                                .text_ellipsis()
-                                .font_semibold()
-                                .text_size(px(13.0))
-                                .text_color(gpui::rgb(SCRIBE_FOREGROUND))
-                                .child(name),
-                        )
-                        .child(
-                            div()
-                                .px(px(7.0))
-                                .py(px(1.0))
-                                .rounded(px(8.0))
-                                .bg(gpui::rgba(SCRIBE_SURFACE_ACTIVE_RGBA))
-                                .text_size(px(11.0))
-                                .text_color(gpui::rgba(SCRIBE_TEXT_TERTIARY_RGBA))
-                                .child(count.to_string()),
-                        )
-                        .child(
-                            Icon::new(if expanded {
-                                IconName::ChevronDown
-                            } else {
-                                IconName::ChevronRight
-                            })
-                            .size(px(16.0))
-                            .text_color(gpui::rgba(SCRIBE_TEXT_TERTIARY_RGBA)),
-                        ),
-                );
-            if expanded {
-                for (addon, decision) in group.items {
-                    let category = decision
-                        .remote
-                        .as_ref()
-                        .and_then(|remote| category_map.get(remote.category_id.as_str()))
-                        .cloned();
-                    let selected = (!updates_only && self.selection_mode)
-                        .then(|| self.selected_folders.contains(&addon.folder_name));
-                    let context_key = format!("installed:{}", addon.folder_name);
-                    let context_focus = (self.context_invoker_key.as_deref()
-                        == Some(context_key.as_str()))
-                    .then(|| self.context_invoker_focus.clone());
-                    section = section.child(matched_row(
-                        addon,
-                        decision,
-                        category,
-                        selected,
-                        context_focus,
-                        selection_owner.clone(),
-                        self.model.clone(),
-                    ));
-                }
-            }
-            rows.push(section.into_any_element());
+        let selection_mode = !updates_only && self.selection_mode;
+        let flat_model = flatten_library(&groups, &self.expanded_categories, selection_mode);
+        let visible_rows = flat_model
+            .iter()
+            .filter(|row| matches!(row, LibraryRow::AddonRow { .. }))
+            .count();
+        self.library_cursor = clamp_cursor(self.library_cursor, visible_rows);
+        self.library_flat = flat_model.clone();
+        if self.library_list.item_count() != flat_model.len() {
+            let old = self.library_list.item_count();
+            self.library_list.splice(0..old, flat_model.len());
         }
-        let selection_bar = (!updates_only && self.selection_mode).then(|| {
+
+        let selection_bar = selection_mode.then(|| {
             let selected_count = self.selected_folders.len();
             let selected_for_remove: Vec<String> = self.selected_folders.iter().cloned().collect();
             let uninstall_model = self.model.clone();
@@ -1341,7 +1594,6 @@ impl ScribeWindow {
             let done_owner = cx.entity();
             div()
                 .w_full()
-                .mb(px(16.0))
                 .h(px(44.0))
                 .px(px(12.0))
                 .rounded(px(10.0))
@@ -1391,6 +1643,233 @@ impl ScribeWindow {
                         }),
                 )
         });
+
+        // Virtualized group list: one gpui `list` (variable heights) over the
+        // flattened header/row model. Scroll state persists on the window.
+        let list_owner = cx.entity();
+        let list_model = self.model.clone();
+        let list_groups = groups.clone();
+        let list_flat = flat_model.clone();
+        let list_category_map = category_map.clone();
+        let list_expanded = self.expanded_categories.clone();
+        let list_selected_folders = self.selected_folders.clone();
+        let list_context_key = self.context_invoker_key.clone();
+        let list_context_focus = self.context_invoker_focus.clone();
+        let list_keyboard_nav = self.keyboard_nav;
+        let list_cursor = self.library_cursor;
+        let library_list = self.library_list.clone();
+        let list_element = list(library_list, move |index, _window, _cx| {
+            let Some(item) = list_flat.get(index).copied() else {
+                return div().into_any_element();
+            };
+            match item {
+                LibraryRow::GroupHeader {
+                    group_ix,
+                    last_in_group,
+                } => {
+                    let group = &list_groups[group_ix];
+                    let expanded = list_expanded.contains(&group.id);
+                    let group_id = group.id.clone();
+                    let context_key = format!("category:{}", group.id);
+                    let context_focus = (list_context_key.as_deref() == Some(context_key.as_str()))
+                        .then(|| list_context_focus.clone());
+                    let pointer_context_key = context_key.clone();
+                    let keyboard_context_key = context_key;
+                    let toggle = list_owner.clone();
+                    let keyboard_toggle = list_owner.clone();
+                    let pointer_menu_owner = list_owner.clone();
+                    let keyboard_menu_owner = list_owner.clone();
+                    let pointer_group_id = group.id.clone();
+                    let keyboard_group_id = group.id.clone();
+                    let header_bounds = Rc::new(Cell::new(Bounds::default()));
+                    let paint_bounds = header_bounds.clone();
+                    let keyboard_bounds = header_bounds.clone();
+                    let icon = group.icon_url.clone();
+                    let count = group.items.len();
+                    let name = group.name.clone();
+                    // gpui::list measures each item's border box and drops
+                    // margins, so the inter-group gap must be padding.
+                    div()
+                        .w_full()
+                        .when(last_in_group, |header| header.pb(px(16.0)))
+                        .child(
+                            div()
+                                .id(SharedString::from(format!(
+                                    "installed-category-{}",
+                                    group.id
+                                )))
+                                .when_some(context_focus, |header, focus| {
+                                    header.track_focus(&focus)
+                                })
+                                .focusable()
+                                .tab_stop(true)
+                                .role(Role::Button)
+                                .aria_expanded(expanded)
+                                .aria_label(format!("{name}, {count} addons"))
+                                .cursor_pointer()
+                                .h(px(40.0))
+                                .px(px(12.0))
+                                .border_1()
+                                .border_color(gpui::rgba(SCRIBE_HAIRLINE_RGBA))
+                                .when(last_in_group, |header| {
+                                    header.rounded(px(SCRIBE_CARD_RADIUS))
+                                })
+                                .when(!last_in_group, |header| {
+                                    header.border_b_0().rounded_t(px(SCRIBE_CARD_RADIUS))
+                                })
+                                .bg(gpui::rgba(SCRIBE_SURFACE_RGBA))
+                                .hover(|header| header.bg(gpui::rgba(SCRIBE_SURFACE_HOVER_RGBA)))
+                                .focus(|header| {
+                                    header.border_color(gpui::rgba(SCRIBE_FOCUS_RING_RGBA))
+                                })
+                                .flex()
+                                .items_center()
+                                .gap(px(9.0))
+                                .on_prepaint(move |bounds, _, _| paint_bounds.set(bounds))
+                                .on_mouse_down(MouseButton::Right, move |event, window, cx| {
+                                    cx.stop_propagation();
+                                    let invocation = claim_context_invoker(
+                                        &pointer_menu_owner,
+                                        pointer_context_key.clone(),
+                                        event.position,
+                                        cx,
+                                    );
+                                    open_category_context_menu(
+                                        pointer_group_id.clone(),
+                                        expanded,
+                                        pointer_menu_owner.clone(),
+                                        invocation,
+                                        window,
+                                        cx,
+                                    );
+                                })
+                                .on_click(move |_, _, cx| {
+                                    toggle.update(cx, |this, cx| {
+                                        if !this.expanded_categories.remove(&group_id) {
+                                            this.expanded_categories.insert(group_id.clone());
+                                        }
+                                        cx.notify();
+                                    });
+                                })
+                                .on_key_down(move |event, window, cx| {
+                                    if event.is_held {
+                                        return;
+                                    }
+                                    if matches!(event.keystroke.key.as_str(), "enter" | "space") {
+                                        cx.stop_propagation();
+                                        keyboard_toggle.update(cx, |view, cx| {
+                                            if !view.expanded_categories.remove(&keyboard_group_id)
+                                            {
+                                                view.expanded_categories
+                                                    .insert(keyboard_group_id.clone());
+                                            }
+                                            cx.notify();
+                                        });
+                                    } else if context_menu_key(event) {
+                                        cx.stop_propagation();
+                                        let invocation = claim_context_invoker(
+                                            &keyboard_menu_owner,
+                                            keyboard_context_key.clone(),
+                                            menu_anchor(keyboard_bounds.get()),
+                                            cx,
+                                        );
+                                        open_category_context_menu(
+                                            keyboard_group_id.clone(),
+                                            expanded,
+                                            keyboard_menu_owner.clone(),
+                                            invocation,
+                                            window,
+                                            cx,
+                                        );
+                                    }
+                                })
+                                .child(category_artwork(icon, &name, 20.0))
+                                .child(
+                                    div()
+                                        .min_w_0()
+                                        .flex_1()
+                                        .overflow_hidden()
+                                        .whitespace_nowrap()
+                                        .text_ellipsis()
+                                        .font_semibold()
+                                        .text_size(px(13.0))
+                                        .text_color(gpui::rgb(SCRIBE_FOREGROUND))
+                                        .child(name),
+                                )
+                                .child(
+                                    div()
+                                        .px(px(7.0))
+                                        .py(px(1.0))
+                                        .rounded(px(8.0))
+                                        .bg(gpui::rgba(SCRIBE_SURFACE_ACTIVE_RGBA))
+                                        .text_size(px(11.0))
+                                        .text_color(gpui::rgba(SCRIBE_TEXT_TERTIARY_RGBA))
+                                        .child(count.to_string()),
+                                )
+                                .child(
+                                    Icon::new(if expanded {
+                                        IconName::ChevronDown
+                                    } else {
+                                        IconName::ChevronRight
+                                    })
+                                    .size(px(16.0))
+                                    .text_color(gpui::rgba(SCRIBE_TEXT_TERTIARY_RGBA)),
+                                ),
+                        )
+                        .into_any_element()
+                }
+                LibraryRow::AddonRow {
+                    group_ix,
+                    row_ix,
+                    last_in_group,
+                } => {
+                    let (addon, decision) = list_groups[group_ix].items[row_ix].clone();
+                    let category = decision
+                        .remote
+                        .as_ref()
+                        .and_then(|remote| list_category_map.get(remote.category_id.as_str()))
+                        .cloned();
+                    let selected =
+                        selection_mode.then(|| list_selected_folders.contains(&addon.folder_name));
+                    let context_key = format!("installed:{}", addon.folder_name);
+                    let context_focus = (list_context_key.as_deref() == Some(context_key.as_str()))
+                        .then(|| list_context_focus.clone());
+                    let row_index = visible_row_index(&list_flat, index);
+                    // gpui::list measures each item's border box and drops
+                    // margins, so the inter-group gap lives on an unpainted
+                    // wrapper as padding instead of a margin on the card.
+                    div()
+                        .w_full()
+                        .when(last_in_group, |row| row.pb(px(16.0)))
+                        .child(
+                            div()
+                                .w_full()
+                                .border_l_1()
+                                .border_r_1()
+                                .border_color(gpui::rgba(SCRIBE_HAIRLINE_RGBA))
+                                .when(last_in_group, |row| {
+                                    row.border_b_1().rounded_b(px(SCRIBE_CARD_RADIUS))
+                                })
+                                .overflow_hidden()
+                                .bg(gpui::rgba(SCRIBE_SURFACE_RGBA))
+                                .child(matched_row(
+                                    addon,
+                                    decision,
+                                    category,
+                                    selected,
+                                    RowChrome {
+                                        keyboard_active: list_keyboard_nav
+                                            && list_cursor == Some(row_index),
+                                        context_focus,
+                                    },
+                                    list_owner.clone(),
+                                    list_model.clone(),
+                                )),
+                        )
+                        .into_any_element()
+                }
+            }
+        });
         div()
             .size_full()
             .flex()
@@ -1406,23 +1885,25 @@ impl ScribeWindow {
                     ),
                 ))
             })
+            .when_some(selection_bar, |layout, bar| {
+                layout.child(div().px(px(SCRIBE_CONTENT_GUTTER)).pb(px(12.0)).child(bar))
+            })
             .child(
                 div()
                     .min_h_0()
                     .flex_1()
-                    .on_scroll_wheel(|_, window, _| record_scroll_input(window))
-                    .overflow_y_scrollbar()
                     .px(px(SCRIBE_CONTENT_GUTTER))
-                    .py(px(16.0))
-                    .flex()
-                    .flex_col()
-                    .when_some(selection_bar, |column, bar| column.child(bar))
-                    .children(rows),
+                    .pt(px(4.0))
+                    .on_scroll_wheel(|_, window, _| record_scroll_input(window))
+                    .child(list_element.size_full()),
             )
             .into_any_element()
     }
-
-    pub(crate) fn render_catalog(&self, query: &str, cx: &mut Context<Self>) -> gpui::AnyElement {
+    pub(crate) fn render_catalog(
+        &mut self,
+        query: &str,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
         let model = self.model.read(cx);
         let catalog_index = model.catalog_index.clone();
         let category_id = self
@@ -1451,16 +1932,81 @@ impl ScribeWindow {
         } else {
             HashSet::new()
         };
-        let indices: Arc<Vec<usize>> = Arc::new(catalog_index.filter_sort(
-            query,
-            category_id.as_deref(),
-            false,
-            compatibility.as_deref(),
-            &hidden_uids,
-            self.selected_catalog_sort(cx),
-            self.sort_ascending,
-        ));
+        // Empty query: core index order (precomputed popularity / chosen sort).
+        // Active query: app-side fuzzy rank over the core-filtered base list
+        // (score desc, popularity tiebreak). No sort happens on the empty path.
+        let indices: Arc<Vec<usize>> = if query.trim().is_empty() {
+            Arc::new(catalog_index.filter_sort(
+                "",
+                category_id.as_deref(),
+                false,
+                compatibility.as_deref(),
+                &hidden_uids,
+                self.selected_catalog_sort(cx),
+                self.sort_ascending,
+            ))
+        } else {
+            let base = catalog_index.filter_sort(
+                "",
+                category_id.as_deref(),
+                false,
+                compatibility.as_deref(),
+                &hidden_uids,
+                CatalogSort::Downloads,
+                false,
+            );
+            Arc::new(fuzzy_filter_rank(&catalog_index, &base, query))
+        };
         let count = indices.len();
+        let signature = (
+            query.to_string(),
+            category_id.clone().unwrap_or_default(),
+            compatibility.clone().unwrap_or_default(),
+            self.sort_select
+                .read(cx)
+                .selected_value()
+                .cloned()
+                .unwrap_or_else(|| SharedString::from("downloads"))
+                .to_string(),
+            self.sort_ascending,
+            self.hide_installed,
+        );
+        let signature_changed = self.catalog_filter_signature.as_ref() != Some(&signature);
+        if signature_changed {
+            self.catalog_filter_signature = Some(signature);
+        }
+        self.catalog_cursor =
+            cursor_after_filter_change(signature_changed, self.catalog_cursor, count);
+        self.catalog_indices = indices.clone();
+        if model.loading {
+            return div()
+                .size_full()
+                .flex()
+                .flex_col()
+                .child(
+                    div()
+                        .h(px(36.0))
+                        .px(px(SCRIBE_CONTENT_GUTTER))
+                        .flex()
+                        .items_center()
+                        .border_b_1()
+                        .border_color(gpui::rgba(SCRIBE_HAIRLINE_RGBA))
+                        .text_size(px(12.0))
+                        .text_color(gpui::rgba(SCRIBE_TEXT_TERTIARY_RGBA))
+                        .child("Loading the ESOUI catalog…"),
+                )
+                .child(
+                    div()
+                        .min_h_0()
+                        .flex_1()
+                        .px(px(SCRIBE_CONTENT_GUTTER))
+                        .pt(px(12.0))
+                        .flex()
+                        .flex_col()
+                        .children((0..6).map(|_| skeleton_row_catalog())),
+                )
+                .into_any_element();
+        }
         if count == 0 {
             let catalog_is_empty = catalog_index.is_empty();
             let (title, message) = if catalog_is_empty && model.health.catalog_issue.is_some() {
@@ -1516,10 +2062,95 @@ impl ScribeWindow {
             .as_deref()
             .and_then(|id| catalog_index.category(id))
             .map(|category| category.name.to_string());
+        let selection_mode = self.catalog_selection_mode;
+        let selected_uids = self.selected_catalog_uids.clone();
+        let keyboard_nav = self.keyboard_nav;
+        let catalog_cursor = self.catalog_cursor;
+        let catalog_scroll = self.catalog_scroll.clone();
+        let bar_selected_uids = self.selected_catalog_uids.clone();
+        let blocked_uids: Option<Arc<HashSet<String>>> =
+            selection_mode.then(|| Arc::new(catalog_blocked_uids(self.model.read(cx))));
+        let install_model = self.model.clone();
+        let install_owner = cx.entity();
+        let clear_owner = cx.entity();
+        let done_owner = cx.entity();
+        let selected_count = selected_uids.len();
         div()
             .size_full()
             .flex()
             .flex_col()
+            .when(selection_mode, |layout| {
+                layout.child(
+                    div().px(px(SCRIBE_CONTENT_GUTTER)).pb(px(12.0)).child(
+                        div()
+                            .w_full()
+                            .h(px(44.0))
+                            .px(px(12.0))
+                            .rounded(px(10.0))
+                            .border_1()
+                            .border_color(gpui::rgba(SCRIBE_HAIRLINE_RGBA))
+                            .bg(gpui::rgba(SCRIBE_SURFACE_RAISED_RGBA))
+                            .flex()
+                            .items_center()
+                            .gap(px(8.0))
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .text_size(px(12.0))
+                                    .font_semibold()
+                                    .child(format!("{selected_count} selected")),
+                            )
+                            .child(
+                                NativeButton::new("catalog-install-selected", "Install selected")
+                                    .icon(IconName::ArrowDown)
+                                    .on_activate(move |window, cx| {
+                                        let remotes = {
+                                            let app = install_model.read(cx);
+                                            let blocked = catalog_blocked_uids(app);
+                                            installable_selection(
+                                                &app.catalog_index,
+                                                &bar_selected_uids,
+                                                &blocked,
+                                            )
+                                        };
+                                        for remote in remotes {
+                                            enqueue_remote(
+                                                remote,
+                                                install_model.clone(),
+                                                window,
+                                                cx,
+                                            );
+                                        }
+                                        install_owner.update(cx, |view, cx| {
+                                            view.selected_catalog_uids.clear();
+                                            cx.notify();
+                                        });
+                                    }),
+                            )
+                            .child(
+                                NativeButton::new("catalog-clear-selection", "Clear")
+                                    .ghost()
+                                    .on_activate(move |_, cx| {
+                                        clear_owner.update(cx, |view, cx| {
+                                            view.selected_catalog_uids.clear();
+                                            cx.notify();
+                                        });
+                                    }),
+                            )
+                            .child(
+                                NativeButton::new("catalog-done-selection", "Done")
+                                    .ghost()
+                                    .on_activate(move |_, cx| {
+                                        done_owner.update(cx, |view, cx| {
+                                            view.catalog_selection_mode = false;
+                                            view.selected_catalog_uids.clear();
+                                            cx.notify();
+                                        });
+                                    }),
+                            ),
+                    ),
+                )
+            })
             .child(
                 div()
                     .h(px(36.0))
@@ -1546,25 +2177,42 @@ impl ScribeWindow {
                     .child(
                         uniform_list("catalog-list", count, move |range: Range<usize>, _, _| {
                             range
-                                .filter_map(|index| indices.get(index))
-                                .filter_map(|index| category_index.addon(*index))
-                                .map(|addon| {
+                                .filter_map(|index| {
+                                    indices.get(index).map(|addon_ix| (index, addon_ix))
+                                })
+                                .filter_map(|(index, addon_ix)| {
+                                    category_index.addon(*addon_ix).map(|addon| (index, addon))
+                                })
+                                .map(|(index, addon)| {
                                     let category =
                                         category_index.category(&addon.category_id).cloned();
                                     let context_key = format!("catalog:{}", addon.uid);
                                     let context_focus = (context_invoker_key.as_deref()
                                         == Some(context_key.as_str()))
                                     .then(|| context_invoker_focus.clone());
+                                    let uid = addon.uid.to_string();
+                                    let selectable = !blocked_uids
+                                        .as_ref()
+                                        .is_some_and(|blocked| blocked.contains(&uid));
+                                    let selected =
+                                        selection_mode.then(|| selected_uids.contains(&uid));
                                     catalog_row(
                                         addon,
                                         category,
-                                        context_focus,
+                                        selected,
+                                        selectable,
+                                        RowChrome {
+                                            keyboard_active: keyboard_nav
+                                                && catalog_cursor == Some(index),
+                                            context_focus,
+                                        },
                                         menu_owner.clone(),
                                         app_model.clone(),
                                     )
                                 })
                                 .collect()
                         })
+                        .track_scroll(&catalog_scroll)
                         .size_full(),
                     ),
             )
@@ -1595,6 +2243,9 @@ impl ScribeWindow {
         let rescan_model = self.model.clone();
         let theme_model = self.model.clone();
         let theme_keyboard_model = self.model.clone();
+        let alerts_model = self.model.clone();
+        let alerts_keyboard_model = self.model.clone();
+        let background_alerts = self.model.read(cx).settings.background_alerts;
         let rebuild_model = self.model.clone();
         let retry_catalog_model = self.model.clone();
         let diagnostics_owner = cx.entity();
@@ -1736,6 +2387,94 @@ impl ScribeWindow {
                             "Windows reduced motion {} · honored across all animation",
                             if reduce_motion { "on" } else { "off" }
                         )),
+                ),
+            )
+            .child(
+                settings_card(
+                    IconName::Info,
+                    "Notifications",
+                    "Background catalog checks and update alerts while Scribe keeps running.",
+                )
+                .child(
+                    div()
+                        .id("background-alerts-toggle")
+                        .focusable()
+                        .tab_stop(true)
+                        .role(Role::Switch)
+                        .aria_selected(background_alerts)
+                        .aria_label("Background update alerts")
+                        .cursor_pointer()
+                        .mt(px(14.0))
+                        .h(px(36.0))
+                        .w_full()
+                        .max_w(px(420.0))
+                        .px(px(12.0))
+                        .rounded(px(10.0))
+                        .border_1()
+                        .border_color(gpui::rgba(SCRIBE_HAIRLINE_RGBA))
+                        .bg(gpui::rgba(SCRIBE_SURFACE_RGBA))
+                        .flex()
+                        .items_center()
+                        .gap(px(10.0))
+                        .hover(|row| row.bg(gpui::rgba(SCRIBE_SURFACE_HOVER_RGBA)))
+                        .focus(|row| {
+                            row.border_color(gpui::rgba(SCRIBE_FOCUS_RING_RGBA))
+                        })
+                        .on_click(move |_, _, cx| {
+                            set_background_alerts(!background_alerts, alerts_model.clone(), cx)
+                        })
+                        .on_key_down(move |event, _, cx| {
+                            if !event.is_held
+                                && matches!(event.keystroke.key.as_str(), "enter" | "space")
+                            {
+                                cx.stop_propagation();
+                                set_background_alerts(
+                                    !background_alerts,
+                                    alerts_keyboard_model.clone(),
+                                    cx,
+                                );
+                            }
+                        })
+                        .child(
+                            div()
+                                .flex_1()
+                                .text_size(px(13.0))
+                                .child("Background update alerts"),
+                        )
+                        .child(
+                            div()
+                                .w(px(28.0))
+                                .h(px(16.0))
+                                .p(px(2.0))
+                                .rounded(px(8.0))
+                                .bg(if background_alerts {
+                                    gpui::rgb(SCRIBE_SWITCH_ACTIVE)
+                                } else {
+                                    gpui::rgba(SCRIBE_SURFACE_ACTIVE_RGBA)
+                                })
+                                .flex()
+                                .justify_end()
+                                .when(!background_alerts, |track| track.justify_start())
+                                .child(
+                                    div()
+                                        .size(px(12.0))
+                                        .rounded(px(6.0))
+                                        .bg(if background_alerts {
+                                            gpui::rgb(SCRIBE_PRIMARY_FOREGROUND)
+                                        } else {
+                                            gpui::rgb(SCRIBE_FOREGROUND)
+                                        }),
+                                ),
+                        ),
+                )
+                .child(
+                    div()
+                        .mt(px(10.0))
+                        .text_size(px(12.0))
+                        .text_color(gpui::rgba(SCRIBE_TEXT_TERTIARY_RGBA))
+                        .child(
+                            "When enabled, closing the window keeps Scribe in the tray with periodic catalog checks and update balloons. When disabled, closing the window quits Scribe.",
+                        ),
                 ),
             )
             .child(
@@ -1975,8 +2714,8 @@ impl Render for ScribeWindow {
         let text_color = theme.foreground;
         let (
             page,
-            status,
-            loading,
+            _,
+            _,
             tasks,
             selected_details,
             selected_local,
@@ -1985,6 +2724,7 @@ impl Render for ScribeWindow {
             pending_rebuild,
             health,
             catalog_count,
+            details_loading,
         ) = {
             let model = self.model.read(cx);
             (
@@ -2003,21 +2743,16 @@ impl Render for ScribeWindow {
                 model.pending_rebuild,
                 model.health.clone(),
                 model.catalog_index.len(),
+                model.details_loading,
             )
         };
-        let overlay_kind = if lightbox_index.is_some() {
-            Some(OverlayKind::Lightbox)
-        } else if pending_rebuild {
-            Some(OverlayKind::Rebuild)
-        } else if !pending_uninstall.is_empty() {
-            Some(OverlayKind::Uninstall)
-        } else if selected_local.is_some() {
-            Some(OverlayKind::LocalDetails)
-        } else if selected_details.is_some() {
-            Some(OverlayKind::RemoteDetails)
-        } else {
-            None
-        };
+        let overlay_kind = derive_overlay_kind(
+            lightbox_index.is_some(),
+            pending_rebuild,
+            !pending_uninstall.is_empty(),
+            selected_local.is_some(),
+            selected_details.is_some() || details_loading,
+        );
         let viewport_size = window.bounds().size;
         let overlay_changed = self.overlay_kind != overlay_kind;
         let page_changed = self.profiled_page != page;
@@ -2046,6 +2781,32 @@ impl Render for ScribeWindow {
         let escape_model = self.model.clone();
         let escape_window = cx.entity();
         let category_keyboard_open = page == Page::FindMore && self.category_palette_open;
+        let page_search = self.page_state(page).read(cx).search.clone();
+        let search_focused = page_search.read(cx).focus_handle(cx).is_focused(window);
+        let overlays_clear =
+            overlay_kind.is_none() && context_menu.is_none() && !category_keyboard_open;
+        let nav_context_free = keyboard_nav_allowed(
+            overlay_kind,
+            context_menu.is_some(),
+            category_keyboard_open,
+            search_focused,
+        );
+        let recent_searches = self.model.read(cx).settings.recent_searches.clone();
+        let recent_dropdown = should_show_recent_dropdown(
+            page == Page::FindMore,
+            search_focused,
+            query.trim().is_empty(),
+            !recent_searches.is_empty(),
+            !overlays_clear,
+        )
+        .then(|| {
+            render_recent_searches(
+                recent_searches,
+                self.search_region_bounds.get(),
+                page_search.clone(),
+                cx.entity(),
+            )
+        });
         let normalized_category_query = self.category_query.trim().to_ascii_lowercase();
         let category_keyboard_options = self
             .category_options
@@ -2064,7 +2825,6 @@ impl Render for ScribeWindow {
             .min(category_keyboard_options.len().saturating_sub(1));
         let category_keyboard_state = self.category_select.clone();
         let category_keyboard_search = self.category_search.clone();
-        let notice = status_notice(&status, loading, &health);
         let (archive_status_label, archive_status_color) = if health.storage_issue.is_some() {
             ("LOCAL ARCHIVE UNAVAILABLE", SCRIBE_HEALTH_DANGER)
         } else if health.catalog_issue.is_some() && catalog_count > 0 {
@@ -2097,6 +2857,7 @@ impl Render for ScribeWindow {
                 cx.entity(),
             )
         });
+        let task_activity_present = task_activity.is_some();
         let category_picker = (page == Page::FindMore && self.category_palette_open).then(|| {
             let selected = self
                 .category_select
@@ -2118,38 +2879,6 @@ impl Render for ScribeWindow {
         });
 
         let sidebar = self.render_sidebar(page, cx);
-        // The component TitleBar always paints its own platform window controls
-        // at its right edge on Windows, and the pinned rev offers no way to
-        // disable them. Extending the TitleBar 138px past the window's right
-        // edge (clipped by the wrapper) parks those glyphs and their hit areas
-        // fully off-screen, so the Scribe control strip above needs no
-        // occluding fill and the acrylic title row stays seamless.
-        let title_bar = TitleBar::new()
-            .w(viewport_size.width - px(SCRIBE_SIDEBAR_WIDTH) + px(138.0))
-            .flex_none()
-            .h(px(SCRIBE_TITLE_ROW_HEIGHT))
-            .border_b_0()
-            .child(
-                div()
-                    .h_full()
-                    .flex()
-                    .flex_col()
-                    .justify_center()
-                    .pl(px(SCRIBE_CONTENT_GUTTER - 12.0))
-                    .child(
-                        div()
-                            .font_semibold()
-                            .text_size(px(22.0))
-                            .text_color(gpui::rgb(SCRIBE_FOREGROUND))
-                            .child(page.title()),
-                    )
-                    .child(
-                        div()
-                            .text_size(px(12.0))
-                            .text_color(gpui::rgba(SCRIBE_TEXT_TERTIARY_RGBA))
-                            .child(page.subtitle()),
-                    ),
-            );
         let page_header = self.render_page_header(
             page,
             archive_status_label,
@@ -2159,11 +2888,67 @@ impl Render for ScribeWindow {
         );
         let filter_row = self.render_filter_row(page, search.clone(), update_count, cx);
 
-        let content = match page {
-            Page::Installed => self.render_installed(&query, false, cx),
-            Page::Updates => self.render_installed(&query, true, cx),
-            Page::FindMore => self.render_catalog(&query, cx),
-            Page::Settings => self.render_settings_page(cx),
+        // Wide windows open dossiers inline as a page-level view that replaces
+        // the page content; narrow windows keep the modal sheet. The overlay
+        // kind still reports RemoteDetails/LocalDetails either way, so focus,
+        // Escape, and keyboard guards behave identically.
+        let inline_details = details_inline_width(viewport_size.width)
+            && matches!(
+                overlay_kind,
+                Some(OverlayKind::RemoteDetails | OverlayKind::LocalDetails)
+            );
+        // The caption strip's non-client hit areas (drag region plus the
+        // min/max/close overlay) are suspended while a modal overlay or a
+        // context menu covers the window: GPUI resolves HTCAPTION/HTCLOSE
+        // purely by hitbox geometry, so an area beneath an overlay's close
+        // button would otherwise swallow that click (or close the window).
+        let chrome_active =
+            window_chrome_active(overlay_kind, inline_details, context_menu.is_some());
+        // Scribe-owned caption strip. The pinned gpui-component TitleBar
+        // paints a full-width WindowControlArea::Drag hitbox that always
+        // wins the non-client hit test over anything drawn above it, which
+        // turned clicks on the Scribe window controls — and on overlay
+        // close buttons near the top edge — into window drags. A plain
+        // drag region keeps native move/maximize/system-menu behavior via
+        // HTCAPTION, and the Scribe control overlay to its right keeps its
+        // own hit areas. The drag region must stop short of the control
+        // strip: the hit test walks hitboxes in paint order, so a drag
+        // hitbox beneath the buttons would win over them again.
+        let title_strip = div()
+            .id("scribe-title-strip")
+            .debug_selector(|| "scribe-title-strip".into())
+            .w(viewport_size.width - px(SCRIBE_SIDEBAR_WIDTH))
+            .h(px(SCRIBE_TITLE_ROW_HEIGHT))
+            .flex_none()
+            .flex()
+            .child(div().flex_1().h_full().when(chrome_active, |region| {
+                region.window_control_area(WindowControlArea::Drag)
+            }))
+            .child(div().w(px(138.0)).h_full().flex_none());
+        let content = if inline_details && has_selected_local {
+            render_local_details_page(
+                selected_local.clone().expect("checked above"),
+                selected_details.clone(),
+                selected_category.clone(),
+                self.model.clone(),
+                self.modal_focus.clone(),
+            )
+        } else if inline_details && selected_details.is_some() {
+            render_remote_details_page(
+                selected_details.clone().expect("checked above"),
+                selected_category.clone(),
+                self.model.clone(),
+                self.modal_focus.clone(),
+            )
+        } else if inline_details {
+            render_details_page_skeleton(self.model.clone(), self.modal_focus.clone())
+        } else {
+            match page {
+                Page::Installed => self.render_installed(&query, false, cx),
+                Page::Updates => self.render_installed(&query, true, cx),
+                Page::FindMore => self.render_catalog(&query, cx),
+                Page::Settings => self.render_settings_page(cx),
+            }
         };
         let page_content_max_width = if page == Page::Settings {
             SCRIBE_SETTINGS_MAX_WIDTH
@@ -2240,7 +3025,7 @@ impl Render for ScribeWindow {
                     .flex()
                     .flex_col()
                     .bg(gpui::rgba(SCRIBE_WINDOW_TINT_RGBA))
-                    .child(div().flex_none().overflow_x_hidden().child(title_bar))
+                    .child(title_strip)
                     .child(
                         div()
                             .min_h_0()
@@ -2249,18 +3034,6 @@ impl Render for ScribeWindow {
                             .flex_col()
                             .child(page_header)
                             .when_some(filter_row, |column, row| column.child(row))
-                            .when_some(notice, |column, notice| {
-                                column.child(
-                                    div().w_full().flex().justify_center().child(
-                                        div()
-                                            .w_full()
-                                            .max_w(px(page_content_max_width))
-                                            .px(px(SCRIBE_CONTENT_GUTTER))
-                                            .pb(px(10.0))
-                                            .child(render_status_notice(notice, &theme)),
-                                    ),
-                                )
-                            })
                             .child(page_content),
                     ),
             );
@@ -2272,6 +3045,19 @@ impl Render for ScribeWindow {
             .flex_col()
             .font_family(".Segoe UI Variable Text")
             .text_color(text_color)
+            .on_mouse_move({
+                let owner = cx.entity();
+                move |_, _, cx| {
+                    // Pointer activity hides the keyboard-browsing style until
+                    // the next arrow-key move.
+                    owner.update(cx, |view, cx| {
+                        if view.keyboard_nav {
+                            view.keyboard_nav = false;
+                            cx.notify();
+                        }
+                    });
+                }
+            })
             .on_key_down(move |event, window, cx| {
                 if event.is_held {
                     return;
@@ -2318,6 +3104,25 @@ impl Render for ScribeWindow {
                         return;
                     }
                 }
+                if event.keystroke.key == "escape" && search_focused && overlays_clear {
+                    // Escape from the page search returns focus to the list
+                    // (and dismisses the recent-searches dropdown with it).
+                    cx.stop_propagation();
+                    escape_window.update(cx, |view, cx| {
+                        window.focus(&view.focus, cx);
+                        cx.notify();
+                    });
+                    return;
+                }
+                if nav_context_free {
+                    let handled = escape_window.update(cx, |view, cx| {
+                        view.handle_list_key(event.keystroke.key.as_str(), page, window, cx)
+                    });
+                    if handled {
+                        cx.stop_propagation();
+                        return;
+                    }
+                }
                 if event.keystroke.key == "escape" {
                     escape_window.update(cx, |view, cx| {
                         if view.category_palette_open {
@@ -2328,10 +3133,9 @@ impl Render for ScribeWindow {
                     });
                     escape_model.update(cx, |app, cx| {
                         if app.lightbox_index.take().is_none() {
-                            app.selected_details = None;
-                            app.selected_local = None;
                             app.pending_uninstall.clear();
                             app.pending_rebuild = false;
+                            clear_details_overlay(app);
                         }
                         cx.notify();
                     });
@@ -2358,13 +3162,22 @@ impl Render for ScribeWindow {
                 }
             })
             .child(body)
-            .child(scribe_window_controls(is_maximized))
+            .child(scribe_window_controls(is_maximized, chrome_active))
             .when_some(category_picker, |root, picker| root.child(picker))
+            .when_some(recent_dropdown, |root, dropdown| root.child(dropdown))
             .when_some(task_activity, |root, activity| root.child(activity))
+            .when(!self.toasts.is_empty(), |root| {
+                let bottom_offset = if task_activity_present {
+                    SCRIBE_CONTENT_GUTTER + 44.0
+                } else {
+                    SCRIBE_CONTENT_GUTTER
+                };
+                root.child(render_toasts(&self.toasts, bottom_offset, cx.entity()))
+            })
             .when_some(context_menu, |root, (menu, position)| {
                 root.child(render_context_menu_overlay(menu, position, viewport_size))
             })
-            .when_some(selected_local, |root, local| {
+            .when_some(selected_local.filter(|_| !inline_details), |root, local| {
                 root.child(render_local_details_modal(
                     local,
                     selected_details.clone(),
@@ -2373,14 +3186,29 @@ impl Render for ScribeWindow {
                     self.modal_focus.clone(),
                 ))
             })
-            .when(!has_selected_local && selected_details.is_some(), |root| {
-                root.child(render_details_modal(
-                    selected_details.clone().expect("checked above"),
-                    selected_category.clone(),
-                    self.model.clone(),
-                    self.modal_focus.clone(),
-                ))
-            })
+            .when(
+                !inline_details && !has_selected_local && selected_details.is_some(),
+                |root| {
+                    root.child(render_details_modal(
+                        selected_details.clone().expect("checked above"),
+                        selected_category.clone(),
+                        self.model.clone(),
+                        self.modal_focus.clone(),
+                    ))
+                },
+            )
+            .when(
+                !inline_details
+                    && !has_selected_local
+                    && selected_details.is_none()
+                    && details_loading,
+                |root| {
+                    root.child(render_details_skeleton(
+                        self.model.clone(),
+                        self.modal_focus.clone(),
+                    ))
+                },
+            )
             .when(!pending_uninstall.is_empty(), |root| {
                 root.child(render_uninstall_modal(
                     pending_uninstall.clone(),

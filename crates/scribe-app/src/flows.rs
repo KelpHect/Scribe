@@ -139,6 +139,7 @@ pub(crate) fn load_remote_details(
         return;
     };
     model.update(cx, |app, cx| {
+        app.details_loading = true;
         app.status = format!("Loading details for {}…", remote.ui_name);
         cx.notify();
     });
@@ -153,6 +154,7 @@ pub(crate) fn load_remote_details(
                     details.addon = remote.clone();
                 }
                 model.update(cx, |app, cx| {
+                    app.details_loading = false;
                     if app.page != expected_page {
                         if app.status.starts_with("Loading details for ") {
                             app.status.clear();
@@ -171,6 +173,7 @@ pub(crate) fn load_remote_details(
             }
             Err(error) => {
                 model.update(cx, |app, cx| {
+                    app.details_loading = false;
                     if app.page != expected_page {
                         if app.status.starts_with("Loading details for ") {
                             app.status.clear();
@@ -371,6 +374,43 @@ pub(crate) fn set_app_theme(_theme: &str, model: Entity<AppModel>, cx: &mut App)
         .detach();
 }
 
+pub(crate) fn set_background_alerts(enabled: bool, model: Entity<AppModel>, cx: &mut App) {
+    let settings = model.update(cx, |app, cx| {
+        app.settings.background_alerts = enabled;
+        app.status = if enabled {
+            "Background update alerts enabled.".into()
+        } else {
+            "Background update alerts disabled.".into()
+        };
+        cx.notify();
+        app.settings.clone()
+    });
+    cx.background_executor()
+        .spawn(async move {
+            if let Ok(manager) = SettingsManager::new() {
+                let _ = manager.save(&settings);
+            }
+        })
+        .detach();
+}
+
+/// Records a committed Find More query in the recent-searches list (distinct,
+/// most-recent-first, capped at 8) and persists it in the background.
+pub(crate) fn commit_recent_search(query: &str, model: Entity<AppModel>, cx: &mut App) {
+    let settings = model.update(cx, |app, cx| {
+        crate::model::push_recent_search(&mut app.settings.recent_searches, query);
+        cx.notify();
+        app.settings.clone()
+    });
+    cx.background_executor()
+        .spawn(async move {
+            if let Ok(manager) = SettingsManager::new() {
+                let _ = manager.save(&settings);
+            }
+        })
+        .detach();
+}
+
 pub(crate) fn browse_for_addons(model: Entity<AppModel>, window: &mut Window, cx: &mut App) {
     let receiver = cx.prompt_for_paths(PathPromptOptions {
         files: false,
@@ -428,7 +468,14 @@ pub(crate) fn browse_for_addons(model: Entity<AppModel>, window: &mut Window, cx
         .detach();
 }
 
-pub(crate) fn refresh_catalog(model: Entity<AppModel>, window: &mut Window, cx: &mut App) {
+pub(crate) fn refresh_catalog(model: Entity<AppModel>, _window: &mut Window, cx: &mut App) {
+    refresh_catalog_now(model, cx);
+}
+
+/// Windowless catalog refresh shared by the toolbar action, the periodic
+/// freshness loop, and the tray "Check for updates now" command. All network
+/// and storage I/O stays on the background executor.
+pub(crate) fn refresh_catalog_now(model: Entity<AppModel>, cx: &mut App) {
     let service = model.read(cx).catalog_service.clone();
     let Some(service) = service else {
         model.update(cx, |app, cx| {
@@ -445,31 +492,36 @@ pub(crate) fn refresh_catalog(model: Entity<AppModel>, window: &mut Window, cx: 
     let refresh = cx
         .background_executor()
         .spawn(async move { service.refresh(&CancellationToken::default()).await });
-    window
-        .spawn(cx, async move |cx| match refresh.await {
+    model.update(cx, |_, cx| {
+        cx.spawn(async move |model, cx| match refresh.await {
             Ok((catalog, outcome)) => {
-                model.update(cx, |app, cx| {
-                    replace_catalog_state(app, catalog);
-                    app.health.catalog_issue = None;
-                    app.health.last_catalog_success = Some(unix_now());
-                    app.status = format!("ESOUI catalog refreshed ({outcome:?}).");
-                    cx.notify();
-                });
+                model
+                    .update(cx, |app, cx| {
+                        replace_catalog_state(app, catalog);
+                        app.health.catalog_issue = None;
+                        app.health.last_catalog_success = Some(unix_now());
+                        app.status = format!("ESOUI catalog refreshed ({outcome:?}).");
+                        cx.notify();
+                    })
+                    .ok();
             }
             Err(error) => {
-                model.update(cx, |app, cx| {
-                    app.health.catalog_issue = Some(error.to_string());
-                    let fallback = if app.catalog_index.is_empty() {
-                        "No saved catalog is available in this profile."
-                    } else {
-                        "The saved catalog remains available."
-                    };
-                    app.status = format!("ESOUI refresh failed: {error}. {fallback}");
-                    cx.notify();
-                });
+                model
+                    .update(cx, |app, cx| {
+                        app.health.catalog_issue = Some(error.to_string());
+                        let fallback = if app.catalog_index.is_empty() {
+                            "No saved catalog is available in this profile."
+                        } else {
+                            "The saved catalog remains available."
+                        };
+                        app.status = format!("ESOUI refresh failed: {error}. {fallback}");
+                        cx.notify();
+                    })
+                    .ok();
             }
         })
         .detach();
+    });
 }
 
 pub(crate) fn rescan_configured_addons(model: Entity<AppModel>, window: &mut Window, cx: &mut App) {

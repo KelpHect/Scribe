@@ -5887,13 +5887,14 @@ dependencies = [
 
 [[package]]
 name = "scribe-app"
-version = "1.0.7"
+version = "1.0.8"
 dependencies = [
  "gpui",
  "gpui-component",
  "gpui-component-assets",
  "gpui_platform",
  "http_client",
+ "raw-window-handle",
  "reqwest_client",
  "scribe-core",
  "windows-sys 0.61.2",
@@ -5902,7 +5903,7 @@ dependencies = [
 
 [[package]]
 name = "scribe-core"
-version = "1.0.7"
+version = "1.0.8"
 dependencies = [
  "async-executor",
  "async-io",

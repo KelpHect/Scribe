@@ -13,6 +13,7 @@ gpui-component.workspace = true
 gpui-component-assets.workspace = true
 gpui_platform.workspace = true
 http_client.workspace = true
+raw-window-handle = "0.6"
 reqwest_client.workspace = true
 scribe-core = { path = "../scribe-core" }
 windows-sys.workspace = true

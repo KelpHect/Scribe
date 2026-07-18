@@ -20,7 +20,7 @@ use gpui_component::{
     select::{SearchableVec, SelectItem, SelectState},
 };
 
-use crate::model::{NoticeTone, StatusNotice};
+use crate::model::NoticeTone;
 use crate::theme::*;
 use crate::unix_now;
 use crate::window::ScribeWindow;
@@ -1158,6 +1158,10 @@ impl RenderOnce for Modal {
                     )
                     .children(self.child),
             );
+        // Fade + 6px settle: the pinned GPUI has no transform scale for divs,
+        // so the entrance approximates scale-in with opacity and a small
+        // upward settle. with_animation renders statically under reduced
+        // motion, matching the manual branch above.
         if cx.reduce_motion() {
             backdrop.into_any_element()
         } else {
@@ -1165,11 +1169,161 @@ impl RenderOnce for Modal {
                 .with_animation(
                     "modal-enter",
                     Animation::new(Duration::from_millis(SCRIBE_MOTION_FAST_MS)),
-                    |overlay, delta| overlay.opacity(0.86 + delta * 0.14),
+                    |overlay, delta| {
+                        overlay
+                            .opacity(0.86 + delta * 0.14)
+                            .pt(px(6.0 * (1.0 - delta)))
+                    },
                 )
                 .into_any_element()
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Skeleton loading placeholders
+// ---------------------------------------------------------------------------
+
+/// One shimmering block of skeleton chrome. `with_animation` already honors
+/// the global reduced-motion flag (repeating animations render statically at
+/// their start state), so no manual branch is needed here.
+pub(crate) fn skeleton_block(width: f32, height: f32, radius: f32) -> gpui::AnyElement {
+    div()
+        .w(px(width))
+        .h(px(height))
+        .rounded(px(radius))
+        .bg(gpui::rgba(SCRIBE_SURFACE_ACTIVE_RGBA))
+        .with_animation(
+            "skeleton-pulse",
+            Animation::new(Duration::from_millis(1200))
+                .repeat()
+                .with_easing(|delta| (delta * std::f32::consts::TAU).sin() * 0.5 + 0.5),
+            |block, delta| block.opacity(0.35 + 0.65 * delta),
+        )
+        .into_any_element()
+}
+
+/// Skeleton twin of `catalog_row` (same 72px pitch, same card padding).
+pub(crate) fn skeleton_row_catalog() -> gpui::AnyElement {
+    div()
+        .h(px(72.0))
+        .w_full()
+        .pb(px(8.0))
+        .debug_selector(|| "skeleton-row".into())
+        .child(
+            div()
+                .h_full()
+                .w_full()
+                .pl(px(10.0))
+                .pr(px(12.0))
+                .rounded(px(SCRIBE_CARD_RADIUS))
+                .border_1()
+                .border_color(gpui::rgba(SCRIBE_HAIRLINE_RGBA))
+                .bg(gpui::rgba(SCRIBE_SURFACE_RGBA))
+                .flex()
+                .items_center()
+                .gap(px(12.0))
+                .child(skeleton_block(44.0, 44.0, 10.0))
+                .child(
+                    div()
+                        .flex_1()
+                        .flex()
+                        .flex_col()
+                        .gap(px(6.0))
+                        .child(skeleton_block(180.0, 12.0, 4.0))
+                        .child(skeleton_block(120.0, 10.0, 4.0)),
+                )
+                .child(skeleton_block(88.0, 32.0, 16.0)),
+        )
+        .into_any_element()
+}
+
+/// Skeleton twin of an installed category group card (header + flat rows).
+pub(crate) fn skeleton_group() -> gpui::AnyElement {
+    div()
+        .w_full()
+        .mb(px(16.0))
+        .rounded(px(SCRIBE_CARD_RADIUS))
+        .border_1()
+        .border_color(gpui::rgba(SCRIBE_HAIRLINE_RGBA))
+        .bg(gpui::rgba(SCRIBE_SURFACE_RGBA))
+        .overflow_hidden()
+        .debug_selector(|| "skeleton-group".into())
+        .child(
+            div()
+                .h(px(40.0))
+                .px(px(12.0))
+                .border_b_1()
+                .border_color(gpui::rgba(SCRIBE_HAIRLINE_RGBA))
+                .flex()
+                .items_center()
+                .gap(px(9.0))
+                .child(skeleton_block(20.0, 20.0, 6.0))
+                .child(skeleton_block(140.0, 12.0, 4.0)),
+        )
+        .children((0..3).map(|_| {
+            div()
+                .h(px(56.0))
+                .pl(px(10.0))
+                .pr(px(12.0))
+                .border_b_1()
+                .border_color(gpui::rgba(SCRIBE_HAIRLINE_RGBA))
+                .flex()
+                .items_center()
+                .gap(px(12.0))
+                .child(skeleton_block(40.0, 40.0, 10.0))
+                .child(
+                    div()
+                        .flex_1()
+                        .flex()
+                        .flex_col()
+                        .gap(px(5.0))
+                        .child(skeleton_block(160.0, 11.0, 4.0))
+                        .child(skeleton_block(110.0, 10.0, 4.0)),
+                )
+                .into_any_element()
+        }))
+        .into_any_element()
+}
+
+/// Skeleton body for the addon dossier sheet while details are loading.
+pub(crate) fn skeleton_details_body() -> gpui::AnyElement {
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(18.0))
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(13.0))
+                .child(skeleton_block(56.0, 56.0, 12.0))
+                .child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap(px(6.0))
+                        .child(skeleton_block(220.0, 15.0, 5.0))
+                        .child(skeleton_block(280.0, 11.0, 4.0))
+                        .child(skeleton_block(180.0, 11.0, 4.0)),
+                ),
+        )
+        .child(div().flex().gap(px(10.0)).children((0..4).map(|_| {
+            div()
+                .flex_1()
+                .child(skeleton_block(150.0, 142.0, 8.0))
+                .into_any_element()
+        })))
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(8.0))
+                .child(skeleton_block(560.0, 12.0, 4.0))
+                .child(skeleton_block(480.0, 12.0, 4.0))
+                .child(skeleton_block(520.0, 12.0, 4.0)),
+        )
+        .into_any_element()
 }
 
 pub(crate) fn empty_state(
@@ -1458,7 +1612,12 @@ pub(crate) fn addon_artwork(
                                 failed_title.clone(),
                                 extent,
                             )
-                        }),
+                        })
+                        .with_animation(
+                            "artwork-fade",
+                            Animation::new(Duration::from_millis(SCRIBE_MOTION_FAST_MS)),
+                            |image, delta| image.opacity(delta),
+                        ),
                 )
                 .into_any_element()
         }
@@ -1526,7 +1685,12 @@ pub(crate) fn category_artwork(
                     .size_full()
                     .object_fit(ObjectFit::Cover)
                     .with_loading(move || category_placeholder(&loading_title, extent))
-                    .with_fallback(move || category_placeholder(&failed_title, extent)),
+                    .with_fallback(move || category_placeholder(&failed_title, extent))
+                    .with_animation(
+                        "artwork-fade",
+                        Animation::new(Duration::from_millis(SCRIBE_MOTION_FAST_MS)),
+                        |image, delta| image.opacity(delta),
+                    ),
             )
             .into_any_element(),
         _ => frame
@@ -1596,56 +1760,6 @@ pub(crate) fn notice_visuals(tone: NoticeTone, theme: &Theme) -> (gpui::Hsla, Ic
         NoticeTone::Warning => (theme.warning, IconName::TriangleAlert),
         NoticeTone::Danger => (theme.danger, IconName::TriangleAlert),
     }
-}
-
-pub(crate) fn render_status_notice(notice: StatusNotice, theme: &Theme) -> gpui::AnyElement {
-    let (color, icon) = notice_visuals(notice.tone, theme);
-    let label = format!("{}. {}", notice.title, notice.message);
-    let live = if notice.tone == NoticeTone::Danger {
-        gpui::accesskit::Live::Assertive
-    } else {
-        gpui::accesskit::Live::Polite
-    };
-    let notice = div()
-        .id("status-notice")
-        .debug_selector(|| "status-notice".to_owned())
-        .role(if notice.tone == NoticeTone::Danger {
-            Role::Alert
-        } else {
-            Role::Status
-        })
-        .aria_label(label)
-        .min_h(px(40.0))
-        .px(px(14.0))
-        .py(px(7.0))
-        .flex()
-        .items_center()
-        .gap(px(9.0))
-        .rounded(px(10.0))
-        .border_1()
-        .border_color(color.opacity(0.32))
-        .bg(color.opacity(0.09))
-        .text_color(color)
-        .child(Icon::new(icon).size(px(16.0)).flex_none())
-        .child(
-            div()
-                .min_w_0()
-                .flex_1()
-                .flex()
-                .flex_col()
-                .gap(px(1.0))
-                .text_size(px(12.0))
-                .child(div().font_semibold().child(notice.title))
-                .child(
-                    div()
-                        .min_w_0()
-                        .line_clamp(2)
-                        .text_ellipsis()
-                        .opacity(0.88)
-                        .child(notice.message),
-                ),
-        );
-    LiveRegion::new(notice, live).into_any_element()
 }
 
 pub(crate) fn render_inline_notice(

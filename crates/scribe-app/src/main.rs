@@ -7,6 +7,7 @@ mod model;
 mod overlays;
 mod rows;
 mod theme;
+mod tray;
 mod window;
 
 #[cfg(test)]

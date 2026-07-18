@@ -4,7 +4,8 @@ use std::rc::Rc;
 use gpui::prelude::*;
 use gpui::{Bounds, Entity, FocusHandle, MouseButton, Role, SharedString, div, px};
 use gpui_component::{
-    ElementExt as _, IconName, Sizable as _, Size, StyledExt as _, checkbox::Checkbox,
+    Disableable as _, ElementExt as _, IconName, Sizable as _, Size, StyledExt as _,
+    checkbox::Checkbox,
 };
 use scribe_core::{Addon, Category, MatchedAddon, RemoteAddon};
 
@@ -18,17 +19,28 @@ use crate::overlays::{
     open_installed_context_menu,
 };
 use crate::theme::*;
-use crate::window::ScribeWindow;
+use crate::window::{ScribeWindow, toggle_catalog_selection};
+
+/// Per-row presentation state for keyboard browsing and context focus.
+#[derive(Clone)]
+pub(crate) struct RowChrome {
+    pub(crate) keyboard_active: bool,
+    pub(crate) context_focus: Option<FocusHandle>,
+}
 
 pub(crate) fn matched_row(
     addon: Addon,
     decision: MatchedAddon,
     category: Option<Category>,
     selected: Option<bool>,
-    context_focus: Option<FocusHandle>,
+    chrome: RowChrome,
     selection_owner: Entity<ScribeWindow>,
     model: Entity<AppModel>,
 ) -> gpui::AnyElement {
+    let RowChrome {
+        keyboard_active,
+        context_focus,
+    } = chrome;
     let thumbnail = decision
         .remote
         .as_ref()
@@ -87,7 +99,13 @@ pub(crate) fn matched_row(
     div()
         .id(SharedString::from(format!("installed-addon-{row_id}")))
         .when_some(context_focus, |row, focus| row.track_focus(&focus))
-        .debug_selector(|| "installed-row".into())
+        .debug_selector(move || {
+            if keyboard_active {
+                "keyboard-active".into()
+            } else {
+                "installed-row".into()
+            }
+        })
         .focusable()
         .tab_stop(true)
         .role(Role::Button)
@@ -103,8 +121,15 @@ pub(crate) fn matched_row(
         .items_center()
         .justify_start()
         .gap(px(12.0))
-        .hover(|row| row.bg(gpui::rgba(SCRIBE_SURFACE_HOVER_RGBA)))
+        .hover(|row| {
+            row.bg(gpui::rgba(SCRIBE_SURFACE_HOVER_RGBA))
+                .border_color(gpui::rgba(SCRIBE_HOVER_BORDER_RGBA))
+        })
         .focus(|row| row.border_color(gpui::rgba(SCRIBE_FOCUS_RING_RGBA)))
+        .when(keyboard_active, |row| {
+            row.bg(gpui::rgba(SCRIBE_SURFACE_HOVER_RGBA))
+                .border_color(gpui::rgb(SCRIBE_PRIMARY))
+        })
         .on_prepaint(move |bounds, _, _| paint_bounds.set(bounds))
         .on_mouse_down(MouseButton::Right, move |event, window, cx| {
             cx.stop_propagation();
@@ -276,10 +301,16 @@ pub(crate) fn matched_row(
 pub(crate) fn catalog_row(
     addon: RemoteAddon,
     category: Option<Category>,
-    context_focus: Option<FocusHandle>,
+    selected: Option<bool>,
+    selectable: bool,
+    chrome: RowChrome,
     owner: Entity<ScribeWindow>,
     model: Entity<AppModel>,
 ) -> gpui::AnyElement {
+    let RowChrome {
+        keyboard_active,
+        context_focus,
+    } = chrome;
     let title = addon.ui_name.clone();
     let author = addon.ui_author_name.clone();
     let version = addon.ui_version.clone();
@@ -306,6 +337,7 @@ pub(crate) fn catalog_row(
     } else {
         format!("{author} · {version_label}")
     };
+    let selection_mode = selected.is_some();
     let row_remote = addon.clone();
     let keyboard_remote = addon.clone();
     let details_model = model.clone();
@@ -316,12 +348,18 @@ pub(crate) fn catalog_row(
     let pointer_context_key = format!("catalog:{}", addon.uid);
     let pointer_menu_model = model.clone();
     let keyboard_menu_addon = addon.clone();
-    let keyboard_menu_owner = owner;
+    let keyboard_menu_owner = owner.clone();
     let keyboard_context_key = pointer_context_key.clone();
     let keyboard_menu_model = model.clone();
     let row_bounds = Rc::new(Cell::new(Bounds::default()));
     let paint_bounds = row_bounds.clone();
     let keyboard_bounds = row_bounds.clone();
+    let pointer_toggle_uid = addon.uid.to_string();
+    let keyboard_toggle_uid = pointer_toggle_uid.clone();
+    let checkbox_uid = pointer_toggle_uid.clone();
+    let pointer_toggle_owner = owner.clone();
+    let keyboard_toggle_owner = owner.clone();
+    let checkbox_owner = owner;
     div()
         .h(px(72.0))
         .w_full()
@@ -330,11 +368,25 @@ pub(crate) fn catalog_row(
             div()
                 .id(SharedString::from(format!("catalog-addon-{uid}")))
                 .when_some(context_focus, |row, focus| row.track_focus(&focus))
-                .debug_selector(|| "catalog-row".into())
+                .debug_selector(move || {
+                    if keyboard_active {
+                        "keyboard-active".into()
+                    } else {
+                        "catalog-row".into()
+                    }
+                })
                 .focusable()
                 .tab_stop(true)
                 .role(Role::Button)
-                .aria_label(format!("Open details for {title}"))
+                .aria_label(if selection_mode {
+                    if selectable {
+                        format!("Select {title}")
+                    } else {
+                        format!("{title} is already installed or queued")
+                    }
+                } else {
+                    format!("Open details for {title}")
+                })
                 .cursor_pointer()
                 .h_full()
                 .w_full()
@@ -348,8 +400,15 @@ pub(crate) fn catalog_row(
                 .items_center()
                 .justify_start()
                 .gap(px(12.0))
-                .hover(|row| row.bg(gpui::rgba(SCRIBE_SURFACE_HOVER_RGBA)))
+                .hover(|row| {
+                    row.bg(gpui::rgba(SCRIBE_SURFACE_HOVER_RGBA))
+                        .border_color(gpui::rgba(SCRIBE_HOVER_BORDER_RGBA))
+                })
                 .focus(|row| row.border_color(gpui::rgba(SCRIBE_FOCUS_RING_RGBA)))
+                .when(keyboard_active, |row| {
+                    row.bg(gpui::rgba(SCRIBE_SURFACE_HOVER_RGBA))
+                        .border_color(gpui::rgb(SCRIBE_PRIMARY))
+                })
                 .on_prepaint(move |bounds, _, _| paint_bounds.set(bounds))
                 .on_mouse_down(MouseButton::Right, move |event, window, cx| {
                     cx.stop_propagation();
@@ -369,7 +428,20 @@ pub(crate) fn catalog_row(
                     );
                 })
                 .on_click(move |_, window, cx| {
-                    show_addon_details(row_remote.clone(), details_model.clone(), window, cx);
+                    if selection_mode {
+                        if selectable {
+                            pointer_toggle_owner.update(cx, |view, cx| {
+                                toggle_catalog_selection(
+                                    &mut view.selected_catalog_uids,
+                                    &pointer_toggle_uid,
+                                    selectable,
+                                );
+                                cx.notify();
+                            });
+                        }
+                    } else {
+                        show_addon_details(row_remote.clone(), details_model.clone(), window, cx);
+                    }
                 })
                 .on_key_down(move |event, window, cx| {
                     if event.is_held {
@@ -377,12 +449,25 @@ pub(crate) fn catalog_row(
                     }
                     if matches!(event.keystroke.key.as_str(), "enter" | "space") {
                         cx.stop_propagation();
-                        show_addon_details(
-                            keyboard_remote.clone(),
-                            keyboard_model.clone(),
-                            window,
-                            cx,
-                        );
+                        if selection_mode {
+                            if selectable {
+                                keyboard_toggle_owner.update(cx, |view, cx| {
+                                    toggle_catalog_selection(
+                                        &mut view.selected_catalog_uids,
+                                        &keyboard_toggle_uid,
+                                        selectable,
+                                    );
+                                    cx.notify();
+                                });
+                            }
+                        } else {
+                            show_addon_details(
+                                keyboard_remote.clone(),
+                                keyboard_model.clone(),
+                                window,
+                                cx,
+                            );
+                        }
                     } else if context_menu_key(event) {
                         cx.stop_propagation();
                         let invocation = claim_context_invoker(
@@ -400,6 +485,30 @@ pub(crate) fn catalog_row(
                             cx,
                         );
                     }
+                })
+                .when_some(selected, |row, checked| {
+                    row.child(
+                        Checkbox::new(format!("catalog-select-{checkbox_uid}"))
+                            .small()
+                            .aria_label(if selectable {
+                                format!("Select {title}")
+                            } else {
+                                format!("{title} is already installed or queued")
+                            })
+                            .disabled(!selectable)
+                            .checked(checked)
+                            .on_click(move |checked, _, cx| {
+                                cx.stop_propagation();
+                                checkbox_owner.update(cx, |view, cx| {
+                                    if *checked {
+                                        view.selected_catalog_uids.insert(checkbox_uid.clone());
+                                    } else {
+                                        view.selected_catalog_uids.remove(&checkbox_uid);
+                                    }
+                                    cx.notify();
+                                });
+                            }),
+                    )
                 })
                 .child(addon_artwork(
                     thumbnail,
